@@ -1,0 +1,21 @@
+# Python virtualenv
+jcj-ai/
+backend/jcj-ai/
+.venv/
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+
+# Env
+.env
+
+# Docker
+*.log
+
+# OS
+.DS_Store
