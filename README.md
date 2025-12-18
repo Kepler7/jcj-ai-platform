@@ -1,0 +1,216 @@
+# JCJ AI Platform
+
+Educational platform with AI-assisted insights to support teachers and families, starting with a **Pre-K 2 (ages 5–8) pilot focused on neurodiversity**.
+
+This repository contains a **monorepo** with:
+
+* **Backend**: FastAPI (Python)
+* **Frontend**: React (Vite)
+* **Infrastructure**: Docker Compose (local development)
+
+The system is designed as a **modular monolith**, intentionally structured to allow an easy future migration to microservices and Kubernetes.
+
+---
+
+## 🎯 Project Goals
+
+* Help teachers create structured educational reports quickly.
+* Use AI to generate **educational support strategies** (not diagnoses).
+* Deliver clear, practical guidance to families.
+* Keep humans in control: AI assists, teachers approve.
+
+> ⚠️ This platform **does not diagnose**, **does not use clinical labels**, and **does not make autonomous decisions**. It is an educational support tool.
+
+---
+
+## 🧱 Tech Stack
+
+### Backend
+
+* **FastAPI** – API and application core
+* **Python 3.11**
+* **PostgreSQL** – structured data (students, reports, users)
+* **Redis** – background jobs and caching
+* **ChromaDB** – vector store for educational playbooks and context
+* **Agno** – AI agent orchestration (reasoning with guardrails)
+
+### Frontend
+
+* **React + JavaScript(Typescript in the future)** (Vite)
+* Web UI for teachers and administrators
+* Parent view via secure link (no login required)
+
+### Infrastructure
+
+* **Docker & Docker Compose** – local development and reproducibility
+
+---
+
+## 📁 Repository Structure
+
+```
+jcj-ai-platform/
+  backend/          # FastAPI backend
+  frontend/         # React frontend
+  infra/            # Infra-related docs/scripts
+  docker-compose.yml
+  .env.example
+  README.md
+```
+
+---
+
+## 🚀 Getting Started (Local Development)
+
+### Prerequisites
+
+* **Docker Desktop** installed and running
+* **Git**
+
+> You do NOT need Python or Node installed locally. Docker handles everything.
+
+---
+
+### 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/YOUR_ORG_OR_USER/jcj-ai-platform.git
+cd jcj-ai-platform
+```
+
+---
+
+### 2️⃣ Environment Variables
+
+Create a local `.env` file from the example:
+
+```bash
+cp .env.example .env
+```
+
+You normally do not need to change values for local development.
+
+> ⚠️ Never commit `.env` to GitHub.
+
+---
+
+### 3️⃣ Build and Run with Docker
+
+From the project root:
+
+```bash
+docker compose up --build
+```
+
+This will start:
+
+* Backend (FastAPI)
+* Frontend (React)
+* PostgreSQL
+* Redis
+* ChromaDB
+
+---
+
+### 4️⃣ Verify Services
+
+#### Backend healthcheck
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status": "ok"}
+```
+
+#### Backend dependencies healthcheck
+
+```bash
+curl http://localhost:8000/health/deps
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "deps": {
+    "postgres": {"ok": true, "error": null},
+    "redis": {"ok": true, "error": null}
+  }
+}
+```
+
+#### Frontend
+
+Open in browser:
+
+```
+http://localhost:5173
+```
+
+---
+
+## 🔐 Security & Ethics
+
+* No clinical diagnoses
+* No medical recommendations
+* No autonomous decisions
+* Teachers always review and approve content
+* Parents access reports via **secure, expiring links**
+
+This design protects:
+
+* children
+* families
+* educators
+* the organization
+
+---
+
+## 🧪 Development Notes
+
+* The backend is a **modular monolith** (auth, students, reports, AI, messaging).
+* Internal boundaries are defined using contracts and events.
+* This allows future extraction into microservices with minimal refactoring.
+
+---
+
+## 📦 What Is NOT Tracked in Git
+
+The following are intentionally ignored:
+
+* Python virtual environments (`.venv`, `jcj-ai/`)
+* `node_modules/`
+* `.env`
+* OS and editor files
+
+See `.gitignore` for details.
+
+---
+
+## 🛣️ Roadmap (High Level)
+
+* ✅ Local dev environment (Docker)
+* 🔄 Teacher authentication
+* 🔄 Student and report management
+* 🔄 AI-generated educational support
+* 🔄 Secure parent sharing (WhatsApp link)
+* ⏭️ Pilot deployment (DigitalOcean)
+* ⏭️ Feedback loop and iteration
+
+---
+
+## 👥 Contributors
+
+* **Kepler Hiram Velasco Guzmán** – CTO
+* JCJ Neuroeducativo Team
+
+---
+
+## 📄 License
+
+Private – JCJ Neuroeducativo
