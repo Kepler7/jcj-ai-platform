@@ -36,7 +36,7 @@ The system is designed as a **modular monolith**, intentionally structured to al
 
 ### Frontend
 
-* **React + JavaScript(Typescript in the future)** (Vite)
+* **React + TypeScript** (Vite)
 * Web UI for teachers and administrators
 * Parent view via secure link (no login required)
 
@@ -204,13 +204,65 @@ See `.gitignore` for details.
 
 ---
 
+## 🌿 Git Workflow (IMPORTANT)
+
+To keep the codebase stable and avoid breaking the main branch, **direct pushes to `main` are not allowed**.
+
+### Rules
+
+* ❌ **Never push directly to `main`**
+* ✅ Always create a new branch for your work
+* ✅ Push your branch to GitHub
+* ✅ Open a **Pull Request (PR)** into `main`
+* ✅ A PR **must be approved by the CTO** (for now) before merging
+
+### Recommended Branch Naming
+
+```
+feature/<short-description>
+fix/<short-description>
+chore/<short-description>
+```
+
+Example:
+
+```
+feature/auth-login
+```
+
+### Basic Workflow
+
+```bash
+# Create a new branch
+git checkout -b feature/your-feature-name
+
+# Work and commit
+git add .
+git commit -m "feat: short clear description"
+
+# Push branch
+git push origin feature/your-feature-name
+```
+
+Then open a Pull Request on GitHub and request approval from the **CTO**.
+
+---
+
 ## 👥 Contributors
 
 * **Kepler Hiram Velasco Guzmán** – CTO
+* **Jefte Velasco Solano** – Software Developer
 * JCJ Neuroeducativo Team
 
 ---
 
 ## 📄 License
 
+Private – JCJ Neuroeducativo Team
+
+---
+
+## 📄 License
+
 Private – JCJ Neuroeducativo
+
