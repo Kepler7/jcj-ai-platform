@@ -112,6 +112,47 @@ This will start:
 
 ---
 
+## 🌍 Environment Configuration
+
+This project is configured **entirely through environment variables**.  
+You should be able to switch between `dev`, `staging`, and `prod` **without changing code**.
+
+### ENV Modes
+
+Set `ENV` in your `.env` file:
+
+- `ENV=dev` → Local development (default)
+- `ENV=staging` → Pre-production testing (future)
+- `ENV=prod` → Production (future)
+
+### Required Variables
+
+These variables are required for the backend:
+
+- `ENV`  
+  Controls runtime mode (`dev | staging | prod`)
+
+- `LOG_LEVEL`  
+  Logging verbosity (recommended: `INFO` for dev, `WARNING` for prod)
+
+- `DATABASE_URL`  
+  PostgreSQL connection string
+
+- `REDIS_URL`  
+  Redis connection string (queues/background jobs)
+
+- `CHROMA_URL`  
+  ChromaDB endpoint URL
+
+Example (local dev):
+```env
+ENV=dev
+LOG_LEVEL=INFO
+DATABASE_URL=postgresql+psycopg://jcj:jcjpassword@postgres:5432/jcjdb
+REDIS_URL=redis://redis:6379/0
+CHROMA_URL=http://chroma:8000
+
+
 ### 4️⃣ Verify Services
 
 #### Backend healthcheck
