@@ -4,6 +4,10 @@ from fastapi.responses import JSONResponse
 from .db import ping_db
 from .cache import ping_redis
 
+from .logging_config import configure_logging
+configure_logging()
+
+
 app = FastAPI(title="JCJ AI Platform")
 
 @app.get("/health")
