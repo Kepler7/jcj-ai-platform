@@ -1,15 +1,22 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from .db import ping_db
+from app.db.db import ping_db
 from .cache import ping_redis
 
 from .logging_config import configure_logging
+
+# 1️⃣ Configura logging (antes de levantar la app)
 configure_logging()
 
-
+# 2️⃣ Crea la app
 app = FastAPI(title="JCJ AI Platform")
 
+# 3️⃣ Routers
+from app.api.v1.schools import router as schools_router
+app.include_router(schools_router)
+
+# 4️⃣ Health checks
 @app.get("/health")
 def health():
     return {"status": "ok"}
