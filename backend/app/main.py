@@ -14,7 +14,10 @@ app = FastAPI(title="JCJ AI Platform")
 
 # 3️⃣ Routers
 from app.api.v1.schools import router as schools_router
+from app.api.v1.auth import router as auth_router
 app.include_router(schools_router)
+app.include_router(auth_router)
+
 
 # 4️⃣ Health checks
 @app.get("/health")
