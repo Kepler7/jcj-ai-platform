@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from uuid import UUID
 from typing import Optional
 
 class SchoolCreate(BaseModel):
@@ -15,7 +16,7 @@ class SchoolUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class SchoolOut(BaseModel):
-    id: str
+    id: UUID
     name: str
     legal_name: Optional[str] = None
     city: Optional[str] = None
