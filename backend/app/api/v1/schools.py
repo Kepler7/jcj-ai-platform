@@ -5,6 +5,8 @@ from sqlalchemy import select
 from app.db.db import get_db
 from app.modules.schools.models import School
 from app.modules.schools.schemas import SchoolCreate, SchoolUpdate, SchoolOut
+from app.auth.deps import require_role
+from app.auth.roles import Role
 
 router = APIRouter(prefix="/v1/schools", tags=["schools"])
 
@@ -14,7 +16,7 @@ def require_platform_admin():
     return True
 
 @router.post("", response_model=SchoolOut, status_code=status.HTTP_201_CREATED)
-def create_school(payload: SchoolCreate, db: Session = Depends(get_db), _=Depends(require_platform_admin)):
+def create_school(payload: SchoolCreate, db: Session = Depends(get_db), _user=Depends(require_role(Role.platform_admin)),):
     school = School(**payload.model_dump())
     db.add(school)
     db.commit()
@@ -22,12 +24,12 @@ def create_school(payload: SchoolCreate, db: Session = Depends(get_db), _=Depend
     return school
 
 @router.get("", response_model=list[SchoolOut])
-def list_schools(db: Session = Depends(get_db), _=Depends(require_platform_admin)):
+def list_schools(db: Session = Depends(get_db), _user=Depends(require_role(Role.platform_admin)),):
     schools = db.execute(select(School)).scalars().all()
     return schools
 
 @router.patch("/{school_id}", response_model=SchoolOut)
-def update_school(school_id: str, payload: SchoolUpdate, db: Session = Depends(get_db), _=Depends(require_platform_admin)):
+def update_school(school_id: str, payload: SchoolUpdate, db: Session = Depends(get_db), _user=Depends(require_role(Role.platform_admin)),):
     school = db.get(School, school_id)
     if not school:
         raise HTTPException(status_code=404, detail="School not found")
