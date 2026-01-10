@@ -24,3 +24,4 @@ class AIReportOut(BaseModel):
 
 class GenerateAIReportRequest(BaseModel):
     report_id: UUID
+    force: bool = False

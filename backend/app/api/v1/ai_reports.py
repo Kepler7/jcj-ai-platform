@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import select, desc
 from uuid import UUID
 
 from app.db.db import get_db
@@ -60,9 +61,10 @@ def build_report_text(student: Student, report: StudentReport) -> str:
     return "\n".join(parts).strip()
 
 
-@router.post("/generate", response_model=AIReportOut, status_code=status.HTTP_201_CREATED)
+@router.post("/generate", response_model=AIReportOut)
 def generate_ai_report(
     payload: GenerateAIReportRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
 ):
@@ -78,6 +80,23 @@ def generate_ai_report(
 
     # 3) Permisos por escuela
     ensure_same_school(current_user, UUID(str(student.school_id)))
+
+    # Si ya existe y NO force => devolver el más reciente
+    if not payload.force:
+        existing = (
+            db.execute(
+                select(AIReport)
+                .where(AIReport.report_id == report.id)
+                .order_by(desc(AIReport.created_at))
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+        if existing:
+            # 200 OK: no se generó nada nuevo
+            response.status_code = status.HTTP_200_OK
+            return existing
 
     # 4) Armar texto de contexto
     report_text = build_report_text(student, report)
@@ -112,5 +131,6 @@ def generate_ai_report(
     db.commit()
     db.refresh(ai_row)
 
+    response.status_code = status.HTTP_201_CREATED
     return ai_row
 
