@@ -45,6 +45,12 @@ services:
       - postgres
       - redis
       - chroma
+    volumes:
+      - ./backend/app:/app/app
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
 
   frontend:
     build: ./frontend
@@ -53,6 +59,9 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
 volumes:
   postgres_data:
