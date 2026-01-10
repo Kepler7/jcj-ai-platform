@@ -1,3 +1,4 @@
+agno
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.0
@@ -23,6 +24,7 @@ fsspec==2025.12.0
 google-auth==2.45.0
 googleapis-common-protos==1.72.0
 grpcio==1.76.0
+groq
 h11==0.16.0
 hf-xet==1.2.0
 httpcore==1.0.9

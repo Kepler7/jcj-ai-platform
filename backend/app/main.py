@@ -18,13 +18,14 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.users import router as users_router
 from app.api.v1.students import router as students_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.ai_reports import router as ai_reports_router
 
 app.include_router(schools_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(students_router)
 app.include_router(reports_router)
-
+app.include_router(ai_reports_router)
 
 # 4️⃣ Health checks
 @app.get("/health")
