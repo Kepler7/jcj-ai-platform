@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 from uuid import UUID
@@ -134,3 +134,58 @@ def generate_ai_report(
     response.status_code = status.HTTP_201_CREATED
     return ai_row
 
+@router.get("", response_model=AIReportOut)
+def get_latest_ai_report(
+    report_id: UUID = Query(..., description="StudentReport ID (UUID)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
+):
+    # 1) Buscar el AI report más reciente por report_id
+    ai_report = (
+        db.execute(
+            select(AIReport)
+            .where(AIReport.report_id == report_id)
+            .order_by(desc(AIReport.created_at))
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+
+    # 2) 404 si no existe
+    if not ai_report:
+        raise HTTPException(status_code=404, detail="AIReport not found for this report_id")
+
+    # 3) 403 si es otra escuela (excepto platform_admin)
+    ensure_same_school(current_user, UUID(str(ai_report.school_id)))
+
+    return ai_report
+
+@router.get("/history", response_model=list[AIReportOut])
+def get_ai_reports_history(
+    report_id: UUID = Query(..., description="StudentReport ID (UUID)"),
+    limit: int = Query(20, ge=1, le=100, description="Max items to return"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
+):
+    # 1) Traer lista (más reciente primero)
+    rows = (
+        db.execute(
+            select(AIReport)
+            .where(AIReport.report_id == report_id)
+            .order_by(desc(AIReport.created_at))
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+
+    # 2) 404 si no hay nada
+    if not rows:
+        raise HTTPException(status_code=404, detail="No AIReports found for this report_id")
+
+    # 3) 403 si es otra escuela (excepto platform_admin)
+    # (basta validar con el primero, porque todos comparten school_id)
+    ensure_same_school(current_user, UUID(str(rows[0].school_id)))
+
+    return rows
