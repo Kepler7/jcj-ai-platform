@@ -212,6 +212,12 @@ This design protects:
 
 ---
 
+### To run script inside the container
+
+```bash
+docker compose exec backend sh -lc "PYTHONPATH=/app python
+```
+
 ## 🧪 Development Notes
 
 * The backend is a **modular monolith** (auth, students, reports, AI, messaging).
