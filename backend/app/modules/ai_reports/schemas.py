@@ -1,7 +1,7 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Optional
 
 class AIReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -24,4 +24,8 @@ class AIReportOut(BaseModel):
 
 class GenerateAIReportRequest(BaseModel):
     report_id: UUID
-    force: bool = False
+    contexts: Optional[List[str]] = Field(
+        default=None,
+        description="Lista de contextos para RAG. Ej: ['aula','casa']",
+        examples=[["aula", "casa"]],
+    )

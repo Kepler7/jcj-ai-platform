@@ -103,11 +103,12 @@ def generate_ai_report(
 
     # 5) Generar con IA (valida JSON + guardrails adentro)
     try:
-        generated, model_name = generate_support(
-            student_name=student.full_name,
+        support, model_name = generate_support(
+            student_name=student.name,
             age=student.age,
             group=student.group,
             report_text=report_text,
+            contexts=payload.contexts,   # ✅ nuevo
         )
     except ValueError as e:
         # JSON inválido, guardrails fallaron, etc.
@@ -120,9 +121,9 @@ def generate_ai_report(
         report_id=report.id,
         generated_by_user_id=current_user.id,
         model_name=model_name,
-        teacher_version=generated.teacher_version.model_dump(),
-        parent_version=generated.parent_version.model_dump(),
-        signals_detected=generated.teacher_version.signals_detected,  # fuente única
+        teacher_version=support.teacher_version.model_dump(),
+        parent_version=support.parent_version.model_dump(),
+        signals_detected=support.teacher_version.signals_detected,  # fuente única
         guardrails_passed=True,
         guardrails_notes=None,
     )

@@ -47,6 +47,8 @@ services:
       - chroma
     volumes:
       - ./backend/app:/app/app
+      - ./backend/scripts:/app/scripts
+      - ./data:/app/data
     command: >
       uvicorn app.main:app
       --host 0.0.0.0
