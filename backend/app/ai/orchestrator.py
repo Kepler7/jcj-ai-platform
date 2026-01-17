@@ -8,7 +8,7 @@ from typing import Tuple, Dict, List
 from agno.agent import Agent
 
 from app.ai.providers import get_ai_model, get_model_info
-from app.ai.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
 from app.ai.json_utils import extract_json_object, _extract_raw_text
 from app.ai.guardrails import check_guardrails
 from app.ai.schemas import AIGeneratedSupport
