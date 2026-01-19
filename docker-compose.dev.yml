@@ -65,6 +65,30 @@ services:
       - ./frontend:/app
       - /app/node_modules
 
+  worker:
+    env_file:
+      - .env
+    build: ./backend
+    container_name: jcj_worker
+    environment:
+      - DATABASE_URL=postgresql+psycopg://jcj:jcjpassword@postgres:5432/jcjdb
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_URL=http://chroma:8000
+      - AI_PROVIDER=${AI_PROVIDER:-groq}
+      - AI_MODEL=${AI_MODEL:-llama-3.3-70b-versatile}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - chroma
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/scripts:/app/scripts
+      - ./data:/app/data
+    command: >
+      sh -lc "PYTHONPATH=/app rq worker jcj"
+
+
 volumes:
   postgres_data:
   chroma_data:

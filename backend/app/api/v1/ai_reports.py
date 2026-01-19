@@ -16,6 +16,8 @@ from app.modules.ai_reports.models import AIReport
 from app.modules.ai_reports.schemas import AIReportOut
 from app.modules.ai_reports.schemas import GenerateAIReportRequest
 
+from app.modules.ai_reports.service import generate_ai_report
+
 from app.ai.orchestrator import generate_support
 
 router = APIRouter(prefix="/v1/ai-reports", tags=["ai-reports"])
@@ -61,79 +63,32 @@ def build_report_text(student: Student, report: StudentReport) -> str:
     return "\n".join(parts).strip()
 
 
-@router.post("/generate", response_model=AIReportOut)
-def generate_ai_report(
+@router.post("/generate", response_model=AIReportOut, status_code=status.HTTP_201_CREATED)
+def generate_ai_report_endpoint(
     payload: GenerateAIReportRequest,
-    response: Response,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
+    current_user=Depends(get_current_user),
 ):
-    # 1) Buscar el reporte base
+    # 1) Roles permitidos
+    require_role(current_user, ["platform_admin", "school_admin", "teacher"])
+
+    # 2) Validar que exista el StudentReport
     report = db.get(StudentReport, payload.report_id)
     if not report:
         raise HTTPException(status_code=404, detail="StudentReport not found")
 
-    # 2) Buscar alumno
-    student = db.get(Student, report.student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+    # 3) Seguridad por escuela (platform_admin puede todo)
+    ensure_same_school(current_user, report.school_id)
 
-    # 3) Permisos por escuela
-    ensure_same_school(current_user, UUID(str(student.school_id)))
-
-    # Si ya existe y NO force => devolver el más reciente
-    if not payload.force:
-        existing = (
-            db.execute(
-                select(AIReport)
-                .where(AIReport.report_id == report.id)
-                .order_by(desc(AIReport.created_at))
-                .limit(1)
-            )
-            .scalars()
-            .first()
-        )
-        if existing:
-            # 200 OK: no se generó nada nuevo
-            response.status_code = status.HTTP_200_OK
-            return existing
-
-    # 4) Armar texto de contexto
-    report_text = build_report_text(student, report)
-
-    # 5) Generar con IA (valida JSON + guardrails adentro)
-    try:
-        support, model_name = generate_support(
-            student_name=student.name,
-            age=student.age,
-            group=student.group,
-            report_text=report_text,
-            contexts=payload.contexts,   # ✅ nuevo
-        )
-    except ValueError as e:
-        # JSON inválido, guardrails fallaron, etc.
-        raise HTTPException(status_code=422, detail=str(e))
-
-    # 6) Guardar en ai_reports
-    ai_row = AIReport(
-        school_id=student.school_id,
-        student_id=student.id,
-        report_id=report.id,
-        generated_by_user_id=current_user.id,
-        model_name=model_name,
-        teacher_version=support.teacher_version.model_dump(),
-        parent_version=support.parent_version.model_dump(),
-        signals_detected=support.teacher_version.signals_detected,  # fuente única
-        guardrails_passed=True,
-        guardrails_notes=None,
+    # 4) Generar AI Report usando el service (RAG + guardrails + LLM)
+    ai_report = generate_ai_report(
+        db=db,
+        report_id=payload.report_id,
+        user_id=current_user.id,
+        contexts=payload.contexts,
     )
 
-    db.add(ai_row)
-    db.commit()
-    db.refresh(ai_row)
-
-    response.status_code = status.HTTP_201_CREATED
-    return ai_row
+    return ai_report
 
 @router.get("", response_model=AIReportOut)
 def get_latest_ai_report(
