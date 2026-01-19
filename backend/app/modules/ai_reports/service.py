@@ -49,7 +49,7 @@ def generate_ai_report(
 
     # 4) Generar con IA (RAG incluido si tu orchestrator ya lo tiene)
     support, model_name = generate_support(
-        student_name=student.name,
+        student_name=student.full_name,
         age=student.age,
         group=getattr(student, "group", "") or "",
         report_text=report_text,
@@ -65,7 +65,7 @@ def generate_ai_report(
         model_name=model_name,
         teacher_version=support.teacher_version.model_dump(),
         parent_version=support.parent_version.model_dump(),
-        signals_detected=support.signals_detected,
+        signals_detected=support.teacher_version.signals_detected,
         guardrails_passed=True,
         guardrails_notes=None,
     )

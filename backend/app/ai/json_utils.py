@@ -2,29 +2,18 @@ import json
 import re
 from typing import Any
 
-def _extract_raw_text(resp: Any) -> str:
-    """
-    Extrae texto plano desde la respuesta del Agent de Agno.
-    Maneja distintos formatos posibles.
-    """
-    if resp is None:
-        return ""
+def _extract_raw_text(resp) -> str:
+    # Agno RunOutput trae el texto final en .content
+    if hasattr(resp, "content") and isinstance(resp.content, str):
+        return resp.content
 
-    # Caso común: resp.output_text
-    if hasattr(resp, "output_text") and resp.output_text:
-        return resp.output_text
-
-    # Algunos modelos regresan lista de mensajes
+    # fallback por compatibilidad
     if hasattr(resp, "messages") and resp.messages:
-        parts = []
-        for m in resp.messages:
-            if isinstance(m, dict) and "content" in m:
-                parts.append(str(m["content"]))
-            else:
-                parts.append(str(m))
-        return "\n".join(parts)
+        last = resp.messages[-1]
+        c = getattr(last, "content", None)
+        if isinstance(c, str):
+            return c
 
-    # Fallback
     return str(resp)
 
 
