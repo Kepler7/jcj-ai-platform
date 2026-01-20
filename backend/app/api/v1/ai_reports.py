@@ -15,6 +15,7 @@ from app.modules.students.models import Student
 from app.modules.ai_reports.models import AIReport
 from app.modules.ai_reports.schemas import AIReportOut
 from app.modules.ai_reports.schemas import GenerateAIReportRequest
+from app.auth.deps import get_current_user
 
 from app.modules.ai_reports.service import generate_ai_report
 
