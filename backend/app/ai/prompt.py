@@ -30,7 +30,7 @@ NO traduzcas las llaves.
 
 El JSON debe incluir:
 - teacher_version: summary, signals_detected, recommendations, classroom_plan_7_days
-- parent_version: summary, signals_detected, recommendations, home_plan_7_days
+- parent_version: el nombre {student_name}, summary, signals_detected, recommendations, home_plan_7_days
 - guardrails: no_diagnosis_confirmed=true y no_clinical_labels_confirmed=true
 
 Asegúrate de que:
