@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import String, Integer, Text, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
@@ -19,3 +19,5 @@ class Student(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # notas educativas opcionales
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    guardians = relationship("Guardian", back_populates="student", cascade="all, delete-orphan")
