@@ -30,9 +30,13 @@ import {
   Collapse,
   Alert,
   AlertIcon,
+  VStack,
+  Select,
+  Checkbox,
 } from '@chakra-ui/react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../lib/apiClient';
+import type { Guardian } from "../types/guardian";
 
 type Role = 'platform_admin' | 'school_admin' | 'teacher';
 
@@ -91,6 +95,32 @@ type AIReport = {
   created_at: string;
 };
 
+function GuardiansFormCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
+      <Heading size="sm" mb={3}>
+        Tutores
+      </Heading>
+      <Text fontSize="sm" color="gray.600" mb={4}>
+        Agrega y define quién recibe primero.
+      </Text>
+      {children}
+    </Box>
+  );
+}
+
+function GuardiansListCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
+      <Heading size="sm" mb={3}>
+        Lista de tutores
+      </Heading>
+      {children}
+    </Box>
+  );
+}
+
+
 export default function ReportsPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
@@ -127,6 +157,76 @@ export default function ReportsPage() {
   const [expandParentPlan, setExpandParentPlan] = useState(false);
 
   const studentName = useMemo(() => student?.full_name ?? 'alumno', [student]);
+
+  const [guardians, setGuardians] = useState<Guardian[]>([]);
+  const [guardiansLoading, setGuardiansLoading] = useState(false);
+  const [guardiansError, setGuardiansError] = useState<string | null>(null);
+
+  const [gFullName, setGFullName] = useState("");
+  const [gPhone, setGPhone] = useState("");
+  const [gRelationship, setGRelationship] = useState("madre");
+  const [gNotes, setGNotes] = useState("");
+  const [gIsPrimary, setGIsPrimary] = useState(true);
+  const [gReceiveWhatsapp, setGReceiveWhatsapp] = useState(true);
+  const [gConsent, setGConsent] = useState(true);
+  const [creatingGuardian, setCreatingGuardian] = useState(false);
+  const [guardianError, setGuardianError] = useState<string | null>(null);
+
+  const [showPrimaryWarning, setShowPrimaryWarning] = useState(false);
+
+  async function createGuardian() {
+    if (!studentId) return;
+    setGuardianError(null);
+    setCreatingGuardian(true);
+
+    try {
+      await api(`/v1/students/${studentId}/guardians`, {
+        method: "POST",
+        auth: true,
+        body: {
+          full_name: gFullName.trim(),
+          whatsapp_phone: gPhone.trim(),
+          relationship: gRelationship.trim(),
+          is_primary: gIsPrimary,
+          notes: gNotes.trim() || null,
+          receive_whatsapp: gReceiveWhatsapp,
+          consent_to_contact: gConsent,
+        },
+      });
+
+      // reset form
+      setGFullName("");
+      setGPhone("");
+      setGRelationship("madre");
+      setGNotes("");
+      setGIsPrimary(true);
+      setGReceiveWhatsapp(true);
+      setGConsent(true);
+
+      // refresh list
+      await loadGuardians(studentId);
+    } catch (e: any) {
+      setGuardianError(e?.message ?? "Error creando tutor");
+    } finally {
+      setCreatingGuardian(false);
+    }
+  }
+
+  async function loadGuardians(studentId: string) {
+    setGuardiansLoading(true);
+    setGuardiansError(null);
+    try {
+      const data = await api<Guardian[]>(`/v1/students/${studentId}/guardians`, {
+        auth: true,
+      });
+      setGuardians(data);
+    } catch (e: any) {
+      setGuardiansError(e?.message ?? "Failed to load guardians");
+    } finally {
+      setGuardiansLoading(false);
+    }
+  }
+
 
   async function loadStudent() {
     if (!studentId) return;
@@ -379,11 +479,14 @@ export default function ReportsPage() {
   }
 
   useEffect(() => {
+    if (!studentId) return;
     loadStudent();
+    loadGuardians(studentId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   useEffect(() => {
+    if (!studentId) return;
     loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
@@ -412,6 +515,168 @@ export default function ReportsPage() {
           <Text color="gray.600" mt={1}>
             Student ID: {studentId}
           </Text>
+        </Box>
+        <Box mt={4} p={4} borderWidth="1px" borderRadius="lg">
+          <Heading size="sm" mb={3}>
+            Tutores
+          </Heading>
+
+          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} alignItems="start">
+            {/* IZQUIERDA: FORM */}
+            <GridItem>
+              <Box p={4} borderWidth="1px" borderRadius="md">
+                <Heading size="sm" mb={3}>
+                  Agregar tutor
+                </Heading>
+
+                {guardianError && (
+                  <Alert status="error" mb={3}>
+                    <AlertIcon />
+                    {guardianError}
+                  </Alert>
+                )}
+
+                <Stack spacing={3}>
+                  <Input
+                    placeholder="Nombre completo"
+                    value={gFullName}
+                    onChange={(e) => setGFullName(e.target.value)}
+                  />
+
+                  <Input
+                    placeholder="WhatsApp (ej. +5213312345678)"
+                    value={gPhone}
+                    onChange={(e) => setGPhone(e.target.value)}
+                  />
+
+                  <Select value={gRelationship} onChange={(e) => setGRelationship(e.target.value)}>
+                    <option value="madre">Madre</option>
+                    <option value="padre">Padre</option>
+                    <option value="tutor">Tutor</option>
+                    <option value="abuela">Abuela</option>
+                    <option value="abuelo">Abuelo</option>
+                    <option value="otro">Otro</option>
+                  </Select>
+
+                  <Textarea
+                    placeholder="Notas (opcional)"
+                    value={gNotes}
+                    onChange={(e) => setGNotes(e.target.value)}
+                  />
+
+                  <HStack spacing={6} flexWrap="wrap">
+                    <Checkbox
+                      isChecked={gIsPrimary}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+
+                        // Si lo está activando y ya existe un primario (distinto al que estás creando),
+                        // mostramos warning.
+                        if (next) {
+                          const existingPrimary = guardians.some((x) => x.is_active && x.is_primary);
+                          setShowPrimaryWarning(existingPrimary);
+                        } else {
+                          setShowPrimaryWarning(false);
+                        }
+
+                          setGIsPrimary(next);
+                        }}
+                      >
+                      Principal
+                    </Checkbox>
+
+
+                    <Checkbox
+                      isChecked={gReceiveWhatsapp}
+                      onChange={(e) => setGReceiveWhatsapp(e.target.checked)}
+                    >
+                      Recibir WhatsApp
+                    </Checkbox>
+
+                    <Checkbox isChecked={gConsent} onChange={(e) => setGConsent(e.target.checked)}>
+                      Consentimiento contacto
+                    </Checkbox>
+                  </HStack>
+                  {showPrimaryWarning && gIsPrimary && (
+                    <Alert status="warning" borderRadius="md">
+                      <AlertIcon />
+                      Ya existe un tutor marcado como <strong>Principal</strong>. Si guardas este tutor como principal,
+                      el anterior dejará de ser principal.
+                    </Alert>
+                  )}
+
+
+                  <Button
+                    onClick={createGuardian}
+                    isLoading={creatingGuardian}
+                    isDisabled={!gFullName.trim() || !gPhone.trim() || !gConsent}
+                    colorScheme="blue"
+                    alignSelf="flex-start"
+                  >
+                    Guardar tutor
+                  </Button>
+                </Stack>
+              </Box>
+            </GridItem>
+
+            {/* DERECHA: LISTA */}
+            <GridItem>
+              <Box p={4} borderWidth="1px" borderRadius="md">
+                <Heading size="sm" mb={3}>
+                  Lista de tutores
+                </Heading>
+
+                {guardiansLoading && (
+                  <HStack>
+                    <Spinner size="sm" />
+                    <Text fontSize="sm">Cargando tutores…</Text>
+                  </HStack>
+                )}
+
+                {guardiansError && (
+                  <Text fontSize="sm" color="red.500">
+                    {guardiansError}
+                  </Text>
+                )}
+
+                {!guardiansLoading && !guardiansError && guardians.length === 0 && (
+                  <Text fontSize="sm" color="gray.500">
+                    Este alumno aún no tiene tutores registrados.
+                  </Text>
+                )}
+
+                {!guardiansLoading && guardians.length > 0 && (
+                  <VStack align="stretch" spacing={3} mt={2}>
+                    {guardians
+                      .filter((g) => g.is_active)
+                      .map((g) => (
+                        <Box key={g.id} p={3} borderWidth="1px" borderRadius="md">
+                          <HStack justify="space-between" align="start">
+                            <Box>
+                              <HStack>
+                                <Text fontWeight="semibold">{g.full_name}</Text>
+                                {g.is_primary && <Badge colorScheme="green">Primario</Badge>}
+                              </HStack>
+
+                              <Text fontSize="sm" color="gray.600">
+                                {g.relationship ?? "Sin relación"} · {g.whatsapp_phone ?? "Sin WhatsApp"}
+                              </Text>
+
+                              {g.notes && (
+                                <>
+                                  <Divider my={2} />
+                                  <Text fontSize="sm">{g.notes}</Text>
+                                </>
+                              )}
+                            </Box>
+                          </HStack>
+                        </Box>
+                      ))}
+                  </VStack>
+                )}
+              </Box>
+            </GridItem>
+          </Grid>
         </Box>
 
         <Button onClick={() => loadReports()} variant="outline">

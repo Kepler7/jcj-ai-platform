@@ -62,18 +62,12 @@ def create_guardian(
     )
 
     db.add(guardian)
-    db.flush()  # para tener guardian.id si se necesita
+    db.flush()  # ya tenemos guardian.id sin commit
 
     # Regla: solo 1 primary por alumno
+    # Si este nuevo guardian es primary, apagamos los demás (excepto este).
     if guardian.is_primary:
         unset_other_primaries(db, student_id=student.id, keep_guardian_id=guardian.id)
-
-    if payload.is_primary:
-        db.query(Guardian).filter(
-            Guardian.student_id == student_id,
-            Guardian.is_primary == True,
-            Guardian.is_active == True,
-        ).update({"is_primary": False})
 
     db.commit()
     db.refresh(guardian)
