@@ -7,5 +7,6 @@ class Settings(BaseModel):
     REDIS_URL: str = os.getenv("REDIS_URL", "")
     CHROMA_URL: str = os.getenv("CHROMA_URL", "")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    PUBLIC_APP_URL: str = os.getenv("PUBLIC_APP_URL", "http://localhost:5173")
 
 settings = Settings()
