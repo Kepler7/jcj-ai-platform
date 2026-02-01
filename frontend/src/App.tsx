@@ -10,10 +10,15 @@ import ReportsPage from './pages/ReportsPage';
 import ProtectedRoute from './auth/ProtectedRoute';
 import AppShell from './components/AppShell';
 
+// NUEVO
+import ParentSharePage from "./pages/ParentSharePage";
+
 export default function App() {
   return (
     <Routes>
       {/* Public */}
+      <Route path="/p/:token" element={<ParentSharePage />} />
+
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
 

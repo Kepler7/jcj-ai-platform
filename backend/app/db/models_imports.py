@@ -10,3 +10,4 @@ from app.modules.ai_jobs.models import AIJob  # noqa: F401
 
 # 👇 NUEVO
 from app.modules.guardians.models import Guardian  # noqa: F401
+from app.modules.share_links.models import ShareLink  # noqa: F401

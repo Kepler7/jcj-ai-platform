@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from app.db import models_imports  # noqa: F401
+
 from sqlalchemy.orm import Session
 
 from app.db.db import SessionLocal

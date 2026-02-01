@@ -35,6 +35,7 @@ from app.api.v1.reports import router as reports_router
 from app.api.v1.ai_reports import router as ai_reports_router
 from app.api.v1.ai_jobs import router as ai_jobs_router
 from app.api.v1.guardians import router as guardians_router
+from app.api.v1.share_links import router as share_links_router
 
 app.include_router(schools_router)
 app.include_router(auth_router)
@@ -44,6 +45,7 @@ app.include_router(reports_router)
 app.include_router(ai_reports_router)
 app.include_router(ai_jobs_router)
 app.include_router(guardians_router)
+app.include_router(share_links_router)
 
 # 4️⃣ Health checks
 @app.get("/health")
