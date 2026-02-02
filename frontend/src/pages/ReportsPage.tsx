@@ -128,6 +128,8 @@ function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
+const SHOW_WHATSAPP_BUTTONS = false;
+
 export default function ReportsPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
@@ -732,8 +734,8 @@ export default function ReportsPage() {
                                     <Text fontSize="sm">{g.notes}</Text>
                                   </>
                                 )}
-
                                 {/* 👉 BOTÓN WHATSAPP (corregido) */}
+                                {SHOW_WHATSAPP_BUTTONS && (
                                 <Box mt={3}>
                                   <Button
                                     size="sm"
@@ -755,6 +757,7 @@ export default function ReportsPage() {
                                     </Text>
                                   )}
                                 </Box>
+                                )}                             
                               </Box>
                             </HStack>
                           </Box>
