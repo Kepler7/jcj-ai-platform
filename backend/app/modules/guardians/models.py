@@ -31,6 +31,8 @@ class Guardian(Base):
 
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    receive_whatsapp: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    consent_to_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

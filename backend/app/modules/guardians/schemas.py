@@ -30,13 +30,16 @@ class GuardianOut(BaseModel):
     id: UUID
     student_id: UUID
     school_id: UUID
-
     full_name: str
-    whatsapp_phone: str
-    relationship: str
+    whatsapp_phone: Optional[str] = None
+    relationship: Optional[str] = None
     is_primary: bool
     is_active: bool
-    notes: Optional[str]
+    notes: Optional[str] = None
+
+    # ✅ agrega estos dos
+    receive_whatsapp: bool
+    consent_to_contact: bool
 
     created_at: datetime
     updated_at: datetime
