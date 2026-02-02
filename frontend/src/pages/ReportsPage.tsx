@@ -120,6 +120,13 @@ function GuardiansListCard({ children }: { children: React.ReactNode }) {
   );
 }
 
+function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
+  if (!g.is_active) return { ok: false, reason: "Tutor inactivo" };
+  if (!g.whatsapp_phone) return { ok: false, reason: "Sin teléfono" };
+  if (!g.consent_to_contact) return { ok: false, reason: "Sin consentimiento" };
+  if (!g.receive_whatsapp) return { ok: false, reason: "No recibe WhatsApp" };
+  return { ok: true };
+}
 
 export default function ReportsPage() {
   const { studentId } = useParams<{ studentId: string }>();
@@ -174,6 +181,28 @@ export default function ReportsPage() {
 
   const [showPrimaryWarning, setShowPrimaryWarning] = useState(false);
 
+  const [sendingWaByGuardianId, setSendingWaByGuardianId] = useState<Record<string, boolean>>({});
+
+  async function sendWhatsappPreview(aiReportId: string, guardianId: string) {
+    setSendingWaByGuardianId((p) => ({ ...p, [guardianId]: true }));
+    try {
+      const res = await api<{ wa_url: string }>(
+        `/v1/share-links/${aiReportId}/send-preview?guardian_id=${guardianId}`,
+        { method: "POST", auth: true }
+      );
+
+      // abre wa.me con el texto ya prellenado
+      window.open(res.wa_url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      const msg =
+        e?.message ||
+        (typeof e === "string" ? e : "No se pudo generar el link de WhatsApp");
+      alert(msg);
+    } finally {
+      setSendingWaByGuardianId((p) => ({ ...p, [guardianId]: false }));
+    }
+  }
+
   async function createGuardian() {
     if (!studentId) return;
     setGuardianError(null);
@@ -226,7 +255,6 @@ export default function ReportsPage() {
       setGuardiansLoading(false);
     }
   }
-
 
   async function loadStudent() {
     if (!studentId) return;
@@ -374,19 +402,21 @@ export default function ReportsPage() {
       if (!latest) {
         setAiReport(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
-        return;
+        return null;
       }
 
       setAiReport(latest);
       setAiExistsByReportId((prev) => ({ ...prev, [reportId]: true }));
+      return latest;
     } catch (e: any) {
       const status = e?.status ?? e?.response?.status;
       if (status === 404) {
         setAiReport(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
-        return;
+        return null;
       }
       setError(e?.message ?? 'Error fetching AI report');
+      return null;
     } finally {
       setAiLoading(false);
     }
@@ -475,6 +505,34 @@ export default function ReportsPage() {
       await fetchAIReport(reportId);
     } else {
       await generateAI(reportId);
+    }
+  }
+
+  // ✅ NUEVO: handler para WhatsApp que NO depende de aiReport cargado
+  async function handleSendWhatsapp(g: Guardian) {
+    if (!selectedReportId) return;
+
+    const sendState = canSendWhatsapp(g);
+    if (!sendState.ok) return;
+
+    setSendingWaByGuardianId((p) => ({ ...p, [g.id]: true }));
+    try {
+      // 1) Debe existir AI para el reporte seleccionado
+      const hasAiForSelected = !!aiExistsByReportId[selectedReportId];
+      if (!hasAiForSelected) return;
+
+      // 2) Obtener ai_report_id aunque no esté cargado en aiReport (UI)
+      let aiId = aiReport?.id ?? null;
+      if (!aiId || aiReport?.report_id !== selectedReportId) {
+        const latest = await fetchAIReport(selectedReportId);
+        aiId = latest?.id ?? null;
+      }
+      if (!aiId) return;
+
+      // 3) enviar preview
+      await sendWhatsappPreview(aiId, g.id);
+    } finally {
+      setSendingWaByGuardianId((p) => ({ ...p, [g.id]: false }));
     }
   }
 
@@ -579,12 +637,11 @@ export default function ReportsPage() {
                           setShowPrimaryWarning(false);
                         }
 
-                          setGIsPrimary(next);
-                        }}
-                      >
+                        setGIsPrimary(next);
+                      }}
+                    >
                       Principal
                     </Checkbox>
-
 
                     <Checkbox
                       isChecked={gReceiveWhatsapp}
@@ -597,6 +654,7 @@ export default function ReportsPage() {
                       Consentimiento contacto
                     </Checkbox>
                   </HStack>
+
                   {showPrimaryWarning && gIsPrimary && (
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
@@ -604,7 +662,6 @@ export default function ReportsPage() {
                       el anterior dejará de ser principal.
                     </Alert>
                   )}
-
 
                   <Button
                     onClick={createGuardian}
@@ -645,33 +702,64 @@ export default function ReportsPage() {
                   </Text>
                 )}
 
-                {!guardiansLoading && guardians.length > 0 && (
+                {!guardiansLoading && !guardiansError && guardians.length > 0 && (
                   <VStack align="stretch" spacing={3} mt={2}>
                     {guardians
                       .filter((g) => g.is_active)
-                      .map((g) => (
-                        <Box key={g.id} p={3} borderWidth="1px" borderRadius="md">
-                          <HStack justify="space-between" align="start">
-                            <Box>
-                              <HStack>
-                                <Text fontWeight="semibold">{g.full_name}</Text>
-                                {g.is_primary && <Badge colorScheme="green">Primario</Badge>}
-                              </HStack>
+                      .map((g) => {
+                        const sendState = canSendWhatsapp(g);
+                        const hasSelectedReport = !!selectedReportId;
+                        const hasAiForSelected = selectedReportId
+                          ? !!aiExistsByReportId[selectedReportId]
+                          : false;
 
-                              <Text fontSize="sm" color="gray.600">
-                                {g.relationship ?? "Sin relación"} · {g.whatsapp_phone ?? "Sin WhatsApp"}
-                              </Text>
+                        return (
+                          <Box key={g.id} p={3} borderWidth="1px" borderRadius="md">
+                            <HStack justify="space-between" align="start">
+                              <Box>
+                                <HStack>
+                                  <Text fontWeight="semibold">{g.full_name}</Text>
+                                  {g.is_primary && <Badge colorScheme="green">Primario</Badge>}
+                                </HStack>
 
-                              {g.notes && (
-                                <>
-                                  <Divider my={2} />
-                                  <Text fontSize="sm">{g.notes}</Text>
-                                </>
-                              )}
-                            </Box>
-                          </HStack>
-                        </Box>
-                      ))}
+                                <Text fontSize="sm" color="gray.600">
+                                  {g.relationship ?? "Sin relación"} · {g.whatsapp_phone ?? "Sin WhatsApp"}
+                                </Text>
+
+                                {g.notes && (
+                                  <>
+                                    <Divider my={2} />
+                                    <Text fontSize="sm">{g.notes}</Text>
+                                  </>
+                                )}
+
+                                {/* 👉 BOTÓN WHATSAPP (corregido) */}
+                                <Box mt={3}>
+                                  <Button
+                                    size="sm"
+                                    colorScheme="green"
+                                    isDisabled={!hasSelectedReport || !hasAiForSelected || !sendState.ok}
+                                    isLoading={!!sendingWaByGuardianId[g.id]}
+                                    onClick={() => handleSendWhatsapp(g)}
+                                  >
+                                    Enviar WhatsApp
+                                  </Button>
+
+                                  {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
+                                    <Text fontSize="xs" color="gray.500" mt={1}>
+                                      {!hasSelectedReport
+                                        ? "Selecciona un reporte."
+                                        : !hasAiForSelected
+                                        ? "Genera el apoyo AI primero."
+                                        : sendState.reason}
+                                    </Text>
+                                  )}
+                                </Box>
+                              </Box>
+                            </HStack>
+                          </Box>
+                        );
+                      })}
                   </VStack>
                 )}
               </Box>
@@ -1115,3 +1203,4 @@ export default function ReportsPage() {
     </Box>
   );
 }
+
