@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Tuple, Dict, List
+from typing import List, Tuple, Optional, Any, Dict
 
 from agno.agent import Agent
 
@@ -11,7 +11,7 @@ from app.ai.providers import get_ai_model, get_model_info
 from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
 from app.ai.json_utils import extract_json_object, _extract_raw_text
 from app.ai.guardrails import check_guardrails
-from app.ai.schemas import AIGeneratedSupport
+from app.ai.schemas import AIGeneratedSupport, SupportMeta
 
 from app.rag.chroma_client import ChromaPlaybookStore
 
@@ -77,21 +77,67 @@ def format_playbooks_by_context(playbooks_by_context: Dict[str, List[str]]) -> s
 # Main generator (MODIFIED)
 # =========================
 
+def _count_playbook_items(playbooks_by_context: Any) -> int:
+    """
+    Cuenta cuántas estrategias/items recuperó el RAG.
+    No asumimos estructura exacta; soporta:
+      - dict[str, list]
+      - dict[str, dict{items: [...]}
+      - list directo
+    """
+    if not playbooks_by_context:
+        return 0
+
+    # dict por contexto
+    if isinstance(playbooks_by_context, dict):
+        total = 0
+        for _, v in playbooks_by_context.items():
+            if v is None:
+                continue
+            if isinstance(v, list):
+                total += len(v)
+            elif isinstance(v, dict):
+                items = v.get("items") or v.get("results") or v.get("playbooks") or []
+                if isinstance(items, list):
+                    total += len(items)
+        return total
+
+    # list directo
+    if isinstance(playbooks_by_context, list):
+        return len(playbooks_by_context)
+
+    return 0
+
+FALLBACK_DISCLAIMER = (
+    "⚠️ Nota: No se encontraron estrategias específicas en el Playbook JCJ para este caso. "
+    "Las sugerencias siguientes son generales y deben ser validadas/ajustadas por el equipo profesional."
+)
+
+def _prepend_disclaimer(summary: str, disclaimer: str) -> str:
+    summary = (summary or "").strip()
+    if not summary:
+        return disclaimer
+    # Evita duplicarlo si ya existe
+    if disclaimer.lower() in summary.lower():
+        return summary
+    return f"{disclaimer}\n\n{summary}"
+
 def generate_support(
     *,
     student_name: str,
     age: int,
     group: str,
     report_text: str,
-    contexts: List[str] | None = None,     # ✅ nuevo: contexts dinámicos
-) -> Tuple[AIGeneratedSupport, str]:
+    contexts: List[str] | None = None,  # ✅ contexts dinámicos
+) -> Tuple[AIGeneratedSupport, str, Dict[str, Any]]:
     """
     Genera apoyo educativo (teacher_version + parent_version) y aplica:
     1) JSON strict (Pydantic)
     2) Guardrails post-procesado (bloqueo de lenguaje clínico/diagnóstico)
 
     Returns:
-      (parsed_output, model_name) donde model_name = "provider:model"
+      (parsed_output, model_name, meta)
+      meta incluye fallback_used cuando NO hubo estrategias JCJ en RAG.
     """
     model_info = get_model_info()
 
@@ -104,7 +150,6 @@ def generate_support(
             contexts = ["aula", "casa"]
 
     # 1) RAG: recuperar estrategias JCJ relevantes (por contexto)
-    #    (Más adelante esto vendrá de Settings/env; por ahora funciona en dev)
     store = ChromaPlaybookStore(
         host="chroma",
         port=8000,
@@ -121,10 +166,19 @@ def generate_support(
 
     playbooks_block = format_playbooks_by_context(playbooks_by_context)
 
+    # ✅ Detectar si realmente hubo estrategias JCJ recuperadas
+    total_items = _count_playbook_items(playbooks_by_context)
+    fallback_used = total_items == 0
+
+    # Normaliza razón para el worker/UI
+    fallback_reason = None
+    if fallback_used:
+        fallback_reason = "no_match"  # usa uno de tus enums esperados ("no_match"/"empty_strategies"/"low_confidence")
+
     # 2) Agente LLM
     agent = Agent(
         model=get_ai_model(),
-        tools=[],  # en US-0401 lo dejamos vacío intencionalmente
+        tools=[],
         instructions=[SYSTEM_PROMPT],
     )
 
@@ -132,16 +186,31 @@ def generate_support(
     base_prompt = build_user_prompt(student_name, age, group, report_text)
 
     # 4) Inyección RAG + instrucciones
+    rag_header = "=== Estrategias JCJ disponibles (RAG) ===\n"
+    if fallback_used:
+        rag_header += (
+            "(NO SE ENCONTRARON estrategias JCJ relevantes para este caso. "
+            "Puedes proponer sugerencias generales y prácticas, pero NO digas que vienen del playbook.)\n"
+        )
+
     prompt = (
         f"{base_prompt}\n\n"
-        "=== Estrategias JCJ disponibles (RAG) ===\n"
+        f"{rag_header}"
         f"{playbooks_block}\n\n"
         "Instrucciones adicionales:\n"
         "- Prioriza estas estrategias JCJ cuando sean relevantes.\n"
+        "- Si el bloque JCJ está vacío o indica que no se encontraron estrategias, "
+        "propón recomendaciones generales y prácticas, sencillas y seguras.\n"
         "- Si algo no aplica, di 'No aplica' y sugiere una alternativa simple.\n"
         "- No incluyas nombres propios ni datos sensibles.\n"
         "- Mantén español claro y natural.\n"
         "- No uses lenguaje clínico/diagnóstico.\n"
+        # ✅ Cuando sea fallback, pedimos que el lenguaje sea aún más conservador
+        + (
+            "- IMPORTANTE: estas recomendaciones son generales y deben ser validadas por profesionales.\n"
+            if fallback_used
+            else ""
+        )
     )
 
     # 5) Llamada al modelo
@@ -165,4 +234,59 @@ def generate_support(
     if not ok:
         raise ValueError(f"Guardrails failed. Banned terms found: {hits}")
 
-    return parsed, model_info.name
+    # ✅ 8.5) Si hubo fallback: inyectar meta + disclaimer (sin depender del LLM)
+    if fallback_used:
+        # Inyecta meta estructurada para UI/telemetría
+        parsed.meta = SupportMeta(
+            source="fallback",
+            disclaimer=FALLBACK_DISCLAIMER,
+            fallback_reason="no_match",
+            contexts=contexts,
+            retrieved_count=total_items,
+        )
+
+        # Prefija disclaimer en summaries (teacher + parent)
+        try:
+            parsed.teacher_version.summary = _prepend_disclaimer(
+                parsed.teacher_version.summary, FALLBACK_DISCLAIMER
+            )
+        except Exception:
+            pass
+        try:
+            parsed.parent_version.summary = _prepend_disclaimer(
+                parsed.parent_version.summary, FALLBACK_DISCLAIMER
+            )
+        except Exception:
+            pass
+    else:
+        # Si hubo playbooks, marcamos meta playbook (opcional)
+        parsed.meta = SupportMeta(
+            source="playbook",
+            disclaimer=None,
+            fallback_reason=None,
+            contexts=contexts,
+            retrieved_count=total_items,
+        )
+
+    # 9) Meta para "Pendientes de Playbook" (worker)
+    query_text = (report_text or "").strip()
+    if len(query_text) > 240:
+        query_text = query_text[:240] + "..."
+
+    model_output_summary = ""
+    try:
+        model_output_summary = str(parsed.parent_version.summary or "")[:240]
+    except Exception:
+        model_output_summary = ""
+
+    meta: Dict[str, Any] = {
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "context": contexts,  # lo que realmente usamos
+        "topic_nucleo": None,  # aún no lo estás clasificando aquí
+        "query_text": query_text,
+        "model_output_summary": model_output_summary,
+        "rag_items_count": total_items,
+    }
+
+    return parsed, model_info.name, meta
