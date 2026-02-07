@@ -268,25 +268,43 @@ def generate_support(
             retrieved_count=total_items,
         )
 
-    # 9) Meta para "Pendientes de Playbook" (worker)
-    query_text = (report_text or "").strip()
-    if len(query_text) > 240:
-        query_text = query_text[:240] + "..."
+    # 9) Meta para "Pendientes de Playbook"
+    def _clip(s: str, n: int) -> str:
+        s = (s or "").strip()
+        if len(s) <= n:
+            return s
+        return s[:n].rstrip() + "..."
 
-    model_output_summary = ""
+    query_full = (report_text or "").strip()
+
+    # si quieres protegerte de notas enormes
+    MAX_FULL = 4000
+    query_text = query_full[:MAX_FULL] if len(query_full) > MAX_FULL else query_full
+    query_preview = _clip(query_text, 240)
+
+    model_output_full = ""
     try:
-        model_output_summary = str(parsed.parent_version.summary or "")[:240]
+        model_output_full = str(parsed.parent_version.summary or "")
     except Exception:
-        model_output_summary = ""
+        model_output_full = ""
+
+    model_output_text = model_output_full[:MAX_FULL] if len(model_output_full) > MAX_FULL else model_output_full
+    model_output_preview = _clip(model_output_text, 240)
 
     meta: Dict[str, Any] = {
         "fallback_used": fallback_used,
         "fallback_reason": fallback_reason,
-        "context": contexts,  # lo que realmente usamos
-        "topic_nucleo": None,  # aún no lo estás clasificando aquí
+        "context": contexts,
+        "topic_nucleo": None,
+
+        # ✅ FULL + preview
         "query_text": query_text,
-        "model_output_summary": model_output_summary,
+        "query_preview": query_preview,
+        "model_output_summary": model_output_text,
+        "model_output_preview": model_output_preview,
+
         "rag_items_count": total_items,
     }
+
 
     return parsed, model_info.name, meta

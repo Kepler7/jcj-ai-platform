@@ -486,7 +486,9 @@ export default function ReportsPage() {
         duration: 1600,
         isClosable: true,
       });
-
+    
+      // ✅ avisa al navbar que refresque el badge
+      window.dispatchEvent(new Event("playbook:pending-changed"));
       // fetch latest AI report
       setAiJobStatus(null);
       await fetchAIReport(reportId);

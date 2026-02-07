@@ -12,6 +12,7 @@ import AppShell from './components/AppShell';
 
 // NUEVO
 import ParentSharePage from "./pages/ParentSharePage";
+import PlaybookPendientesPage from "./pages/PlaybookPendientesPage";
 
 export default function App() {
   return (
@@ -39,6 +40,16 @@ export default function App() {
           element={
             <ProtectedRoute roles={['platform_admin']}>
               <SchoolsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Pendientes de Playbook (solo platform_admin) */}
+        <Route
+          path="/playbook-pendientes"
+          element={
+            <ProtectedRoute roles={['platform_admin']}>
+              <PlaybookPendientesPage />
             </ProtectedRoute>
           }
         />
