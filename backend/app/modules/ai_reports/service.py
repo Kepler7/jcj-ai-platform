@@ -124,28 +124,54 @@ def generate_ai_report(
     db.refresh(ai_report)
 
     # 8) Preparar respuesta para el worker (Pendientes de Playbook)
-    query_text = meta.get("query_text")
-    if not query_text:
-        query_text = report_text[:240] + ("..." if len(report_text) > 240 else "")
+    def _clip(s: str, n: int) -> str:
+        s = (s or "").strip()
+        if len(s) <= n:
+            return s
+        return s[:n].rstrip() + "..."
 
-    model_output_summary = meta.get("model_output_summary")
-    if not model_output_summary:
+    MAX_FULL = 4000
+
+    # FULL query (preferimos meta, si no usamos report_text completo)
+    query_text_full = meta.get("query_text") or (report_text or "").strip()
+    if len(query_text_full) > MAX_FULL:
+        query_text_full = query_text_full[:MAX_FULL]
+
+    # PREVIEW query
+    query_preview = meta.get("query_preview") or _clip(query_text_full, 240)
+
+    # FULL summary (preferimos meta; si no, summary de parent_version completo)
+    model_output_full = meta.get("model_output_summary")
+    if not model_output_full:
         try:
-            model_output_summary = str(getattr(support.parent_version, "summary", "") or "")[:240]
+            model_output_full = str(getattr(support.parent_version, "summary", "") or "").strip()
         except Exception:
-            model_output_summary = None
+            model_output_full = ""
+
+    if len(model_output_full) > MAX_FULL:
+        model_output_full = model_output_full[:MAX_FULL]
+
+    # PREVIEW summary
+    model_output_preview = meta.get("model_output_preview") or _clip(model_output_full, 240)
 
     return {
         "ai_report_id": str(ai_report.id),
         "fallback_used": fallback_used,
         "fallback_reason": fallback_reason,
         "topic_nucleo": meta.get("topic_nucleo"),
+
         # ✅ estandar: lista de contexts usados
         "contexts": contexts_used,
         # ✅ opcional: primer contexto “principal”
         "context_primary": (contexts_used[0] if contexts_used else None),
-        "query_text": query_text,
-        "model_output_summary": model_output_summary,
+
+        # ✅ FULL + PREVIEW
+        "query_text": query_text_full,
+        "query_preview": query_preview,
+        "model_output_summary": model_output_full,
+        "model_output_preview": model_output_preview,
+
         "rag_items_count": meta.get("rag_items_count", None),
     }
+
 
