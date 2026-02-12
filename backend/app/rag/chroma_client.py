@@ -1,23 +1,61 @@
+import json
 from chromadb import HttpClient
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
+
+def _sanitize_metadata(md: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Chroma metadata values must be: str, int, float, bool or None.
+    Convert lists/dicts to JSON strings. Convert other unknown types to str.
+    """
+    clean: Dict[str, Any] = {}
+    for k, v in (md or {}).items():
+        if v is None:
+            clean[k] = None
+        elif isinstance(v, (str, int, float, bool)):
+            clean[k] = v
+        elif isinstance(v, (list, dict)):
+            clean[k] = json.dumps(v, ensure_ascii=False)
+        else:
+            clean[k] = str(v)
+    return clean
+
 
 class ChromaPlaybookStore:
     def __init__(self, host: str, port: int, collection_name: str):
+        self.collection_name = collection_name
         self.client = HttpClient(host=host, port=port)
         self.collection = self.client.get_or_create_collection(
             name=collection_name
         )
 
-    def add_playbook(
+    def reset(self):
+        self.client.delete_collection(self.collection_name)
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name
+    )
+
+    def count(self) -> int:
+        return int(self.collection.count())
+
+    def add_document(
         self,
-        playbook_id: str,
-        content: str,
-        metadata: Dict
-    ):
+        *,
+        doc_id: str,
+        text: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        md = dict(metadata or {})
+
+        # ✅ extra: contexts_csv para filtros simples/debug
+        if "contexts" in md and isinstance(md["contexts"], list):
+            md["contexts_csv"] = ",".join([str(x) for x in md["contexts"]])
+
+        md = _sanitize_metadata(md)
+
         self.collection.add(
-            ids=[playbook_id],
-            documents=[content],
-            metadatas=[metadata],
+            ids=[str(doc_id)],
+            documents=[text],
+            metadatas=[md],
         )
 
     def query(
@@ -29,39 +67,57 @@ class ChromaPlaybookStore:
     ) -> List[str]:
         """
         Busca playbooks relevantes por similitud semántica, filtrando:
-        - En Chroma: solo por edad (porque esta versión no soporta $contains).
-        - En Python: filtra por 'context' usando el metadata 'context' guardado como string "aula,casa".
-        Devuelve una lista de DOCUMENTOS (strings) ordenados por relevancia.
+        - En Chroma: por edad.
+        - En Python: por contexto usando metadata 'contexts_csv'
+          ("casa,aula,otro_contexto_social").
+        Devuelve lista de DOCUMENTOS (strings).
         """
 
-        # 1) Query vectorial (Chroma) + filtro por edad (operadores soportados)
         results = self.collection.query(
             query_texts=[query_text],
             n_results=n_results,
             where={
                 "$and": [
-                    {"age_min": {"$lte": age}},
-                    {"age_max": {"$gte": age}},
+                    {"age_min": {"$lte": int(age)}},
+                    {"age_max": {"$gte": int(age)}},
                 ]
             },
             include=["documents", "metadatas"],
         )
 
-        # 2) Extrae docs y metadatas (Chroma regresa listas por cada query_text)
-        documents: List[str] = results.get("documents", [[]])[0] or []
-        metadatas: List[Dict[str, Any]] = results.get("metadatas", [[]])[0] or []
+        documents: List[str] = (results.get("documents") or [[]])[0] or []
+        metadatas: List[Dict[str, Any]] = (results.get("metadatas") or [[]])[0] or []
 
-        # 3) Filtra por contexto en Python (porque Chroma no soporta $contains)
-        #    Nota: 'context' en metadata es un string "aula,casa"
-        context = (context or "").strip().lower()
+        ctx_raw = (context or "").strip().lower()
+        if not ctx_raw:
+            return documents
 
-        if context:
-            filtered_docs = []
-            for doc, meta in zip(documents, metadatas):
-                meta_context = (meta.get("context") or "").lower()
-                if context in meta_context:
-                    filtered_docs.append(doc)
-            return filtered_docs
+        # soporta "aula,casa" o "aula"
+        wanted_tokens = [t.strip() for t in ctx_raw.split(",") if t.strip()]
+        wanted_tokens = [_normalize_ctx_token(t) for t in wanted_tokens]
 
-        # Si no pasas context, devuelve tal cual
-        return documents
+        # "en todas las anteriores" => no filtrar
+        if any(t is None for t in wanted_tokens):
+            return documents
+
+        filtered_docs: List[str] = []
+        for doc, meta in zip(documents, metadatas):
+            meta_ctx_csv = (meta.get("contexts_csv") or "").strip().lower()
+            meta_tokens = [t.strip() for t in meta_ctx_csv.split(",") if t.strip()]
+
+            if any(t in meta_tokens for t in wanted_tokens):
+                filtered_docs.append(doc)
+
+        return filtered_docs
+
+_CONTEXT_NORMALIZE = {
+    "otro contexto social": "otro_contexto_social",
+    "otro_contexto_social": "otro_contexto_social",
+    "en todas las anteriores": None,  # significa "cualquiera"
+}
+
+def _normalize_ctx_token(s: str) -> str:
+    s = (s or "").strip().lower()
+    return _CONTEXT_NORMALIZE.get(s, s)
+
+
