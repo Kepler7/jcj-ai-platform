@@ -78,8 +78,6 @@ type AIVersion = {
   summary: string;
   signals_detected: string[];
   recommendations: Recommendation[];
-  classroom_plan_7_days?: PlanDay[];
-  home_plan_7_days?: PlanDay[];
 };
 
 type AIReport = {
@@ -1046,42 +1044,6 @@ export default function ReportsPage() {
                 </Collapse>
 
                 <Divider my={3} />
-
-                {/* Plan 7 days collapsible */}
-                <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Plan 7 días (aula)</Text>
-                  <IconButton
-                    aria-label="toggle teacher plan"
-                    size="sm"
-                    variant="ghost"
-                    icon={expandTeacherPlan ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandTeacherPlan((v) => !v)}
-                  />
-                </HStack>
-                <Collapse in={expandTeacherPlan} animateOpacity>
-                  <Stack spacing={2}>
-                    {(aiReport.teacher_version.classroom_plan_7_days ?? []).map(
-                      (d) => (
-                        <Box
-                          key={d.day}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
-                        >
-                          <Text fontWeight="semibold">
-                            Día {d.day}: {d.focus}
-                          </Text>
-                          <Text fontSize="sm" mt={1}>
-                            <b>Actividad:</b> {d.activity}
-                          </Text>
-                          <Text fontSize="sm" mt={1}>
-                            <b>Criterio de éxito:</b> {d.success_criteria}
-                          </Text>
-                        </Box>
-                      )
-                    )}
-                  </Stack>
-                </Collapse>
               </CardBody>
             </Card>
 
@@ -1155,43 +1117,6 @@ export default function ReportsPage() {
                 </Collapse>
 
                 <Divider my={3} />
-
-                {/* Plan 7 days collapsible */}
-                <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Plan 7 días (casa)</Text>
-                  <IconButton
-                    aria-label="toggle parent plan"
-                    size="sm"
-                    variant="ghost"
-                    icon={expandParentPlan ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandParentPlan((v) => !v)}
-                  />
-                </HStack>
-                <Collapse in={expandParentPlan} animateOpacity>
-                  <Stack spacing={2}>
-                    {(aiReport.parent_version.home_plan_7_days ?? []).map(
-                      (d) => (
-                        <Box
-                          key={d.day}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
-                        >
-                          <Text fontWeight="semibold">
-                            Día {d.day}: {d.focus}
-                          </Text>
-                          <Text fontSize="sm" mt={1}>
-                            <b>Actividad:</b> {d.activity}
-                          </Text>
-                          <Text fontSize="sm" mt={1}>
-                            <b>Criterio de éxito:</b> {d.success_criteria}
-                          </Text>
-                        </Box>
-                      )
-                    )}
-                  </Stack>
-                </Collapse>
-
                 {aiReport.guardrails_notes ? (
                   <Box mt={4}>
                     <Alert status="warning">
