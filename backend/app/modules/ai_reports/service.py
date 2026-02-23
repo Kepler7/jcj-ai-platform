@@ -18,6 +18,7 @@ def generate_ai_report(
     report_id: UUID,
     user_id: UUID,
     contexts: Optional[List[str]] = None,
+    job_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Genera un AIReport para un StudentReport existente y lo guarda en Postgres.
@@ -40,12 +41,14 @@ def generate_ai_report(
 
     # 3) Armar report_text según tus campos reales
     parts: List[str] = []
-    if getattr(report, "strengths", None):
-        parts.append(f"Fortalezas: {report.strengths}")
-    if getattr(report, "challenges", None):
-        parts.append(f"Retos: {report.challenges}")
-    if getattr(report, "notes", None):
-        parts.append(f"Notas: {report.notes}")
+
+    signals = getattr(report, "signals_observed", None)
+    if signals:
+        parts.append(f"Señales observables: {signals}")
+
+    notes = getattr(report, "notes", None)
+    if notes:
+        parts.append(f"Notas: {notes}")
 
     report_text = "\n".join(parts).strip() or "Sin observaciones."
 
@@ -64,6 +67,7 @@ def generate_ai_report(
         group=getattr(student, "group", "") or "",
         report_text=report_text,
         contexts=contexts,
+        job_id=job_id,
     )
 
     if isinstance(out, tuple) and len(out) == 3:
@@ -80,7 +84,9 @@ def generate_ai_report(
 
     # 5) Derivar fallback desde meta (worker tracking)
     fallback_used = bool(meta.get("fallback_used", False))
-    fallback_reason = meta.get("fallback_reason") or ("no_match" if fallback_used else None)
+    fallback_reason = meta.get("fallback_reason") or (
+        "no_match" if fallback_used else None
+    )
 
     # contexts usados (lista)
     contexts_used = meta.get("context")
@@ -144,7 +150,9 @@ def generate_ai_report(
     model_output_full = meta.get("model_output_summary")
     if not model_output_full:
         try:
-            model_output_full = str(getattr(support.parent_version, "summary", "") or "").strip()
+            model_output_full = str(
+                getattr(support.parent_version, "summary", "") or ""
+            ).strip()
         except Exception:
             model_output_full = ""
 
@@ -152,26 +160,23 @@ def generate_ai_report(
         model_output_full = model_output_full[:MAX_FULL]
 
     # PREVIEW summary
-    model_output_preview = meta.get("model_output_preview") or _clip(model_output_full, 240)
+    model_output_preview = meta.get("model_output_preview") or _clip(
+        model_output_full, 240
+    )
 
     return {
         "ai_report_id": str(ai_report.id),
         "fallback_used": fallback_used,
         "fallback_reason": fallback_reason,
         "topic_nucleo": meta.get("topic_nucleo"),
-
         # ✅ estandar: lista de contexts usados
         "contexts": contexts_used,
         # ✅ opcional: primer contexto “principal”
         "context_primary": (contexts_used[0] if contexts_used else None),
-
         # ✅ FULL + PREVIEW
         "query_text": query_text_full,
         "query_preview": query_preview,
         "model_output_summary": model_output_full,
         "model_output_preview": model_output_preview,
-
         "rag_items_count": meta.get("rag_items_count", None),
     }
-
-

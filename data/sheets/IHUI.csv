@@ -1,14 +1,59 @@
-Organigrama=base.row ,id/ nombre,edad que presenta el problema,titulo/ problema,age min esperado,age max esperado ,topic NUCLEO,Contexto,Tags/ emoción,Como se comporta al respecto,Que se espera lograr,Estrategias para lograrlo,#2,,
-1.1,290116IKYAM0424,8 años,Pronunciar la s,4 años,6 años,Lenguaje/Pronunciacion,En todas las anteriores,😁Positivo/Feliz/firme,"Tiene actitud para ser corregido, se muestra atento a los ejercicios, participa activamente a las cosas que se solicita ","1.Que la mordida la tenga fuerte
-2.Mejorar la respiracion
-3.Que inale correctamente con la nariz y suelte por la boca 
-4.Pronunciar la s","1.Identificar que los dientes los junte 
-2.con los dientes juntos que inale y exale
-3. cuando exale que exale pronunciando el sonido sss
-4.Pronunciar palabras con s
--primero con palabras que comiencen con s: sapo, seis, siete, sopa, suetere (indicarle que cada vez que diga una palabra respire y luego exale la palabra con la mordida bien instalada",No pasar a los sigientes ejercicios hasta que los anteriores pueda lograrlos con facilidad ,"comenzar a pronunciar palabras donde el fonema sss zzz este en el medio o al final 
-cazar
-Concentrar
-cocina
-oso
-azucar","Es importante observar que si pronuncia bien una silaba pero otra no, hay que revisar que  el problema no comience con la mala pronunciacion de los fonemas vocales "
+topic NUCLEO,subhabilidad,Señal observable,age min esperado,age max esperado,Hipotesis Funcional,microobjetivo,estrategias paso a paso,frecuencia,duracion,indicador de avance,escalamiento,,,,,,,,,,,,,,
+Lenguaje/Pronunciacion,Articulación de la /s/,"cuando una palabra tiene s no realiza el fonema, en su lugar suena como el fonema d",2,5,"al marcar la mordida sus dientes no se encuentran en una posicion adecuada, es decir, los dientes superiores ligeramente delante de los dientes inferiores",con los dientes juntos que inale y exale,"1- Apoyar al alumno a que sonria con los dientes inferiores y superiores mostrandolos al miso nivel
+2-Identificar que los dientes los junte por si solo
+3-una vez juntos soplar ligeramente aire por la boca",cada dia,2 min,cuando exale que exale pronunciando el sonido sss,si no mejora en 7 dias derivar con Neuropedagogia o Neuropsicologia,,,,,,,,,,,,,,
+Lenguaje/Pronunciacion,Articulación de la /s/,"cuando una palabra tiene s no realiza el fonema, en su lugar suena como el fonema d",2,5,El alumno respira con la boca y no logra meter el aire suficiente por la nariz para poder hablar palabras que requieren de fuerza mandibular,Inalar por la nariz con la boca bien cerradita y exalar por la boca todo el aire inalado,"1- poner los labios juntos con una ligera presion
+2- tomar el aire unicamente por la nariz, (si observa que al hacer fuerza par respirar el alumno abre la boca para tomar aire, apoyar con una cuchara para sostener suavemente los labios cerrados)
+3- sostener 2 segundos el aire en el pecho
+4- soplar todo el aire que tiene en el pecho 
+5- repetir ejercicio hasta que pueda lograr sostener aire hasta 5 segundos dentro y exalar con fuerza por 5 segundos",cada dia,2 minutos,lograr sostener aire hasta 5 segundos dentro de su pecho y exalar con fuerza por 5 segundos,"si no logra respirar con los labios cerrados despues de 2 semanas, evaluar con Neuropedagogia o Neuropsicologia",,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","conciencia corporal 
+Regulacion sensorial",Busca objetos íntimos / estímulos sensoriales específicos,6,9,Baja propiocepción + búsqueda sensorial compensatoria,Aumentar conciencia corporal segura,1. Actividad propioceptiva diaria 2. Escaneo corporal guiado 3. Juegos de presión profunda 4. Identificación sensaciones,Diario,10–15 min,Disminución conductas exploratorias intrusivas,TO ocupacional / integración sensorial formal,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional",Identificacion emocional,"Ansiedad, curiosidad intensa, regulación inconsistente",7,10,Estrés ambiental + posible apego inseguro,Reconocer emoción antes de actuar,1. Termómetro emocional 2. Respiración guiada 3. Diario emocional sencillo 4. Modelado adulto,3–4 veces semana,10 min,Mayor verbalización emocional,Psicoterapia infantil formal,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion","Educación corporal
+Desarrollo psicosexual
+Privacidad corporal",Curiosidad sobre menstruación/objetos íntimos,8,10,Curiosidad evolutiva sin educación sexual suficiente,Comprender límites público/privado,1. Psicoeducación corporal básica 2. Diferenciar objetos privados 3. Normalizar curiosidad 4. Establecer límites claros,Semanal,15 min,Disminución manipulación objetos íntimos,Sexólogo infantil / psicoterapia especializada,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion","Control inhibitorio
+Funciones Ejecutivas
+Autocontrol conductual",Conducta exploratoria impulsiva,6,10,Maduración ejecutiva + ambiente estresante,Aumentar pausa antes de actuar,1. Juegos inhibitorios 2. Técnica STOP 3. Reforzamiento positivo 4. Rutinas estructuradas,3 veces semana,15–20 min,Mayor espera antes de actuar,Evaluación neuropsicológica completa,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion","Vínculo familiar
+Seguridad afectiva
+Apego
+Seguridad emocional","Padre consumidor, posible inseguridad emocional",0,13,Estrés crónico familiar,Incrementar sensación de seguridad,1. Espacios conversación seguros 2. Rutinas estables 3. Validación emocional 4. Actividad familiar positiva,Diario en casa,Variable,Mayor expresión emocional segura,Terapia familiar sistémica,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","Modulación sensorial
+Integracion sensorial auditiva
+Tolerancia a estimulos",Sensibilidad auditiva leve,5,10,Hiperreactividad sensorial,Mejorar tolerancia auditiva,1. Exposición gradual sonidos 2. Control ambiental 3. Técnicas calma auditiva,2–3 veces semana,10 min,Menor irritabilidad ante ruido,TO especializada,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","Conciencia corporal interna
+Regulacion interoceptiva
+interocepcion",Dificultad reconocer tensión corporal,7,11,Baja conciencia corporal interna,Reconocer señales internas,1. Escaneo corporal 2. Respiración profunda 3. Nombrar sensaciones,Diario,5–10 min,Identifica emoción corporal,Psicoterapia corporal,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","Autocuidado
+Toma de desiciones 
+prevencion riesgo de adiccion",Historia familiar de adicciones,8,12,Vulnerabilidad psicosocial,Desarrollar pensamiento preventivo,1. Educación emocional 2. Resolución problemas 3. Modelado conductual sano,Semanal,20 min,Mejor juicio conductual,Psiquiatría infantil preventiva si hay riesgo,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","Atención sensorial
+Regulacion visual
+Organizacion visual",Sensibilidad visual moderada,6,10,Sobrecarga sensorial visual,Mejorar filtrado visual,1. Orden ambiental 2. Juegos atención visual 3. Reducción estímulos,Diario escolar,Continuo,Menor distracción,Evaluación sensorial completa,,,,,,,,,,,,,,
+"Conducta/Autorregulacion, Regulacion emocional","Imagen corporal
+Autoconcepto
+Identidad corporal saludable",Curiosidad corporal intensa,8,11,Construcción identidad corporal,Fortalecer autoconcepto positivo,1. Educación corporal 2. Actividades deportivas 3. Validación corporal,2–3 semana,20 min,Mayor seguridad corporal,Psicoterapia infantil,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion","Modulación táctil y vestibular
+Regulacion sensorial","Busca estímulo genital con aparato masajeador, inquietud corporal frecuente",5 años,8 años,Búsqueda sensorial para autorregulación y descarga dopaminérgica,Que identifique otras formas corporales de regulación,"1. Rutina diaria de movimiento (saltos, bici, columpio) 
+2. Compresión profunda con cojín o abrazo firme 
+3. Masaje corporal neutro (espalda/piernas) 
+4. Objeto sensorial alternativo (pelota, plastilina)",Diario,10-15 min,Disminución de búsqueda genital fuera de privado,Terapia integración sensorial si aumenta frecuencia,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion","Comprensión privacidad corporal
+Autocuidado y límites corporales
+Educacion Sociosexual",Uso de masajeador en contexto no privado,6 años,9 años,Curiosidad corporal + falta de límites contextuales,Comprender diferencia público/privado,"1. Explicar partes privadas sin culpa 
+2. Regla clara: solo en cuarto/baño 
+3. Evitar regaños 
+4. Supervisión discreta 
+5. Refuerzo positivo al respetar privacidad",3 veces semana (recordatorio),5 min,Respeta espacios privados,Psicoterapia infantil si persiste conducta que limita sus actividades diarias,,,,,,,,,,,,,,
+"Regulacion emocional, Conducta/Autorregulacion",Manejo ansiedad/inquietud,"Parlanchín, inquieto, busca estímulos corporales",5 años,8 años,Descarga de ansiedad o aburrimiento,Incrementar estrategias de autorregulación,"1. Respiración guiada corta 
+2. Pausas activas 
+3. Rutina sueño estable 
+4. Actividad física diaria 
+5. Validación emocional verbal",Diario,3-5 min,Menor inquietud y verbalización emocional,Evaluación emocional si aumenta ansiedad,,,,,,,,,,,,,,
+"Atencion concentracion, Conducta/Autorregulacion","Control inhibitorio corporal
+Conducta en aula","Inquietud, habla excesiva en clase",6 años,9 años,Búsqueda dopaminérgica y movimiento,Mejorar control corporal en aula,"1. Objeto manipulativo permitido 
+2. Pausas motoras cada 20 min 
+3. Tareas con movimiento 
+4. Refuerzo positivo conducta calmada",Diario escolar,Según jornada con pausas cada 20 min,Mayor permanencia sentado y atento,"Si afecta aprendizaje, Evaluar TDAH",,,,,,,,,,,,,,

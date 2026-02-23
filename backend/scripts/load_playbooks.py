@@ -1,82 +1,173 @@
-from pathlib import Path
+#!/usr/bin/env python3
+# /app/scripts/load_playbooks.py
+
+"""
+Docstring para backend.scripts.load_playbooks
+
+Cómo correrlo dentro del contenedor (1 comando):
+PYTHONPATH=/app python /app/scripts/load_playbooks.py --reset
+
+Luego Verificar con el script de conteo:
+PYTHONPATH=/app python /app/scripts/debug_chroma_count.py
+"""
+
 import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from app.rag.chroma_client import ChromaPlaybookStore
 
+COLLECTION = "jcj_playbooks_v1"
 
-PLAYBOOK_DIR = Path("/app/data/playbooks")
-JSONL_FILE = PLAYBOOK_DIR / "playbooks.normalized.jsonl"
-
-COLLECTION_NAME = "jcj_playbooks_v1"
+# Default path dentro del contenedor (ajústalo si cambiaste tu montaje)
+DEFAULT_JSONL = Path("/app/data/playbooks/playbooks.normalized.jsonl")
 
 
-def load_jsonl_playbooks(store: ChromaPlaybookStore):
-    if not JSONL_FILE.exists():
-        print(f"⚠️ JSONL not found: {JSONL_FILE}")
-        return 0
+def _s(x: Any) -> str:
+    if x is None:
+        return ""
+    return str(x).strip()
 
-    count = 0
-    with JSONL_FILE.open("r", encoding="utf-8") as f:
-        for line in f:
+
+def _format_doc_from_row(row: Dict[str, Any]) -> str:
+    """
+    Documento “rico” que el LLM entiende y que también permite parse posterior si lo necesitas.
+    """
+    topic = _s(row.get("topic_nucleo"))
+    sub = _s(row.get("subskill"))
+    signal = _s(row.get("signal_observable"))
+    hyp = _s(row.get("functional_hypothesis"))
+    micro = _s(row.get("micro_objective"))
+    freq = _s(row.get("frequency"))
+    dur = _s(row.get("duration"))
+    indicator = _s(row.get("progress_indicator"))
+    escalation = _s(row.get("escalation"))
+
+    age_min = row.get("age_min")
+    age_max = row.get("age_max")
+
+    steps = row.get("steps") or []
+    if not isinstance(steps, list):
+        steps = [_s(steps)] if _s(steps) else []
+
+    # Formato consistente
+    steps_block = "\n".join([f"- { _s(s) }" for s in steps if _s(s)])
+
+    doc = f"""TOPIC_NUCLEO: {topic}
+SUBHABILIDAD: {sub}
+
+SEÑAL_OBSERVABLE:
+{signal}
+
+EDAD: {age_min}–{age_max}
+
+HIPOTESIS_FUNCIONAL:
+{hyp}
+
+MICROOBJETIVO:
+{micro}
+
+ESTRATEGIAS_PASO_A_PASO:
+{steps_block}
+
+FRECUENCIA: {freq}
+DURACION: {dur}
+
+INDICADOR_DE_AVANCE:
+{indicator}
+
+ESCALAMIENTO:
+{escalation}
+""".strip()
+
+    return doc
+
+
+def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for i, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict):
+                    rows.append(obj)
+            except Exception as e:
+                raise RuntimeError(f"Invalid JSON on line {i}: {e}")
+    return rows
 
-            pb = json.loads(line)
 
-            # Texto que irá a embeddings (MUY IMPORTANTE)
-            text = f"""
-    PROBLEMA: {pb.get("problem_title")}
+def load_jsonl_playbooks(store: ChromaPlaybookStore, jsonl_path: Path) -> int:
+    rows = _read_jsonl(jsonl_path)
 
-    EDAD: {pb.get("age_min")}–{pb.get("age_max")}
-    TOPIC: {pb.get("topic_nucleo")}
-    CONTEXTS: {", ".join(pb.get("contexts", []))}
+    loaded = 0
+    for row in rows:
+        doc_id = _s(row.get("id")) or None
+        if not doc_id:
+            # si por algo faltara, genera uno determinístico mínimo
+            # (pero en tu normalizador ya viene id)
+            raise RuntimeError("Row missing 'id' field in JSONL")
 
-    COMPORTAMIENTO OBSERVADO:
-    {pb.get("behavior")}
+        # ✅ Metadata: SOLO tipos escalares permitidos por Chroma
+        meta: Dict[str, Any] = {
+            "id": doc_id,
+            "source": _s(row.get("source")) or "sheet",
+            "topic_nucleo": _s(row.get("topic_nucleo")),
+            "subskill": _s(row.get("subskill")),
+            "age_min": int(row.get("age_min")) if row.get("age_min") is not None else None,
+            "age_max": int(row.get("age_max")) if row.get("age_max") is not None else None,
+            "frequency": _s(row.get("frequency")),
+            "duration": _s(row.get("duration")),
+        }
 
-    OBJETIVOS:
-    - """ + "\n- ".join(pb.get("goal", [])) + """
+        # Puedes añadir más metadata scalar si quieres luego filtrar:
+        # meta["progress_indicator"] = _s(row.get("progress_indicator"))
 
-    ESTRATEGIAS:
-    - """ + "\n- ".join(pb.get("strategies", []))
+        doc_text = _format_doc_from_row(row)
 
-    metadata = {
-        "id": pb.get("id"),
-        "base_row": pb.get("base_row"),
-        "topic_nucleo": pb.get("topic_nucleo"),
-        "contexts": pb.get("contexts"),
-        "age_min": pb.get("age_min"),
-        "age_max": pb.get("age_max"),
-        "source": "sheet",
-    }
+        store.add_document(
+            doc_id=doc_id,
+            text=doc_text,
+            metadata=meta,
+        )
+        loaded += 1
 
-    store.add_document(
-        doc_id=metadata["id"],
-        text=text.strip(),
-        metadata=metadata,
-    )
-    count += 1
-
-    return count
+    return loaded
 
 
 def main():
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--jsonl", default=str(DEFAULT_JSONL), help="Path to normalized JSONL")
+    ap.add_argument("--reset", action="store_true", help="Reset (delete+recreate) the collection before loading")
+    args = ap.parse_args()
+
+    jsonl_path = Path(args.jsonl)
+    if not jsonl_path.exists():
+        raise FileNotFoundError(f"JSONL not found: {jsonl_path}")
+
     store = ChromaPlaybookStore(
         host="chroma",
         port=8000,
-        collection_name=COLLECTION_NAME,
+        collection_name=COLLECTION,
     )
 
-    print("🧹 Clearing existing collection...")
-    store.reset()
+    if args.reset:
+        print("🧹 Resetting collection...")
+        store.reset()
 
     print("📥 Loading playbooks from JSONL (sheet)...")
-    sheet_count = load_jsonl_playbooks(store)
-    print(f"✅ Loaded {sheet_count} playbooks from sheet")
+    count = load_jsonl_playbooks(store, jsonl_path)
 
-    print("📊 Final collection count:", store.count())
+    # Verificación
+    final_count = store.count()
+    print(f"✅ Loaded {count} playbooks from sheet")
+    print(f"📊 Final collection count: {final_count}")
 
 
 if __name__ == "__main__":
     main()
+
