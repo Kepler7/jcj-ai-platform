@@ -2,6 +2,7 @@ import json
 from chromadb import HttpClient
 from typing import List, Dict, Any, Optional
 
+
 def _sanitize_metadata(md: Dict[str, Any]) -> Dict[str, Any]:
     """
     Chroma metadata values must be: str, int, float, bool or None.
@@ -24,15 +25,13 @@ class ChromaPlaybookStore:
     def __init__(self, host: str, port: int, collection_name: str):
         self.collection_name = collection_name
         self.client = HttpClient(host=host, port=port)
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name
-        )
+        self.collection = self.client.get_or_create_collection(name=collection_name)
 
     def reset(self):
         self.client.delete_collection(self.collection_name)
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name
-    )
+        )
 
     def count(self) -> int:
         return int(self.collection.count())
@@ -58,57 +57,24 @@ class ChromaPlaybookStore:
             metadatas=[md],
         )
 
-    def query(
-        self,
-        query_text: str,
-        age: int,
-        context: str,
-        n_results: int = 5,
-    ) -> List[str]:
-        """
-        Busca playbooks relevantes por similitud semántica, filtrando:
-        - En Chroma: por edad.
-        - En Python: por contexto usando metadata 'contexts_csv'
-          ("casa,aula,otro_contexto_social").
-        Devuelve lista de DOCUMENTOS (strings).
-        """
-
+    def query(self, query_text: str, age: int, n_results: int = 5) -> List[str]:
         results = self.collection.query(
             query_texts=[query_text],
             n_results=n_results,
             where={
                 "$and": [
-                    {"age_min": {"$lte": int(age)}},
-                    {"age_max": {"$gte": int(age)}},
+                    {"age_min": {"$lte": age}},
+                    {"age_max": {"$gte": age}},
                 ]
             },
-            include=["documents", "metadatas"],
+            include=["documents", "metadatas", "distances"],  # ✅ sin ids
         )
 
-        documents: List[str] = (results.get("documents") or [[]])[0] or []
-        metadatas: List[Dict[str, Any]] = (results.get("metadatas") or [[]])[0] or []
+        # En esta versión de Chroma, ids vienen en results["ids"] sin pedirlos,
+        # pero si no vienen no pasa nada (tu retrieve_playbooks solo usa docs).
+        documents: List[str] = results.get("documents", [[]])[0] or []
+        return documents
 
-        ctx_raw = (context or "").strip().lower()
-        if not ctx_raw:
-            return documents
-
-        # soporta "aula,casa" o "aula"
-        wanted_tokens = [t.strip() for t in ctx_raw.split(",") if t.strip()]
-        wanted_tokens = [_normalize_ctx_token(t) for t in wanted_tokens]
-
-        # "en todas las anteriores" => no filtrar
-        if any(t is None for t in wanted_tokens):
-            return documents
-
-        filtered_docs: List[str] = []
-        for doc, meta in zip(documents, metadatas):
-            meta_ctx_csv = (meta.get("contexts_csv") or "").strip().lower()
-            meta_tokens = [t.strip() for t in meta_ctx_csv.split(",") if t.strip()]
-
-            if any(t in meta_tokens for t in wanted_tokens):
-                filtered_docs.append(doc)
-
-        return filtered_docs
 
 _CONTEXT_NORMALIZE = {
     "otro contexto social": "otro_contexto_social",
@@ -116,8 +82,7 @@ _CONTEXT_NORMALIZE = {
     "en todas las anteriores": None,  # significa "cualquiera"
 }
 
+
 def _normalize_ctx_token(s: str) -> str:
     s = (s or "").strip().lower()
     return _CONTEXT_NORMALIZE.get(s, s)
-
-

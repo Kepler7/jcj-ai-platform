@@ -54,30 +54,39 @@ type StudentReport = {
   id: string;
   student_id: string;
   school_id: string;
-  strengths: string;
-  challenges: string;
+  signals_observed: string;
   notes: string | null;
   created_by_user_id: string;
   created_at: string;
 };
 
+// ✅ legacy (si te llega un AI viejo)
 type Recommendation = {
   title: string;
   steps: string[];
   when_to_use?: string | null;
 };
 
-type PlanDay = {
-  day: number;
-  focus: string;
-  activity: string;
-  success_criteria: string;
+// ✅ NUEVO: MicroIntervención (IHUI 2.0)
+type MicroIntervention = {
+  topic_nucleo?: string | null;
+  subhabilidad?: string | null;
+  microobjetivo?: string | null;
+  senal_observable?: string | null;
+  hipotesis_funcional?: string | null;
+  estrategias_paso_a_paso?: string[] | null;
+  frecuencia?: string | null;
+  duracion?: string | null;
+  indicador_de_avance?: string | null;
+  escalamiento?: string | null;
 };
 
+// ✅ NUEVO AIVersion: ahora trae microintervenciones (pero mantenemos optional recommendations por compat)
 type AIVersion = {
   summary: string;
   signals_detected: string[];
-  recommendations: Recommendation[];
+  microintervenciones?: MicroIntervention[]; // ✅ nuevo
+  recommendations?: Recommendation[]; // ✅ legacy compat
 };
 
 type AIReport = {
@@ -93,31 +102,6 @@ type AIReport = {
   created_at: string;
 };
 
-function GuardiansFormCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
-      <Heading size="sm" mb={3}>
-        Tutores
-      </Heading>
-      <Text fontSize="sm" color="gray.600" mb={4}>
-        Agrega y define quién recibe primero.
-      </Text>
-      {children}
-    </Box>
-  );
-}
-
-function GuardiansListCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
-      <Heading size="sm" mb={3}>
-        Lista de tutores
-      </Heading>
-      {children}
-    </Box>
-  );
-}
-
 function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
   if (!g.is_active) return { ok: false, reason: "Tutor inactivo" };
   if (!g.whatsapp_phone) return { ok: false, reason: "Sin teléfono" };
@@ -127,6 +111,126 @@ function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
 }
 
 const SHOW_WHATSAPP_BUTTONS = false;
+
+function normalizeSteps(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((x) => String(x)).filter(Boolean);
+  // a veces llega como string con "1. ... 2. ..."
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return [];
+    // separa por saltos o por " 2. " etc
+    const byLines = s.split('\n').map((x) => x.trim()).filter(Boolean);
+    if (byLines.length > 1) return byLines;
+    // fallback: split por números
+    const byNums = s.split(/\s*\d+\.\s*/).map((x) => x.trim()).filter(Boolean);
+    return byNums.length ? byNums : [s];
+  }
+  return [];
+}
+
+function MicroInterventionCard({
+  mi,
+  idx,
+  colorScheme,
+}: {
+  mi: MicroIntervention;
+  idx: number;
+  colorScheme: string;
+}) {
+  const steps = normalizeSteps(mi.estrategias_paso_a_paso);
+
+  const headerBadges: string[] = [];
+  if (mi.frecuencia) headerBadges.push(`Frecuencia: ${mi.frecuencia}`);
+  if (mi.duracion) headerBadges.push(`Duración: ${mi.duracion}`);
+
+  return (
+    <Box borderWidth="1px" borderRadius="md" p={3}>
+      <HStack justify="space-between" align="start" mb={2}>
+        <Box>
+          <Text fontWeight="semibold">
+            {mi.microobjetivo?.trim()
+              ? mi.microobjetivo
+              : `Microintervención ${idx + 1}`}
+          </Text>
+          <Text fontSize="sm" color="gray.600">
+            {(mi.topic_nucleo || '—')}{mi.subhabilidad ? ` · ${mi.subhabilidad}` : ''}
+          </Text>
+        </Box>
+
+        {headerBadges.length > 0 ? (
+          <VStack align="end" spacing={1}>
+            {headerBadges.slice(0, 2).map((b, i) => (
+              <Badge key={i} variant="subtle" colorScheme={colorScheme}>
+                {b}
+              </Badge>
+            ))}
+          </VStack>
+        ) : null}
+      </HStack>
+
+      {mi.senal_observable ? (
+        <Box mb={2}>
+          <Text fontSize="sm" fontWeight="semibold">
+            Señal observable
+          </Text>
+          <Text fontSize="sm">{mi.senal_observable}</Text>
+        </Box>
+      ) : null}
+
+      {mi.hipotesis_funcional ? (
+        <Box mb={2}>
+          <Text fontSize="sm" fontWeight="semibold">
+            Hipótesis funcional
+          </Text>
+          <Text fontSize="sm">{mi.hipotesis_funcional}</Text>
+        </Box>
+      ) : null}
+
+      {steps.length > 0 ? (
+        <Box mt={2}>
+          <Text fontSize="sm" fontWeight="semibold" mb={1}>
+            Estrategias paso a paso
+          </Text>
+          <Stack spacing={1}>
+            {steps.map((st, i) => (
+              <Text key={i} fontSize="sm">
+                • {st}
+              </Text>
+            ))}
+          </Stack>
+        </Box>
+      ) : (
+        <Text fontSize="sm" color="gray.500">
+          No hay estrategias paso a paso.
+        </Text>
+      )}
+
+      {(mi.indicador_de_avance || mi.escalamiento) ? (
+        <>
+          <Divider my={3} />
+          {mi.indicador_de_avance ? (
+            <Box mb={2}>
+              <Text fontSize="sm" fontWeight="semibold">
+                Indicador de avance
+              </Text>
+              <Text fontSize="sm">{mi.indicador_de_avance}</Text>
+            </Box>
+          ) : null}
+
+          {mi.escalamiento ? (
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold">
+                Escalamiento
+              </Text>
+              <Text fontSize="sm">{mi.escalamiento}</Text>
+            </Box>
+          ) : null}
+        </>
+      ) : null}
+    </Box>
+  );
+}
 
 export default function ReportsPage() {
   const { studentId } = useParams<{ studentId: string }>();
@@ -141,8 +245,7 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Create report form
-  const [strengths, setStrengths] = useState('');
-  const [challenges, setChallenges] = useState('');
+  const [signalsObserved, setSignalsObserved] = useState('');
   const [notes, setNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -152,16 +255,12 @@ export default function ReportsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiJobStatus, setAiJobStatus] = useState<string | null>(null);
 
-  // ✅ Map to know if AI exists per report (for showing Regenerar only when exists)
-  const [aiExistsByReportId, setAiExistsByReportId] = useState<
-    Record<string, boolean>
-  >({});
+  // ✅ Map to know if AI exists per report
+  const [aiExistsByReportId, setAiExistsByReportId] = useState<Record<string, boolean>>({});
 
   // UI expansions for AI cards
-  const [expandTeacherRecs, setExpandTeacherRecs] = useState(true);
-  const [expandTeacherPlan, setExpandTeacherPlan] = useState(false);
-  const [expandParentRecs, setExpandParentRecs] = useState(true);
-  const [expandParentPlan, setExpandParentPlan] = useState(false);
+  const [expandTeacher, setExpandTeacher] = useState(true);
+  const [expandParent, setExpandParent] = useState(true);
 
   const studentName = useMemo(() => student?.full_name ?? 'alumno', [student]);
 
@@ -191,7 +290,6 @@ export default function ReportsPage() {
         { method: "POST", auth: true }
       );
 
-      // abre wa.me con el texto ya prellenado
       window.open(res.wa_url, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       const msg =
@@ -223,7 +321,6 @@ export default function ReportsPage() {
         },
       });
 
-      // reset form
       setGFullName("");
       setGPhone("");
       setGRelationship("madre");
@@ -232,7 +329,6 @@ export default function ReportsPage() {
       setGReceiveWhatsapp(true);
       setGConsent(true);
 
-      // refresh list
       await loadGuardians(studentId);
     } catch (e: any) {
       setGuardianError(e?.message ?? "Error creando tutor");
@@ -260,13 +356,11 @@ export default function ReportsPage() {
     if (!studentId) return;
     setLoadingStudent(true);
     try {
-      // Assumes you have GET /v1/students/{id}
       const data = await api<Student>(`/v1/students/${studentId}`, {
         auth: true,
       });
       setStudent(data);
     } catch (e: any) {
-      // Not fatal for reports list, but affects title
       setStudent(null);
     } finally {
       setLoadingStudent(false);
@@ -277,9 +371,7 @@ export default function ReportsPage() {
     try {
       const data = await api<any>(
         `/v1/ai-reports?report_id=${encodeURIComponent(reportId)}`,
-        {
-          auth: true,
-        }
+        { auth: true }
       );
 
       if (Array.isArray(data)) return data.length > 0;
@@ -306,13 +398,11 @@ export default function ReportsPage() {
         { auth: true }
       );
 
-      // newest first
       const sorted = [...data].sort((a, b) =>
         a.created_at < b.created_at ? 1 : -1
       );
       setReports(sorted);
 
-      // ✅ fill AI-exists map
       const entries = await Promise.all(
         sorted.map(async (r) => {
           try {
@@ -325,7 +415,6 @@ export default function ReportsPage() {
       );
       setAiExistsByReportId(Object.fromEntries(entries));
 
-      // Keep selection if still exists
       if (selectedReportId) {
         const still = sorted.find((r) => r.id === selectedReportId);
         if (!still) {
@@ -351,8 +440,7 @@ export default function ReportsPage() {
         auth: true,
         body: {
           student_id: studentId,
-          strengths: strengths.trim(),
-          challenges: challenges.trim(),
+          signals_observed: signalsObserved.trim(),
           notes: notes.trim() || null,
         },
       });
@@ -364,15 +452,11 @@ export default function ReportsPage() {
         isClosable: true,
       });
 
-      // reset
-      setStrengths('');
-      setChallenges('');
+      setSignalsObserved('');
       setNotes('');
 
-      // refresh
       await loadReports();
 
-      // select the created report
       setSelectedReportId(created.id);
       setAiReport(null);
       setAiExistsByReportId((prev) => ({ ...prev, [created.id]: false }));
@@ -390,9 +474,7 @@ export default function ReportsPage() {
     try {
       const data = await api<any>(
         `/v1/ai-reports?report_id=${encodeURIComponent(reportId)}`,
-        {
-          auth: true,
-        }
+        { auth: true }
       );
 
       const latest: AIReport | null = Array.isArray(data)
@@ -427,7 +509,6 @@ export default function ReportsPage() {
     setError(null);
 
     try {
-      // async path
       const created = await api<{ job_id: string; status: string }>(
         '/v1/ai-jobs',
         {
@@ -435,14 +516,13 @@ export default function ReportsPage() {
           auth: true,
           body: {
             report_id: reportId,
-            contexts: ['aula', 'casa'], // puedes cambiarlo luego
+            contexts: ['aula', 'casa'],
           },
         }
       );
 
       const jobId = created.job_id;
 
-      // poll status until done/failed
       const maxTries = 40;
       const delayMs = 1200;
 
@@ -484,10 +564,9 @@ export default function ReportsPage() {
         duration: 1600,
         isClosable: true,
       });
-    
-      // ✅ avisa al navbar que refresque el badge
+
       window.dispatchEvent(new Event("playbook:pending-changed"));
-      // fetch latest AI report
+
       setAiJobStatus(null);
       await fetchAIReport(reportId);
     } catch (e: any) {
@@ -510,7 +589,6 @@ export default function ReportsPage() {
     }
   }
 
-  // ✅ NUEVO: handler para WhatsApp que NO depende de aiReport cargado
   async function handleSendWhatsapp(g: Guardian) {
     if (!selectedReportId) return;
 
@@ -519,11 +597,9 @@ export default function ReportsPage() {
 
     setSendingWaByGuardianId((p) => ({ ...p, [g.id]: true }));
     try {
-      // 1) Debe existir AI para el reporte seleccionado
       const hasAiForSelected = !!aiExistsByReportId[selectedReportId];
       if (!hasAiForSelected) return;
 
-      // 2) Obtener ai_report_id aunque no esté cargado en aiReport (UI)
       let aiId = aiReport?.id ?? null;
       if (!aiId || aiReport?.report_id !== selectedReportId) {
         const latest = await fetchAIReport(selectedReportId);
@@ -531,7 +607,6 @@ export default function ReportsPage() {
       }
       if (!aiId) return;
 
-      // 3) enviar preview
       await sendWhatsappPreview(aiId, g.id);
     } finally {
       setSendingWaByGuardianId((p) => ({ ...p, [g.id]: false }));
@@ -551,7 +626,6 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
-  // When selected report changes, auto-fetch AI if it exists
   useEffect(() => {
     if (!selectedReportId) return;
     const exists = !!aiExistsByReportId[selectedReportId];
@@ -567,6 +641,15 @@ export default function ReportsPage() {
     ? 'Reportes del alumno'
     : `Reportes de ${studentName}`;
 
+  const teacherMIs = aiReport?.teacher_version?.microintervenciones ?? [];
+  const parentMIs = aiReport?.parent_version?.microintervenciones ?? [];
+
+  const teacherLegacyRecs = aiReport?.teacher_version?.recommendations ?? [];
+  const parentLegacyRecs = aiReport?.parent_version?.recommendations ?? [];
+
+  const teacherHasNew = teacherMIs.length > 0;
+  const parentHasNew = parentMIs.length > 0;
+
   return (
     <Box p={6}>
       <HStack justify="space-between" align="flex-start" mb={4}>
@@ -576,6 +659,7 @@ export default function ReportsPage() {
             Student ID: {studentId}
           </Text>
         </Box>
+
         <Box mt={4} p={4} borderWidth="1px" borderRadius="lg">
           <Heading size="sm" mb={3}>
             Tutores
@@ -629,16 +713,12 @@ export default function ReportsPage() {
                       isChecked={gIsPrimary}
                       onChange={(e) => {
                         const next = e.target.checked;
-
-                        // Si lo está activando y ya existe un primario (distinto al que estás creando),
-                        // mostramos warning.
                         if (next) {
                           const existingPrimary = guardians.some((x) => x.is_active && x.is_primary);
                           setShowPrimaryWarning(existingPrimary);
                         } else {
                           setShowPrimaryWarning(false);
                         }
-
                         setGIsPrimary(next);
                       }}
                     >
@@ -734,30 +814,30 @@ export default function ReportsPage() {
                                     <Text fontSize="sm">{g.notes}</Text>
                                   </>
                                 )}
-                                {/* 👉 BOTÓN WHATSAPP (corregido) */}
-                                {SHOW_WHATSAPP_BUTTONS && (
-                                <Box mt={3}>
-                                  <Button
-                                    size="sm"
-                                    colorScheme="green"
-                                    isDisabled={!hasSelectedReport || !hasAiForSelected || !sendState.ok}
-                                    isLoading={!!sendingWaByGuardianId[g.id]}
-                                    onClick={() => handleSendWhatsapp(g)}
-                                  >
-                                    Enviar WhatsApp
-                                  </Button>
 
-                                  {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
-                                    <Text fontSize="xs" color="gray.500" mt={1}>
-                                      {!hasSelectedReport
-                                        ? "Selecciona un reporte."
-                                        : !hasAiForSelected
-                                        ? "Genera el apoyo AI primero."
-                                        : sendState.reason}
-                                    </Text>
-                                  )}
-                                </Box>
-                                )}                             
+                                {SHOW_WHATSAPP_BUTTONS && (
+                                  <Box mt={3}>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isDisabled={!hasSelectedReport || !hasAiForSelected || !sendState.ok}
+                                      isLoading={!!sendingWaByGuardianId[g.id]}
+                                      onClick={() => handleSendWhatsapp(g)}
+                                    >
+                                      Enviar WhatsApp
+                                    </Button>
+
+                                    {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
+                                      <Text fontSize="xs" color="gray.500" mt={1}>
+                                        {!hasSelectedReport
+                                          ? "Selecciona un reporte."
+                                          : !hasAiForSelected
+                                          ? "Genera el apoyo AI primero."
+                                          : sendState.reason}
+                                      </Text>
+                                    )}
+                                  </Box>
+                                )}
                               </Box>
                             </HStack>
                           </Box>
@@ -792,30 +872,20 @@ export default function ReportsPage() {
         </CardHeader>
         <CardBody>
           <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
-            <GridItem>
+            <GridItem colSpan={{ base: 1, md: 2 }}>
               <FormControl>
-                <FormLabel>Fortalezas</FormLabel>
+                <FormLabel>Señales observables</FormLabel>
+                <Text fontSize="sm" color="gray.600" mb={1}>
+                  Explica qué señal, conducta o situación se observa en el alumno.
+                </Text>
                 <Textarea
-                  value={strengths}
-                  onChange={(e) => setStrengths(e.target.value)}
-                  placeholder="Ej: Sigue indicaciones con apoyo visual, participa cuando se anticipa…"
+                  value={signalsObserved}
+                  onChange={(e) => setSignalsObserved(e.target.value)}
+                  placeholder="Ej: Busca estímulo corporal constante, habla excesiva en clase, dificultad para esperar turnos…"
                   rows={4}
                 />
               </FormControl>
             </GridItem>
-
-            <GridItem>
-              <FormControl>
-                <FormLabel>Retos</FormLabel>
-                <Textarea
-                  value={challenges}
-                  onChange={(e) => setChallenges(e.target.value)}
-                  placeholder="Ej: Se frustra al esperar turnos, requiere recordatorios…"
-                  rows={4}
-                />
-              </FormControl>
-            </GridItem>
-
             <GridItem colSpan={{ base: 1, md: 2 }}>
               <FormControl>
                 <FormLabel>Notas (opcional)</FormLabel>
@@ -832,7 +902,7 @@ export default function ReportsPage() {
               <Button
                 onClick={createReport}
                 isLoading={creating}
-                isDisabled={!strengths.trim() || !challenges.trim()}
+                isDisabled={!signalsObserved.trim()}
                 colorScheme="blue"
               >
                 Crear reporte
@@ -864,8 +934,7 @@ export default function ReportsPage() {
                 <Thead>
                   <Tr>
                     <Th>CREATED</Th>
-                    <Th>STRENGTHS</Th>
-                    <Th>CHALLENGES</Th>
+                    <Th>SIGNALS OBSERVED</Th>
                     <Th>NOTES</Th>
                     <Th>ID</Th>
                     <Th>AI</Th>
@@ -886,10 +955,7 @@ export default function ReportsPage() {
                           {new Date(r.created_at).toLocaleString()}
                         </Td>
                         <Td maxW="260px">
-                          <Text noOfLines={2}>{r.strengths}</Text>
-                        </Td>
-                        <Td maxW="260px">
-                          <Text noOfLines={2}>{r.challenges}</Text>
+                          <Text noOfLines={2}>{r.signals_observed || '-'}</Text>
                         </Td>
                         <Td maxW="260px">
                           <Text noOfLines={2}>{r.notes || '-'}</Text>
@@ -910,7 +976,6 @@ export default function ReportsPage() {
                               {exists ? 'Ver apoyo' : 'Generar'}
                             </Button>
 
-                            {/* ✅ Regenerar SOLO si ya existe */}
                             {exists && (
                               <Button
                                 size="sm"
@@ -918,9 +983,7 @@ export default function ReportsPage() {
                                   setSelectedReportId(r.id);
                                   generateAI(r.id);
                                 }}
-                                isLoading={
-                                  aiLoading && selectedReportId === r.id
-                                }
+                                isLoading={aiLoading && selectedReportId === r.id}
                               >
                                 Regenerar
                               </Button>
@@ -971,15 +1034,12 @@ export default function ReportsPage() {
               <CardHeader>
                 <HStack justify="space-between">
                   <Heading size="sm">Versión Maestro</Heading>
-                  <Badge
-                    colorScheme={aiReport.guardrails_passed ? 'green' : 'red'}
-                  >
+                  <Badge colorScheme={aiReport.guardrails_passed ? 'green' : 'red'}>
                     {aiReport.guardrails_passed ? 'Guardrails OK' : 'Revisar'}
                   </Badge>
                 </HStack>
                 <Text fontSize="sm" color="gray.600" mt={1}>
-                  {aiReport.model_name} •{' '}
-                  {new Date(aiReport.created_at).toLocaleString()}
+                  {aiReport.model_name} • {new Date(aiReport.created_at).toLocaleString()}
                 </Text>
               </CardHeader>
               <CardBody>
@@ -1001,27 +1061,36 @@ export default function ReportsPage() {
 
                 <Divider my={3} />
 
-                {/* Recomendaciones collapsible */}
                 <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Recomendaciones</Text>
+                  <Text fontWeight="semibold">
+                    {teacherHasNew ? 'Microintervenciones' : 'Recomendaciones'}
+                  </Text>
                   <IconButton
-                    aria-label="toggle teacher recs"
+                    aria-label="toggle teacher"
                     size="sm"
                     variant="ghost"
-                    icon={expandTeacherRecs ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandTeacherRecs((v) => !v)}
+                    icon={expandTeacher ? <ChevronUp /> : <ChevronDown />}
+                    onClick={() => setExpandTeacher((v) => !v)}
                   />
                 </HStack>
-                <Collapse in={expandTeacherRecs} animateOpacity>
+
+                <Collapse in={expandTeacher} animateOpacity>
                   <Stack spacing={3} mb={4}>
-                    {aiReport.teacher_version.recommendations?.map(
-                      (rec, idx) => (
-                        <Box
+                    {/* ✅ Nuevo render */}
+                    {teacherHasNew &&
+                      teacherMIs.map((mi, idx) => (
+                        <MicroInterventionCard
                           key={idx}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
-                        >
+                          mi={mi}
+                          idx={idx}
+                          colorScheme="blue"
+                        />
+                      ))}
+
+                    {/* ✅ Legacy fallback */}
+                    {!teacherHasNew && teacherLegacyRecs.length > 0 &&
+                      teacherLegacyRecs.map((rec, idx) => (
+                        <Box key={idx} borderWidth="1px" borderRadius="md" p={3}>
                           <HStack justify="space-between" mb={1}>
                             <Text fontWeight="semibold">{rec.title}</Text>
                             {rec.when_to_use ? (
@@ -1038,22 +1107,38 @@ export default function ReportsPage() {
                             ))}
                           </Stack>
                         </Box>
-                      )
+                      ))}
+
+                    {!teacherHasNew && teacherLegacyRecs.length === 0 && (
+                      <Text fontSize="sm" color="gray.500">
+                        No hay microintervenciones/recomendaciones disponibles.
+                      </Text>
                     )}
                   </Stack>
                 </Collapse>
 
-                <Divider my={3} />
+                {aiReport.guardrails_notes ? (
+                  <Box mt={4}>
+                    <Alert status="warning">
+                      <AlertIcon />
+                      <Text fontSize="sm">{aiReport.guardrails_notes}</Text>
+                    </Alert>
+                  </Box>
+                ) : null}
               </CardBody>
             </Card>
 
             {/* Parent */}
             <Card>
               <CardHeader>
-                <Heading size="sm">Versión Familia</Heading>
-                <Text fontSize="sm" color="gray.600" mt={1}>
-                  Recomendaciones prácticas para casa.
-                </Text>
+                <HStack justify="space-between" align="start">
+                  <Box>
+                    <Heading size="sm">Versión Familia</Heading>
+                    <Text fontSize="sm" color="gray.600" mt={1}>
+                      Recomendaciones prácticas para casa.
+                    </Text>
+                  </Box>
+                </HStack>
               </CardHeader>
               <CardBody>
                 <Text fontWeight="semibold" mb={2}>
@@ -1074,27 +1159,36 @@ export default function ReportsPage() {
 
                 <Divider my={3} />
 
-                {/* Recomendaciones collapsible */}
                 <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Recomendaciones</Text>
+                  <Text fontWeight="semibold">
+                    {parentHasNew ? 'Microintervenciones' : 'Recomendaciones'}
+                  </Text>
                   <IconButton
-                    aria-label="toggle parent recs"
+                    aria-label="toggle parent"
                     size="sm"
                     variant="ghost"
-                    icon={expandParentRecs ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandParentRecs((v) => !v)}
+                    icon={expandParent ? <ChevronUp /> : <ChevronDown />}
+                    onClick={() => setExpandParent((v) => !v)}
                   />
                 </HStack>
-                <Collapse in={expandParentRecs} animateOpacity>
+
+                <Collapse in={expandParent} animateOpacity>
                   <Stack spacing={3} mb={4}>
-                    {aiReport.parent_version.recommendations?.map(
-                      (rec, idx) => (
-                        <Box
+                    {/* ✅ Nuevo render */}
+                    {parentHasNew &&
+                      parentMIs.map((mi, idx) => (
+                        <MicroInterventionCard
                           key={idx}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
-                        >
+                          mi={mi}
+                          idx={idx}
+                          colorScheme="purple"
+                        />
+                      ))}
+
+                    {/* ✅ Legacy fallback */}
+                    {!parentHasNew && parentLegacyRecs.length > 0 &&
+                      parentLegacyRecs.map((rec, idx) => (
+                        <Box key={idx} borderWidth="1px" borderRadius="md" p={3}>
                           <HStack justify="space-between" mb={1}>
                             <Text fontWeight="semibold">{rec.title}</Text>
                             {rec.when_to_use ? (
@@ -1111,12 +1205,16 @@ export default function ReportsPage() {
                             ))}
                           </Stack>
                         </Box>
-                      )
+                      ))}
+
+                    {!parentHasNew && parentLegacyRecs.length === 0 && (
+                      <Text fontSize="sm" color="gray.500">
+                        No hay microintervenciones/recomendaciones disponibles.
+                      </Text>
                     )}
                   </Stack>
                 </Collapse>
 
-                <Divider my={3} />
                 {aiReport.guardrails_notes ? (
                   <Box mt={4}>
                     <Alert status="warning">
@@ -1133,4 +1231,5 @@ export default function ReportsPage() {
     </Box>
   );
 }
+
 

@@ -45,7 +45,8 @@ type PlaybookFallbackEvent = {
   ai_report_id: string | null;
 
   topic_nucleo: string | null;
-  context: string | string[] | null;
+  // context: string | string[] | null;  // ❌ ya no lo mostramos
+  signals_detected?: string[] | null;   // ✅ nuevo
   reason: string;
 
   query_text: string | null;
@@ -56,6 +57,7 @@ type PlaybookFallbackEvent = {
   resolved_at: string | null;
 };
 
+
 type StudentReport = {
   id: string;
   student_id: string;
@@ -64,18 +66,19 @@ type StudentReport = {
   challenges: string;
   notes: string | null;
   created_at: string;
+  signals_observed: string | null;
 };
-
+/*
 type Recommendation = {
   title: string;
   steps: string[];
   when_to_use?: string | null;
-};
+};*/
 
 type AIVersion = {
   summary: string;
   signals_detected?: string[];
-  recommendations?: Recommendation[];
+  microintervenciones?: MicroIntervention[];
   // classroom_plan_7_days / home_plan_7_days los dejamos fuera a propósito (spoiler: luego lo quitamos)
 };
 
@@ -92,10 +95,31 @@ type AIReport = {
   guardrails_notes: string | null;
 };
 
-function formatContext(ctx: PlaybookFallbackEvent["context"]) {
+type MicroIntervention = {
+  topic_nucleo: string;
+  subhabilidad: string;
+  senal_observable: string;
+  hipotesis_funcional: string;
+  microobjetivo: string;
+  estrategias_paso_a_paso: string[];
+  frecuencia: string;
+  duracion: string;
+  indicador_de_avance: string;
+  escalamiento: string;
+};
+
+
+/*function formatContext(ctx: PlaybookFallbackEvent["context"]) {
   if (!ctx) return "-";
   if (Array.isArray(ctx)) return ctx.join(", ");
   return String(ctx);
+}*/
+
+function formatSignals(signals?: string[] | null) {
+  if (!signals || signals.length === 0) return "-";
+  const first = signals.slice(0, 3);
+  const extra = signals.length - first.length;
+  return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
 }
 
 function safeText(x: any) {
@@ -292,8 +316,6 @@ export default function PlaybookPendientesPage() {
                 <Thead>
                   <Tr>
                     <Th>CREATED</Th>
-                    <Th>TOPIC</Th>
-                    <Th>CONTEXT</Th>
                     <Th>REASON</Th>
                     <Th>QUERY</Th>
                     <Th>SUMMARY</Th>
@@ -309,14 +331,6 @@ export default function PlaybookPendientesPage() {
                       <Tr key={r.id} opacity={isResolved ? 0.7 : 1}>
                         <Td whiteSpace="nowrap">
                           {new Date(r.created_at).toLocaleString()}
-                        </Td>
-
-                        <Td>
-                          <Text fontSize="sm">{r.topic_nucleo ?? "-"}</Text>
-                        </Td>
-
-                        <Td>
-                          <Text fontSize="sm">{formatContext(r.context)}</Text>
                         </Td>
 
                         <Td>
@@ -436,7 +450,7 @@ export default function PlaybookPendientesPage() {
                       Topic: {selected.topic_nucleo ?? "-"}
                     </Badge>
                     <Badge variant="subtle" colorScheme="gray">
-                      Context: {formatContext(selected.context)}
+                      Signals: {formatSignals(selected.signals_detected)}
                     </Badge>
                   </HStack>
                 </HStack>
@@ -488,21 +502,14 @@ export default function PlaybookPendientesPage() {
                   ) : (
                     <Stack spacing={3}>
                       <Box>
-                        <Text fontWeight="semibold">Fortalezas</Text>
+                        <Text fontWeight="semibold">Señales observables</Text>
                         <Text fontSize="sm" whiteSpace="pre-wrap">
-                          {safeText(reportDetail.strengths) || "-"}
+                          {safeText(reportDetail.signals_observed) || "-"}
                         </Text>
                       </Box>
 
                       <Box>
-                        <Text fontWeight="semibold">Retos</Text>
-                        <Text fontSize="sm" whiteSpace="pre-wrap">
-                          {safeText(reportDetail.challenges) || "-"}
-                        </Text>
-                      </Box>
-
-                      <Box>
-                        <Text fontWeight="semibold">Notas</Text>
+                        <Text fontWeight="semibold">Notas (opcional)</Text>
                         <Text fontSize="sm" whiteSpace="pre-wrap">
                           {reportDetail.notes ?? "-"}
                         </Text>
@@ -582,46 +589,95 @@ export default function PlaybookPendientesPage() {
 
                       <Box>
                         <Text fontWeight="semibold" mb={1}>
-                          Recomendaciones (familia)
+                          Microintervenciones (familia)
                         </Text>
-                        {(aiDetail.parent_version?.recommendations ?? [])
-                          .length === 0 ? (
+
+                        {(aiDetail.parent_version?.microintervenciones ?? []).length === 0 ? (
                           <Text fontSize="sm" color="gray.600">
                             -
                           </Text>
                         ) : (
                           <Stack spacing={3}>
-                            {(aiDetail.parent_version?.recommendations ??
-                              []).map((rec, idx) => (
-                              <Box
-                                key={idx}
-                                borderWidth="1px"
-                                borderRadius="md"
-                                p={3}
-                              >
-                                <HStack justify="space-between" mb={1}>
-                                  <Text fontWeight="semibold">{rec.title}</Text>
-                                  {rec.when_to_use ? (
-                                    <Badge
-                                      variant="subtle"
-                                      colorScheme="purple"
-                                    >
-                                      {rec.when_to_use}
-                                    </Badge>
-                                  ) : null}
-                                </HStack>
-                                <Stack spacing={1} mt={2}>
-                                  {(rec.steps ?? []).map((st, i) => (
-                                    <Text key={i} fontSize="sm">
-                                      • {st}
+                            {(aiDetail.parent_version?.microintervenciones ?? []).map((mi, idx) => (
+                              <Box key={idx} borderWidth="1px" borderRadius="md" p={3}>
+                                <HStack justify="space-between" align="start" flexWrap="wrap">
+                                  <Box>
+                                    <Text fontWeight="semibold">
+                                      {mi.topic_nucleo} · {mi.subhabilidad}
                                     </Text>
-                                  ))}
+                                    <Text fontSize="sm" color="gray.600" mt={1}>
+                                      Señal observable: {mi.senal_observable}
+                                    </Text>
+                                  </Box>
+
+                                  <VStack align="end" spacing={1}>
+                                    <Badge variant="subtle" colorScheme="purple">
+                                      Frecuencia: {mi.frecuencia}
+                                    </Badge>
+                                    <Badge variant="subtle" colorScheme="purple">
+                                      Duración: {mi.duracion}
+                                    </Badge>
+                                  </VStack>
+                                </HStack>
+
+                                <Divider my={3} />
+
+                                <Stack spacing={2}>
+                                  <Box>
+                                    <Text fontSize="sm" fontWeight="semibold">
+                                      Hipótesis funcional
+                                    </Text>
+                                    <Text fontSize="sm" whiteSpace="pre-wrap">
+                                      {mi.hipotesis_funcional}
+                                    </Text>
+                                  </Box>
+
+                                  <Box>
+                                    <Text fontSize="sm" fontWeight="semibold">
+                                      Microobjetivo
+                                    </Text>
+                                    <Text fontSize="sm" whiteSpace="pre-wrap">
+                                      {mi.microobjetivo}
+                                    </Text>
+                                  </Box>
+
+                                  <Box>
+                                    <Text fontSize="sm" fontWeight="semibold">
+                                      Estrategias paso a paso
+                                    </Text>
+                                    <Stack spacing={1} mt={1}>
+                                      {(mi.estrategias_paso_a_paso ?? []).map((st, i) => (
+                                        <Text key={i} fontSize="sm">
+                                          • {st}
+                                        </Text>
+                                      ))}
+                                    </Stack>
+                                  </Box>
+
+                                  <Box>
+                                    <Text fontSize="sm" fontWeight="semibold">
+                                      Indicador de avance
+                                    </Text>
+                                    <Text fontSize="sm" whiteSpace="pre-wrap">
+                                      {mi.indicador_de_avance}
+                                    </Text>
+                                  </Box>
+
+                                  <Box>
+                                    <Text fontSize="sm" fontWeight="semibold">
+                                      Escalamiento
+                                    </Text>
+                                    <Text fontSize="sm" whiteSpace="pre-wrap">
+                                      {mi.escalamiento}
+                                    </Text>
+                                  </Box>
                                 </Stack>
                               </Box>
                             ))}
                           </Stack>
                         )}
                       </Box>
+
 
                       {aiDetail.guardrails_notes ? (
                         <Alert status="warning" borderRadius="md">

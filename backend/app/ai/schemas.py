@@ -1,41 +1,42 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List, Literal
+from typing import List, Optional
 
 
-class Recommendation(BaseModel):
-    title: str = Field(min_length=3, max_length=120)
-    steps: List[str] = Field(min_length=1)
-    when_to_use: str = Field(min_length=3, max_length=200)
+class MicroIntervention(BaseModel):
+    # Nombres alineados al sheet de Deneb (sin acentos por seguridad JSON)
+    topic_nucleo: str = Field(min_length=3, max_length=80)
+    subhabilidad: str = Field(min_length=2, max_length=120)
+    senal_observable: str = Field(min_length=5, max_length=600)
+
+    hipotesis_funcional: str = Field(min_length=5, max_length=800)
+    microobjetivo: str = Field(min_length=3, max_length=300)
+
+    estrategias_paso_a_paso: List[str] = Field(min_length=1, max_length=8)
+    frecuencia: str = Field(min_length=1, max_length=120)
+    duracion: str = Field(min_length=1, max_length=120)
+    indicador_de_avance: str = Field(min_length=3, max_length=300)
+    escalamiento: str = Field(min_length=3, max_length=500)
 
 
 class TeacherVersion(BaseModel):
-    summary: str = Field(min_length=10, max_length=600)
+    summary: str = Field(min_length=10, max_length=800)
     signals_detected: List[str] = Field(default_factory=list)
-    goals: List[str] = Field(default_factory=list, max_length=12)  # ✅ NUEVO
-    recommendations: List[Recommendation] = Field(default_factory=list, max_length=10)
+    microintervenciones: List[MicroIntervention] = Field(
+        default_factory=list, max_length=10
+    )
+
 
 class ParentVersion(BaseModel):
-    summary: str = Field(min_length=10, max_length=600)
+    summary: str = Field(min_length=10, max_length=800)
     signals_detected: List[str] = Field(default_factory=list)
-    goals: List[str] = Field(default_factory=list, max_length=12)  # ✅ NUEVO
-    recommendations: List[Recommendation] = Field(default_factory=list, max_length=10)
+    microintervenciones: List[MicroIntervention] = Field(
+        default_factory=list, max_length=10
+    )
+
 
 class GuardrailsBlock(BaseModel):
     no_diagnosis_confirmed: bool = True
     no_clinical_labels_confirmed: bool = True
-
-class SupportMeta(BaseModel):
-    # "playbook" = se encontraron estrategias JCJ
-    # "fallback" = NO se encontraron y se dieron sugerencias generales
-    source: Literal["playbook", "fallback"] = "playbook"
-
-    # Solo para fallback
-    disclaimer: Optional[str] = None
-    fallback_reason: Optional[Literal["no_match", "empty_strategies", "low_confidence"]] = None
-
-    # Debug/auditoría (opcional)
-    contexts: Optional[List[str]] = None
-    retrieved_count: Optional[int] = None
 
 
 class AIGeneratedSupport(BaseModel):
@@ -44,7 +45,3 @@ class AIGeneratedSupport(BaseModel):
     teacher_version: TeacherVersion
     parent_version: ParentVersion
     guardrails: GuardrailsBlock
-
-    # ✅ NUEVO (opcional): lo inyectamos nosotros si hace falta
-    meta: Optional[SupportMeta] = None
-
