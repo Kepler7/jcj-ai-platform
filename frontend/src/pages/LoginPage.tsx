@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Box, Button, Heading, Input, Stack, Text } from '@chakra-ui/react';
+import { Box, Button, Heading, Input, Stack, Text, Link } from '@chakra-ui/react';
 import { useAuth } from '../auth/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 
 export default function LoginPage() {
   const { signIn, refreshMe } = useAuth();
@@ -66,6 +66,15 @@ export default function LoginPage() {
             Sign in
           </Button>
         </Stack>
+        <Link
+          as={RouterLink}
+          to="/forgot-password"
+          fontSize="sm"
+          textAlign="center"
+          color="blue.500"
+        >
+          Forgot password?
+        </Link>
       </form>
     </Box>
   );
