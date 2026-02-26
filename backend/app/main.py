@@ -51,10 +51,12 @@ app.include_router(share_links_router)
 app.include_router(ai_fallbacks_router)
 app.include_router(playbook_fallbacks_router)
 
+
 # 4️⃣ Health checks
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 @app.get("/health/deps")
 def health_deps():
@@ -86,4 +88,3 @@ def health_deps():
         status_code=503,
         content={"status": "degraded", "deps": results},
     )
-

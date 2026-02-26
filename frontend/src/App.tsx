@@ -14,6 +14,9 @@ import AppShell from './components/AppShell';
 import ParentSharePage from "./pages/ParentSharePage";
 import PlaybookPendientesPage from "./pages/PlaybookPendientesPage";
 
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+
 export default function App() {
   return (
     <Routes>
@@ -22,6 +25,8 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Private + Layout */}
       <Route
