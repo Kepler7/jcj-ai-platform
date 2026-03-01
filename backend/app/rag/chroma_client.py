@@ -57,22 +57,60 @@ class ChromaPlaybookStore:
             metadatas=[md],
         )
 
-    def query(self, query_text: str, age: int, n_results: int = 5) -> List[str]:
-        results = self.collection.query(
-            query_texts=[query_text],
-            n_results=n_results,
-            where={
+    from typing import List, Optional
+
+    def query(
+        self, query_text: str, age: Optional[int] = None, n_results: int = 5
+    ) -> List[str]:
+        """
+        Query a Chroma.
+        - Soporta age=None (sin filtro).
+        - Filtro por edad usa $and (Chroma 1.3.x requiere un solo operador raíz).
+        - Devuelve SOLO documents (List[str]).
+        """
+
+        where = None
+        if age is not None:
+            where = {
                 "$and": [
-                    {"age_min": {"$lte": age}},
-                    {"age_max": {"$gte": age}},
+                    {"age_min": {"$lte": int(age)}},
+                    {"age_max": {"$gte": int(age)}},
                 ]
+            }
+
+        print(
+            "DEBUG CHROMA QUERY:",
+            {
+                "collection": self.collection_name,
+                "n_results": n_results,
+                "age": age,
+                "query_preview": (query_text or "")[:120],
+                "where": where,
             },
-            include=["documents", "metadatas", "distances"],  # ✅ sin ids
         )
 
-        # En esta versión de Chroma, ids vienen en results["ids"] sin pedirlos,
-        # pero si no vienen no pasa nada (tu retrieve_playbooks solo usa docs).
-        documents: List[str] = results.get("documents", [[]])[0] or []
+        # include: ids no se piden; documents/metadatas son suficientes y estables
+        if where is not None:
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                where=where,
+                include=["documents", "metadatas"],
+            )
+        else:
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                include=["documents", "metadatas"],
+            )
+
+        print(
+            "DEBUG CHROMA RAW:",
+            type(results),
+            results.keys() if hasattr(results, "keys") else None,
+        )
+
+        documents: List[str] = (results.get("documents") or [[]])[0] or []
         return documents
 
 

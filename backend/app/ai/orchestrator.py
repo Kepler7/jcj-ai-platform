@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import json
-import re
-from typing import List, Tuple, Optional, Any, Dict
 import hashlib
+import json
 import math
 import random
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from agno.agent import Agent
 
-from app.ai.providers import get_ai_model, get_model_info
-from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
-from app.ai.json_utils import extract_json_object, _extract_raw_text
 from app.ai.guardrails import check_guardrails
+from app.ai.prompt import SYSTEM_PROMPT, build_user_prompt
+from app.ai.providers import get_ai_model, get_model_info
+from app.ai.rerank_bm25 import bm25_coverage, bm25_rank
 from app.ai.schemas import AIGeneratedSupport
+from app.rag.chroma_client import ChromaPlaybookStore
 
 try:
     from app.ai.schemas import SupportMeta  # type: ignore
@@ -21,12 +22,20 @@ except Exception:
     SupportMeta = None  # type: ignore
 
 
-from app.rag.chroma_client import ChromaPlaybookStore
-from app.ai.rerank_bm25 import bm25_rank, bm25_coverage, _tokenize
+# =========================
+# Constants
+# =========================
+
+FALLBACK_NOTE = (
+    "⚠️ Nota: No se encontraron estrategias específicas en el Playbook JCJ para este caso. "
+    "Las sugerencias siguientes son generales y deben ser validadas/ajustadas por el equipo profesional."
+)
+
+MAX_FULL = 4000  # protección contra textos enormes en DB (ajústalo si quieres)
 
 
 # =========================
-# RAG helpers (NEW)
+# Generic helpers (module-level)
 # =========================
 
 SECTION_HEADERS = [
@@ -43,20 +52,20 @@ SECTION_HEADERS = [
     "ESCALAMIENTO",
 ]
 
-_HDR_RE = re.compile(
-    r"^(?P<hdr>" + "|".join(map(re.escape, SECTION_HEADERS)) + r")\s*:\s*$",
-    re.MULTILINE,
+CODEBLOCK_JSON_RE = re.compile(
+    r"```(?:json)?\s*(\{.*?\})\s*```",
+    re.DOTALL | re.IGNORECASE,
 )
 
-_INLINE_RE = re.compile(
-    r"^(?P<hdr>FRECUENCIA|DURACION)\s*:\s*(?P<val>.+?)\s*$",
-    re.MULTILINE,
-)
+
+def _clip(s: str, n: int) -> str:
+    s = (s or "").strip()
+    return s if len(s) <= n else (s[:n].rstrip() + "...")
 
 
 def _dedupe_keep_order(items: List[str]) -> List[str]:
     seen = set()
-    out = []
+    out: List[str] = []
     for x in items:
         k = (x or "").strip().lower()
         if not k or k in seen:
@@ -72,225 +81,38 @@ def _parse_bullets(block: str) -> List[str]:
     lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
     steps: List[str] = []
     for ln in lines:
-        # soporta "- paso" o "• paso"
         ln = re.sub(r"^[-•]\s*", "", ln).strip()
         if ln:
             steps.append(ln)
     return steps
 
 
-def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
-    """
-    Parsea el DOC que guardas en Chroma (formato con headers underscore).
-    Regresa dict con keys: topic_nucleo, subskill, signal_observable,
-    functional_hypothesis, micro_objective, steps, frequency, duration,
-    progress_indicator, escalation.
-    """
-    if not doc or not isinstance(doc, str):
-        return None
+def _line_value(text: str, prefix: str) -> str:
+    m = re.search(rf"^{re.escape(prefix)}\s*:\s*(.+?)\s*$", text, re.MULTILINE)
+    return (m.group(1) if m else "").strip()
 
-    text = doc.strip()
 
-    # Capturar valores INLINE (FRECUENCIA/DURACION) porque vienen en la misma línea
-    inline_vals: Dict[str, str] = {}
-    for m in _INLINE_RE.finditer(text):
-        inline_vals[m.group("hdr")] = (m.group("val") or "").strip()
-
-    # Encontrar headers "solos" (línea con HEADER:)
-    matches = list(_HDR_RE.finditer(text))
-
-    # OJO: TOPIC_NUCLEO y SUBHABILIDAD vienen como "TOPIC_NUCLEO: xxx" en la misma línea (según tu doc)
-    # así que también hacemos fallback por línea.
-    def _line_value(prefix: str) -> str:
-        m = re.search(rf"^{re.escape(prefix)}\s*:\s*(.+?)\s*$", text, re.MULTILINE)
-        return (m.group(1) if m else "").strip()
-
-    out: Dict[str, Any] = {
-        "topic_nucleo": _line_value("TOPIC_NUCLEO"),
-        "subskill": _line_value("SUBHABILIDAD"),
-        "signal_observable": "",
-        "functional_hypothesis": "",
-        "micro_objective": "",
-        "steps": [],
-        "frequency": inline_vals.get("FRECUENCIA", ""),
-        "duration": inline_vals.get("DURACION", ""),
-        "progress_indicator": "",
-        "escalation": "",
-    }
-
-    # Helper: extraer bloque entre headers tipo:
-    # HEADER:
-    # contenido...
-    # NEXT_HEADER:
-    def _extract_block(header: str) -> str:
-        # Caso "HEADER:\n....\n\nNEXT:"
-        pat = re.compile(
-            rf"^{re.escape(header)}\s*:\s*\n(?P<body>.*?)(?=^\w+[\w_]*\s*:|\Z)",
-            re.MULTILINE | re.DOTALL,
-        )
-        m = pat.search(text)
-        return (m.group("body") if m else "").strip()
-
-    # Bloques multi-línea
-    out["signal_observable"] = _extract_block("SEÑAL_OBSERVABLE")
-    out["functional_hypothesis"] = _extract_block("HIPOTESIS_FUNCIONAL")
-    out["micro_objective"] = _extract_block("MICROOBJETIVO")
-    out["progress_indicator"] = _extract_block("INDICADOR_DE_AVANCE")
-    out["escalation"] = _extract_block("ESCALAMIENTO")
-
-    steps_block = _extract_block("ESTRATEGIAS_PASO_A_PASO")
-    out["steps"] = _parse_bullets(steps_block)
-
-    # Limpieza final
-    for k in [
-        "topic_nucleo",
-        "subskill",
-        "signal_observable",
-        "functional_hypothesis",
-        "micro_objective",
-        "progress_indicator",
-        "escalation",
-    ]:
-        out[k] = (out.get(k) or "").strip()
-
-    out["steps"] = _dedupe_keep_order(
-        [s.strip() for s in (out.get("steps") or []) if s and s.strip()]
+def _extract_block(text: str, header: str) -> str:
+    pat = re.compile(
+        rf"^{re.escape(header)}\s*:\s*\n(?P<body>.*?)(?=^(?:[A-Z_]+)\s*:|\Z)",
+        re.MULTILINE | re.DOTALL,
     )
-
-    # Si está demasiado vacío, lo descartamos (evita NoneType.get y fallos)
-    if not out["topic_nucleo"] and not out["signal_observable"] and not out["steps"]:
-        return None
-
-    return out
+    m = pat.search(text)
+    return (m.group("body") if m else "").strip()
 
 
-def _build_recommendations_from_sheet_playbook(
-    *,
-    pb: Dict[str, Any],
-    mode: str,  # "teacher" o "parent"
-    max_steps: int = 8,
-) -> List[Dict[str, Any]]:
-    """
-    Convierte un playbook (nuevo schema) a 1 recomendación fuerte (o más si quieres luego).
-    """
-    micro = (pb.get("micro_objective") or "").strip()
-    subskill = (pb.get("subskill") or "").strip()
-    steps: List[str] = list(pb.get("steps") or [])
-
-    steps = steps[:max_steps] if steps else []
-    if not micro and not steps:
-        return []
-
-    title_parts = []
-    if micro:
-        title_parts.append(micro)
-    if subskill:
-        title_parts.append(subskill)
-    title = " / ".join(title_parts)[:120] if title_parts else "Estrategia JCJ"
-
-    freq = (pb.get("frequency") or "").strip()
-    dur = (pb.get("duration") or "").strip()
-    ind = (pb.get("progress_indicator") or "").strip()
-    esc = (pb.get("escalation") or "").strip()
-
-    when_parts = []
-    if mode == "teacher":
-        when_parts.append("En aula")
-    else:
-        when_parts.append("En casa")
-
-    if freq:
-        when_parts.append(f"Frecuencia: {freq}")
-    if dur:
-        when_parts.append(f"Duración: {dur}")
-    if ind:
-        when_parts.append(f"Indicador: {ind}")
-
-    when_to_use = ". ".join(when_parts)[:200]
-
-    # Meter escalamiento como último paso (sin romper when_to_use)
-    final_steps = steps[:]
-    if esc:
-        final_steps.append(f"Escalamiento: {esc}")
-
-    # Si steps sigue vacío, al menos 1 paso
-    if not final_steps:
-        final_steps = [micro] if micro else ["Aplicar estrategia según observación."]
-
-    return [
-        {
-            "title": title,
-            "steps": final_steps[:max_steps],
-            "when_to_use": when_to_use,
-        }
-    ]
-
-
-def retrieve_playbooks(
-    store,
-    *,
-    report_text: str,
-    age: int,
-    n_results: int = 3,
-) -> List[str]:
-    """
-    Recupera playbooks relevantes desde Chroma usando:
-    - similitud semántica (query_text)
-    - filtro por edad (age_min <= age <= age_max)
-    """
-    docs = store.query(
-        query_text=report_text,
-        age=age,
-        n_results=n_results,
-    )
-    # store.query debe devolver List[str] (docs)
-    return docs or []
-
-
-# =========================
-# Main generator (MODIFIED)
-# =========================
-
-MAX_FULL = 4000  # protección contra textos enormes en DB (ajústalo si quieres)
-
-
-def _clip(s: str, n: int) -> str:
-    s = (s or "").strip()
-    if len(s) <= n:
-        return s
-    return s[:n].rstrip() + "..."
-
-
-def parse_playbook_doc(pb_text: str) -> Optional[Dict[str, Any]]:
-    """
-    Intenta convertir un doc devuelto por Chroma a dict JSON del playbook.
-    - Caso ideal: el doc ES JSON puro.
-    - Caso real: el doc viene con texto extra; extraemos el primer objeto JSON con extract_json_object.
-    """
-    s = (pb_text or "").strip()
-    if not s:
-        return None
-
-    # 1) intento directo
-    try:
-        obj = json.loads(s)
-        return obj if isinstance(obj, dict) else None
-    except Exception:
-        pass
-
-    # 2) intento robusto: extraer { ... } del string
-    try:
-        raw_obj = extract_json_object(s)  # <- tu helper existente
-        obj = json.loads(json.dumps(raw_obj, ensure_ascii=False))
-        return obj if isinstance(obj, dict) else None
-    except Exception:
-        return None
-
-
-CODEBLOCK_JSON_RE = re.compile(
-    r"```(?:json)?\s*(\{.*?\})\s*```",
-    re.DOTALL | re.IGNORECASE,
-)
+def _strip_code_fences(text: str) -> str:
+    if not text:
+        return text
+    s = text.strip()
+    if s.startswith("```"):
+        first_nl = s.find("\n")
+        if first_nl != -1:
+            s = s[first_nl + 1 :]
+        s = s.strip()
+        if s.endswith("```"):
+            s = s[:-3].strip()
+    return s.strip()
 
 
 def extract_json_object_lenient(raw: str) -> Dict[str, Any]:
@@ -305,12 +127,10 @@ def extract_json_object_lenient(raw: str) -> Dict[str, Any]:
 
     s = raw.strip()
 
-    # 1) si viene dentro de codefence ```json ... ```
     m = CODEBLOCK_JSON_RE.search(s)
     if m:
         s = m.group(1).strip()
 
-    # 2) recorta entre primer '{' y último '}'
     if not s.startswith("{"):
         start = s.find("{")
         end = s.rfind("}")
@@ -320,172 +140,297 @@ def extract_json_object_lenient(raw: str) -> Dict[str, Any]:
     return json.loads(s)
 
 
-# --- helpers para parsear el DOC del playbook nuevo (texto) ---
-
-
-def _s(x: Any) -> str:
-    return "" if x is None else str(x).strip()
-
-
-def _clip(s: str, n: int) -> str:
-    s = (s or "").strip()
-    return s if len(s) <= n else (s[:n].rstrip() + "...")
-
-
-def _parse_playbook_doc_v2(doc: str) -> Dict[str, Any] | None:
-    """
-    Espera un doc que tenga etiquetas tipo:
-      TOPIC_NUCLEO: ...
-      SUBHABILIDAD: ...
-      SEÑAL_OBSERVABLE: ...
-      EDAD: 2–5
-      HIPOTESIS_FUNCIONAL: ...
-      MICROOBJETIVO: ...
-      PASOS: - ...
-      FRECUENCIA: ...
-      DURACION: ...
-      INDICADOR_DE_AVANCE: ...
-      ESCALAMIENTO: ...
-    El loader puede formatearlo con saltos o en una sola línea; esto aguanta ambos.
-    """
-    if not doc or "TOPIC_NUCLEO:" not in doc:
+def _try_parse_playbook_json(doc: str) -> Optional[Dict[str, Any]]:
+    if not doc or not isinstance(doc, str):
+        return None
+    s = doc.strip()
+    if not s.startswith("{"):
+        return None
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
         return None
 
-    # Normaliza espacios / saltos
-    text = doc.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"[ \t]+", " ", text)
 
-    def grab(label: str, next_labels: List[str]) -> str:
-        # Captura desde "LABEL:" hasta antes del siguiente label
-        # Ej: SUBHABILIDAD: ... SEÑAL_OBSERVABLE:
-        pattern = (
-            label + r"\s*(.*?)\s*(?=(" + "|".join(map(re.escape, next_labels)) + r")|$)"
-        )
-        m = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
-        return _s(m.group(1)) if m else ""
+def _pb_to_search_text(doc: str) -> str:
+    """
+    Convierte playbook (JSON o texto con headers) a un texto consistente para:
+    - bm25_rank
+    - bm25_coverage
+    - evidence_overlap_ratio
+    - debug / logs
+    """
+    if not doc:
+        return ""
 
-    labels = [
-        "TOPIC_NUCLEO:",
-        "SUBHABILIDAD:",
-        "SEÑAL_OBSERVABLE:",
-        "EDAD:",
-        "HIPOTESIS_FUNCIONAL:",
-        "MICROOBJETIVO:",
-        "PASOS:",
-        "FRECUENCIA:",
-        "DURACION:",
-        "INDICADOR_DE_AVANCE:",
-        "ESCALAMIENTO:",
-    ]
+    pbj = _try_parse_playbook_json(doc)
+    if pbj:
+        topic = (pbj.get("topic_nucleo") or "").strip()
+        sub = (pbj.get("subskill") or pbj.get("subhabilidad") or "").strip()
+        sig = (
+            pbj.get("signal_observable") or pbj.get("senal_observable") or ""
+        ).strip()
+        hyp = (
+            pbj.get("functional_hypothesis") or pbj.get("hipotesis_funcional") or ""
+        ).strip()
+        micro = (pbj.get("micro_objective") or pbj.get("microobjetivo") or "").strip()
 
-    topic = grab("TOPIC_NUCLEO:", labels[1:])
-    subskill = grab("SUBHABILIDAD:", labels[2:])
-    signal = grab("SEÑAL_OBSERVABLE:", labels[3:])
-    hypothesis = grab("HIPOTESIS_FUNCIONAL:", labels[5:])  # hasta MICROOBJETIVO
-    micro = grab("MICROOBJETIVO:", labels[6:])
-    steps_raw = grab("PASOS:", labels[7:])
-    frequency = grab("FRECUENCIA:", labels[8:])
-    duration = grab("DURACION:", labels[9:])
-    progress = grab("INDICADOR_DE_AVANCE:", labels[10:])
-    escalation = grab("ESCALAMIENTO:", labels[11:])
+        steps = pbj.get("steps") or pbj.get("estrategias_paso_a_paso") or []
+        if isinstance(steps, str):
+            steps = [steps]
+        if not isinstance(steps, list):
+            steps = []
+        steps_txt = " ".join([str(x).strip() for x in steps if str(x).strip()])
 
-    # Steps: acepta "- ..." o "1) ..." o líneas
-    steps: List[str] = []
-    if steps_raw:
-        s = steps_raw.strip()
-        s = s.replace("\\n", "\n")
-        # intenta bullets
-        bullet_split = re.split(r"\n\s*-\s*", "\n" + s)
-        if len(bullet_split) > 1:
-            steps = [x.strip(" -\n\t") for x in bullet_split if x.strip()]
-        else:
-            # intenta numerados
-            num_split = re.split(r"\n?\s*\d+\s*[.)]\s*", s)
-            if len(num_split) > 1:
-                steps = [x.strip(" -\n\t") for x in num_split if x.strip()]
-            else:
-                # líneas
-                lines = [ln.strip() for ln in s.split("\n") if ln.strip()]
-                steps = lines if lines else [s]
+        return (
+            f"TOPIC_NUCLEO: {topic}\n"
+            f"SUBHABILIDAD: {sub}\n"
+            f"SEÑAL_OBSERVABLE: {sig}\n"
+            f"HIPOTESIS_FUNCIONAL: {hyp}\n"
+            f"MICROOBJETIVO: {micro}\n"
+            f"ESTRATEGIAS_PASO_A_PASO: {steps_txt}\n"
+        ).strip()
 
-    steps = _dedupe_keep_order(steps)
+    # Formato con headers ya es usable tal cual
+    return doc.strip()
 
+
+def _pb_debug_info(pb_doc: str) -> Dict[str, Any]:
+    """
+    Devuelve info mínima para debug y UI (no rompe si doc es texto con headers).
+    """
+    pbj = _try_parse_playbook_json(pb_doc)
+    if pbj:
+        return {
+            "id": (pbj.get("id") or ""),
+            "topic_nucleo": (pbj.get("topic_nucleo") or ""),
+            "subhabilidad": (pbj.get("subskill") or pbj.get("subhabilidad") or ""),
+            "signal_observable": (
+                pbj.get("signal_observable") or pbj.get("senal_observable") or ""
+            ),
+            "source": (pbj.get("source") or "json"),
+            "base_row": (pbj.get("base_row") or ""),
+        }
+
+    # texto con headers
+    pb_text = _pb_to_search_text(pb_doc)
     return {
-        "topic_nucleo": topic,
-        "subskill": subskill,
-        "signal_observable": signal,
-        "functional_hypothesis": hypothesis,
-        "micro_objective": micro,
-        "steps": steps,
-        "frequency": frequency,
-        "duration": duration,
-        "progress_indicator": progress,
-        "escalation": escalation,
+        "id": "",
+        "topic_nucleo": _line_value(pb_text, "TOPIC_NUCLEO"),
+        "subhabilidad": _line_value(pb_text, "SUBHABILIDAD"),
+        "signal_observable": _extract_block(pb_text, "SEÑAL_OBSERVABLE"),
+        "source": "text",
+        "base_row": "",
     }
 
 
-def _recommendations_from_playbook_fields(
-    pb: Dict[str, Any], mode: str
-) -> List[Dict[str, Any]]:
+def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
     """
-    Convierte un playbook en 1 recomendación fuerte (o 2 si quieres partir pasos).
-    mode: "teacher"|"parent"
+    Devuelve dict con keys "internas" (las que usa _micro_from_pb):
+      topic_nucleo, subhabilidad, senal_observable, hipotesis_funcional,
+      microobjetivo, estrategias_paso_a_paso, frecuencia, duracion,
+      indicador_de_avance, escalamiento
+
+    Soporta:
+    - JSON (schema sheet)
+    - Texto con headers
     """
-    steps: List[str] = pb.get("steps") or []
-    if not steps:
-        return []
+    if not doc or not isinstance(doc, str):
+        return None
 
-    micro = _s(pb.get("micro_objective"))
-    freq = _s(pb.get("frequency"))
-    dur = _s(pb.get("duration"))
-    indicator = _s(pb.get("progress_indicator"))
-    escalation = _s(pb.get("escalation"))
+    text = doc.strip()
 
-    when = []
-    if freq:
-        when.append(f"Frecuencia: {freq}")
-    if dur:
-        when.append(f"Duración: {dur}")
-    if indicator:
-        when.append(f"Indicador: {indicator}")
-    if escalation:
-        when.append(f"Escalamiento: {escalation}")
-    when_to_use = (
-        " | ".join(when)
-        if when
-        else (
-            "Durante la rutina diaria"
-            if mode == "parent"
-            else "Durante actividades en aula"
+    # 1) JSON
+    pbj = _try_parse_playbook_json(text)
+    if pbj:
+        topic = (pbj.get("topic_nucleo") or "").strip()
+        sub = (pbj.get("subskill") or pbj.get("subhabilidad") or "").strip()
+        sig = (
+            pbj.get("signal_observable") or pbj.get("senal_observable") or ""
+        ).strip()
+        hyp = (
+            pbj.get("functional_hypothesis") or pbj.get("hipotesis_funcional") or ""
+        ).strip()
+        micro = (pbj.get("micro_objective") or pbj.get("microobjetivo") or "").strip()
+        freq = (pbj.get("frequency") or pbj.get("frecuencia") or "").strip()
+        dur = (pbj.get("duration") or pbj.get("duracion") or "").strip()
+        ind = (
+            pbj.get("progress_indicator") or pbj.get("indicador_de_avance") or ""
+        ).strip()
+        esc = (pbj.get("escalation") or pbj.get("escalamiento") or "").strip()
+
+        steps = pbj.get("steps") or pbj.get("estrategias_paso_a_paso") or []
+        if isinstance(steps, str):
+            steps = [steps]
+        if not isinstance(steps, list):
+            steps = []
+        steps_list = _dedupe_keep_order(
+            [str(x).strip() for x in steps if str(x).strip()]
+        )[:8]
+
+        out = {
+            "topic_nucleo": topic,
+            "subhabilidad": sub,  # map subskill -> subhabilidad
+            "senal_observable": sig,
+            "hipotesis_funcional": hyp,
+            "microobjetivo": micro,
+            "estrategias_paso_a_paso": steps_list,
+            "frecuencia": freq,
+            "duracion": dur,
+            "indicador_de_avance": ind,
+            "escalamiento": esc,
+        }
+
+        if (
+            not out["topic_nucleo"]
+            and not out["senal_observable"]
+            and not out["estrategias_paso_a_paso"]
+        ):
+            return None
+
+        return out
+
+    # 2) Texto con headers (formato actual)
+    inline: Dict[str, str] = {}
+    for m in re.finditer(r"^(FRECUENCIA|DURACION)\s*:\s*(.+?)\s*$", text, re.MULTILINE):
+        inline[m.group(1)] = (m.group(2) or "").strip()
+
+    out2: Dict[str, Any] = {
+        "topic_nucleo": _line_value(text, "TOPIC_NUCLEO"),
+        "subhabilidad": _line_value(text, "SUBHABILIDAD"),
+        "senal_observable": _extract_block(text, "SEÑAL_OBSERVABLE"),
+        "hipotesis_funcional": _extract_block(text, "HIPOTESIS_FUNCIONAL"),
+        "microobjetivo": _extract_block(text, "MICROOBJETIVO"),
+        "estrategias_paso_a_paso": _parse_bullets(
+            _extract_block(text, "ESTRATEGIAS_PASO_A_PASO")
+        ),
+        "frecuencia": inline.get("FRECUENCIA", ""),
+        "duracion": inline.get("DURACION", ""),
+        "indicador_de_avance": _extract_block(text, "INDICADOR_DE_AVANCE"),
+        "escalamiento": _extract_block(text, "ESCALAMIENTO"),
+    }
+
+    out2["estrategias_paso_a_paso"] = _dedupe_keep_order(
+        [s for s in out2["estrategias_paso_a_paso"] if s and s.strip()]
+    )[:8]
+
+    if (
+        not out2["topic_nucleo"]
+        and not out2["senal_observable"]
+        and not out2["estrategias_paso_a_paso"]
+    ):
+        return None
+
+    return out2
+
+
+def retrieve_playbooks(
+    store: ChromaPlaybookStore,
+    *,
+    report_text: str,
+    age: int,
+    n_results: int = 40,
+) -> List[str]:
+    """
+    Strategy:
+    1) Query Chroma con filtro por edad (metadatas: age_min/age_max) -> ideal
+    2) Si no hay resultados, query sin filtro y post-filtrar por edad en Python (fallback robusto)
+    """
+
+    # 1) Con filtro (rápido si metadatas existen)
+    docs = store.query(query_text=report_text, age=age, n_results=n_results) or []
+    if docs:
+        print("DEBUG retrieve_playbooks: using_chroma_age_filter count=", len(docs))
+        return docs
+
+    print("DEBUG retrieve_playbooks: no_docs_with_age_filter -> retry_without_filter")
+
+    # 2) Sin filtro (recuperar más para poder filtrar local)
+    docs2 = (
+        store.query(
+            query_text=report_text,
+            age=None,
+            n_results=max(80, n_results),  # un poco más para no perder recall
         )
+        or []
     )
 
-    title_bits = []
-    if micro:
-        title_bits.append(micro)
-    # fallback por subskill
-    if not title_bits and pb.get("subskill"):
-        title_bits.append(str(pb["subskill"]))
-    title = "JCJ: " + (" – ".join(title_bits) if title_bits else "Intervención")
+    if not docs2:
+        print("DEBUG retrieve_playbooks: no_docs_even_without_filter")
+        return []
 
-    # Limitar a 8 pasos (regla IHUI)
-    steps = steps[:8]
+    # Post-filter por edad usando JSON del documento (robusto incluso si metadatas fallan)
+    filtered: List[str] = []
+    for d in docs2:
+        if not isinstance(d, str):
+            continue
 
-    return [
-        {
-            "title": title[:120],
-            "steps": steps,
-            "when_to_use": when_to_use[:200],
-        }
-    ]
+        s = d.strip()
+        if not s:
+            continue
+
+        if s.startswith("{"):
+            try:
+                obj = json.loads(s)
+            except Exception:
+                obj = None
+
+            if isinstance(obj, dict):
+                amin = obj.get("age_min", None)
+                amax = obj.get("age_max", None)
+                try:
+                    amin_i = int(amin) if amin is not None else None
+                    amax_i = int(amax) if amax is not None else None
+                except Exception:
+                    amin_i, amax_i = None, None
+
+                # Si el doc trae rango, usamos filtro estricto
+                if (amin_i is not None) and (amax_i is not None):
+                    if amin_i <= age <= amax_i:
+                        filtered.append(d)
+                    continue  # ya filtramos, no lo agregues por default
+
+        # Si no es JSON o no trae rango, lo dejamos pasar (legacy)
+        filtered.append(d)
+
+        if len(filtered) >= n_results:
+            break
+
+    print("DEBUG retrieve_playbooks: post_filter_count=", len(filtered))
+    return filtered[:n_results]
 
 
-# -------------------------------------------------------------------
+# =========================
+# LEGACY (YA NO USAMOS)
+# Motivo: el flujo final usa parse_playbook_doc_v2() + _micro_from_pb().
+# Dejamos esto comentado por claridad / rollback rápido.
+# =========================
 
-FALLBACK_NOTE = (
-    "⚠️ Nota: No se encontraron estrategias específicas en el Playbook JCJ para este caso. "
-    "Las sugerencias siguientes son generales y deben ser validadas/ajustadas por el equipo profesional."
-)
+# def parse_playbook_doc(pb_text: str) -> Optional[Dict[str, Any]]:
+#     """
+#     YA NO USAMOS ESTA FUNCIÓN.
+#     Antes: intentaba extraer JSON embebido en texto.
+#     Ahora: el doc viene como JSON puro o texto con headers.
+#     """
+#     return None
+#
+# def _build_recommendations_from_sheet_playbook(...):
+#     """YA NO USAMOS ESTA FUNCIÓN."""
+#     return []
+#
+# def _parse_playbook_doc_v2(...):
+#     """YA NO USAMOS ESTA FUNCIÓN (otra variante vieja con PASOS:)."""
+#     return None
+#
+# def _recommendations_from_playbook_fields(...):
+#     """YA NO USAMOS ESTA FUNCIÓN."""
+#     return []
+
+
+# =========================
+# Main generator
+# =========================
 
 
 def generate_support(
@@ -504,10 +449,6 @@ def generate_support(
     - Si no hay playbook relevante (fallback): usamos LLM para recomendaciones generales
       y agregamos FALLBACK_NOTE al inicio del summary (forzado).
     """
-
-    CODEBLOCK_JSON_RE = re.compile(
-        r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE
-    )
 
     # ✅ Tokenizador local (evita depender de _tokenize “privado”)
     _TOKEN_RE = re.compile(r"[a-záéíóúñü0-9]+", re.IGNORECASE)
@@ -616,6 +557,7 @@ def generate_support(
         "unas",
         "y",
         "ya",
+        # tokens frecuentes en reportes
         "alumno",
         "alumna",
         "grupo",
@@ -647,114 +589,65 @@ def generate_support(
             out.append(t)
         return out
 
-    def _strip_code_fences(text: str) -> str:
-        if not text:
-            return text
-        s = text.strip()
-        if s.startswith("```"):
-            first_nl = s.find("\n")
-            if first_nl != -1:
-                s = s[first_nl + 1 :]
-            s = s.strip()
-            if s.endswith("```"):
-                s = s[:-3].strip()
-        return s.strip()
-
-    def extract_json_object_lenient(raw: str) -> Dict[str, Any]:
-        if not raw:
-            raise ValueError("Empty model output")
-
-        s = raw.strip()
-
-        m = CODEBLOCK_JSON_RE.search(s)
-        if m:
-            s = m.group(1).strip()
-
-        if not s.startswith("{"):
-            start = s.find("{")
-            end = s.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                s = s[start : end + 1].strip()
-
-        return json.loads(s)
-
-    def _clip(s: str, n: int) -> str:
-        s = (s or "").strip()
-        return s if len(s) <= n else (s[:n].rstrip() + "...")
-
-    def _dedupe_keep_order(items: List[str]) -> List[str]:
-        seen = set()
-        out: List[str] = []
-        for x in items:
-            k = (x or "").strip().lower()
-            if not k or k in seen:
+    def build_query_text(report_text_in: str) -> str:
+        """
+        Query limpio para retrieval/rerank (prioriza señales + notas; quita headers y bullets).
+        """
+        if not report_text_in:
+            return ""
+        lines: List[str] = []
+        for ln in report_text_in.splitlines():
+            s = ln.strip()
+            if not s:
                 continue
-            seen.add(k)
-            out.append((x or "").strip())
-        return out
+            low = s.lower()
 
-    def _parse_bullets(block: str) -> List[str]:
-        if not block:
-            return []
-        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        steps: List[str] = []
-        for ln in lines:
-            ln = re.sub(r"^[-•]\s*", "", ln).strip()
-            if ln:
-                steps.append(ln)
-        return steps
+            if low.startswith("señales observables") or low.startswith(
+                "senales observables"
+            ):
+                continue
+            if low.startswith("notas") or low.startswith("nota"):
+                continue
+            if low.startswith("crear nuevo reporte"):
+                continue
 
-    def _line_value(text: str, prefix: str) -> str:
-        m = re.search(rf"^{re.escape(prefix)}\s*:\s*(.+?)\s*$", text, re.MULTILINE)
-        return (m.group(1) if m else "").strip()
+            s = re.sub(r"^[-•*]\s*", "", s).strip()
+            if s:
+                lines.append(s)
 
-    def _extract_block(text: str, header: str) -> str:
-        pat = re.compile(
-            rf"^{re.escape(header)}\s*:\s*\n(?P<body>.*?)(?=^(?:[A-Z_]+)\s*:|\Z)",
-            re.MULTILINE | re.DOTALL,
-        )
-        m = pat.search(text)
-        return (m.group("body") if m else "").strip()
+        txt = " ".join(lines).strip()
+        return txt[:800]
 
-    def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
-        if not doc or not isinstance(doc, str):
-            return None
+    def evidence_overlap_ratio(query_text: str, pb_doc: str) -> float:
+        """
+        Overlap de tokens entre el reporte y campos clave del playbook.
+        Funciona tanto para JSON como para texto con headers.
+        """
+        q = set(_tokenize_local(query_text))
+        if not q:
+            return 0.0
 
-        text = doc.strip()
+        pb = parse_playbook_doc_v2(pb_doc)  # <- tu parser unificado (JSON + texto)
+        if not pb:
+            return 0.0
 
-        inline = {}
-        for m in re.finditer(
-            r"^(FRECUENCIA|DURACION)\s*:\s*(.+?)\s*$", text, re.MULTILINE
-        ):
-            inline[m.group(1)] = (m.group(2) or "").strip()
+        sig = (pb.get("senal_observable") or "").strip()
+        micro = (pb.get("microobjetivo") or "").strip()
+        sub = (pb.get("subhabilidad") or "").strip()
 
-        out: Dict[str, Any] = {
-            "topic_nucleo": _line_value(text, "TOPIC_NUCLEO"),
-            "subhabilidad": _line_value(text, "SUBHABILIDAD"),
-            "senal_observable": _extract_block(text, "SEÑAL_OBSERVABLE"),
-            "hipotesis_funcional": _extract_block(text, "HIPOTESIS_FUNCIONAL"),
-            "microobjetivo": _extract_block(text, "MICROOBJETIVO"),
-            "estrategias_paso_a_paso": _parse_bullets(
-                _extract_block(text, "ESTRATEGIAS_PASO_A_PASO")
-            ),
-            "frecuencia": inline.get("FRECUENCIA", ""),
-            "duracion": inline.get("DURACION", ""),
-            "indicador_de_avance": _extract_block(text, "INDICADOR_DE_AVANCE"),
-            "escalamiento": _extract_block(text, "ESCALAMIENTO"),
-        }
+        # opcional: incluir pasos para mejorar recall de evidencia
+        steps = pb.get("estrategias_paso_a_paso") or []
+        if isinstance(steps, list):
+            steps_txt = " ".join([str(x).strip() for x in steps if str(x).strip()])
+        else:
+            steps_txt = ""
 
-        out["estrategias_paso_a_paso"] = _dedupe_keep_order(
-            [s for s in (out.get("estrategias_paso_a_paso") or []) if s and s.strip()]
-        )[:8]
+        text = f"{sig} {micro} {sub} {steps_txt}".strip()
+        d = set(_tokenize_local(text))
+        if not d:
+            return 0.0
 
-        if (
-            not out["topic_nucleo"]
-            and not out["senal_observable"]
-            and not out["estrategias_paso_a_paso"]
-        ):
-            return None
-
-        return out
+        return len(q & d) / len(q)
 
     def _pick_subset_from_pool(
         pool_docs: List[str],
@@ -781,64 +674,6 @@ def generate_support(
         if k >= pool_size:
             return pool_docs[:]
         return rng.sample(pool_docs, k=k)
-
-    def _extract_raw_text(resp: Any) -> str:
-        if resp is None:
-            return ""
-        for attr in ("output", "content", "text", "message"):
-            if hasattr(resp, attr):
-                v = getattr(resp, attr)
-                if isinstance(v, str):
-                    return v
-        if isinstance(resp, str):
-            return resp
-        return str(resp)
-
-    # ✅ NUEVO: query_text limpio para retrieval/rerank
-    def build_query_text(report_text: str) -> str:
-        if not report_text:
-            return ""
-        lines: List[str] = []
-        for ln in report_text.splitlines():
-            s = ln.strip()
-            if not s:
-                continue
-            low = s.lower()
-
-            # quitar headers típicos
-            if low.startswith("señales observables") or low.startswith(
-                "senales observables"
-            ):
-                continue
-            if low.startswith("notas") or low.startswith("nota"):
-                continue
-            if low.startswith("crear nuevo reporte"):
-                continue
-
-            # quitar bullets
-            s = re.sub(r"^[-•*]\s*", "", s).strip()
-            if s:
-                lines.append(s)
-
-        txt = " ".join(lines).strip()
-        return txt[:800]
-
-    # ✅ NUEVO: gate de evidencia (comparar reporte vs partes clave del playbook)
-    def evidence_overlap_ratio(query_text: str, pb_doc: str) -> float:
-        q = set(_tokenize_local(query_text))
-        if not q:
-            return 0.0
-
-        sig = _extract_block(pb_doc, "SEÑAL_OBSERVABLE")
-        micro = _extract_block(pb_doc, "MICROOBJETIVO")
-        sub = _line_value(pb_doc, "SUBHABILIDAD")
-        text = f"{sig} {micro} {sub}".strip()
-
-        d = set(_tokenize_local(text))
-        if not d:
-            return 0.0
-
-        return len(q & d) / len(q)
 
     def _micro_from_pb(pb: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         def _s(x: Any) -> str:
@@ -870,7 +705,7 @@ def generate_support(
             return None
         if len(mi["microobjetivo"]) < 3:
             return None
-        if not mi["estrategias_paso_a_paso"] or len(mi["estrategias_paso_a_paso"]) < 1:
+        if not mi["estrategias_paso_a_paso"]:
             return None
         if len(mi["frecuencia"]) < 1:
             return None
@@ -904,20 +739,32 @@ def generate_support(
             out.append(it)
         return out
 
+    def _extract_raw_text(resp: Any) -> str:
+        if resp is None:
+            return ""
+        for attr in ("output", "content", "text", "message"):
+            if hasattr(resp, attr):
+                v = getattr(resp, attr)
+                if isinstance(v, str):
+                    return v
+        if isinstance(resp, str):
+            return resp
+        return str(resp)
+
     # ----------------------------
     # 0) Model info
     # ----------------------------
     model_info = get_model_info()
 
     # ----------------------------
-    # ✅ NUEVO: query_text limpio para retrieval/rerank
+    # 1) Query limpio
     # ----------------------------
     query_text_for_rag = build_query_text(report_text)
     if not query_text_for_rag:
         query_text_for_rag = (report_text or "").strip()[:800]
 
     # ----------------------------
-    # 1) Retrieve pool (SIN cambiar retrieve_playbooks)
+    # 2) Retrieve pool
     # ----------------------------
     store = ChromaPlaybookStore(
         host="chroma", port=8000, collection_name="jcj_playbooks_v1"
@@ -931,7 +778,7 @@ def generate_support(
     print("DEBUG RAG: age=", age, "rag_pool_count=", rag_pool_count)
 
     # ----------------------------
-    # 2) Rerank + fallback decision
+    # 3) Rerank + fallback decision
     # ----------------------------
     fallback_used = False
     fallback_reason: Optional[str] = None
@@ -941,44 +788,68 @@ def generate_support(
     second_score = 0.0
     gap = 0.0
     anchor_coverage = 0.0
-    anchor_evidence = 0.0  # ✅ NUEVO
+    anchor_evidence = 0.0
     bucket_docs: List[str] = []
     reranked_pool: List[str] = []
     min_ratio_used = None
 
     if pool_playbooks:
-        ranked = bm25_rank(query_text_for_rag, pool_playbooks, top_k=None)
+        pool_norm: List[str] = [_pb_to_search_text(d) for d in pool_playbooks]
+
+        ranked = bm25_rank(query_text_for_rag, pool_norm, top_k=None)
         best_score = ranked[0][1] if ranked else 0.0
         second_score = ranked[1][1] if ranked and len(ranked) > 1 else 0.0
         gap = best_score - second_score
 
         TOP_RERANK = 10
         top_pairs = ranked[: min(TOP_RERANK, len(ranked))]
+
+        top_debug: List[Dict[str, Any]] = []
+        for idx, sc in top_pairs:
+            cand = pool_playbooks[idx]
+            cov = bm25_coverage(query_text_for_rag, _pb_to_search_text(cand))
+            ev = evidence_overlap_ratio(query_text_for_rag, cand)
+            info = _pb_debug_info(cand)
+            top_debug.append(
+                {
+                    "rank_idx": idx,
+                    "bm25_score": sc,
+                    "coverage": cov,
+                    "evidence": ev,
+                    "id": info.get("id"),
+                    "topic_nucleo": info.get("topic_nucleo"),
+                    "subhabilidad": info.get("subhabilidad"),
+                    "signal_observable": _clip(
+                        (info.get("signal_observable") or ""), 120
+                    ),
+                    "source": info.get("source"),
+                    "base_row": info.get("base_row"),
+                }
+            )
+
         reranked_pool = [pool_playbooks[i] for (i, _s) in top_pairs]
 
-        # ✅ NUEVO: elegimos anchor válido por evidencia (probamos topN)
         anchor_doc = ""
-        anchor_score = 0.0
         anchor_cov = 0.0
         anchor_ev = 0.0
 
-        EVIDENCE_MIN = 0.05  # 5% overlap de tokens útiles
-        for idx, sc in top_pairs:
-            cand = pool_playbooks[idx]
-            ev = evidence_overlap_ratio(query_text_for_rag, cand)
-            cov = bm25_coverage(query_text_for_rag, cand)
-            if ev >= EVIDENCE_MIN and cov >= 0.02:
-                anchor_doc = cand
-                anchor_score = sc
-                anchor_cov = cov
-                anchor_ev = ev
+        EVIDENCE_MIN = 0.05
+        COVERAGE_MIN_ANCHOR = 0.02
+
+        for item in top_debug:
+            if (item["evidence"] >= EVIDENCE_MIN) and (
+                item["coverage"] >= COVERAGE_MIN_ANCHOR
+            ):
+                anchor_doc = pool_playbooks[item["rank_idx"]]
+                anchor_cov = float(item["coverage"])
+                anchor_ev = float(item["evidence"])
                 break
 
-        # si ninguno pasó, usamos el top1 para decisión (normalmente caerá a fallback por low_evidence)
         if not anchor_doc and ranked:
             anchor_doc = pool_playbooks[ranked[0][0]]
-            anchor_score = best_score
-            anchor_cov = bm25_coverage(query_text_for_rag, anchor_doc)
+            anchor_cov = bm25_coverage(
+                query_text_for_rag, _pb_to_search_text(anchor_doc)
+            )
             anchor_ev = evidence_overlap_ratio(query_text_for_rag, anchor_doc)
 
         anchor_coverage = anchor_cov
@@ -1001,29 +872,47 @@ def generate_support(
             anchor_evidence,
         )
 
-        # ✅ regla de fallback + evidencia
-        MIN_BEST_SCORE = 4.0
-        MIN_COVERAGE_STRONG = 0.06
-        MIN_COVERAGE_MIN = 0.03
-        MIN_EVIDENCE = 0.05
+        # Thresholds (más estables)
+        MIN_EVIDENCE_FOUND = 0.07  # más estricto para "found"
+        MIN_COVERAGE_FOUND = 0.035
+        MIN_EVIDENCE_POSSIBLE = 0.05  # tu actual
+        MIN_COVERAGE_POSSIBLE = 0.02
+
+        decision = "not_found"  # "found" | "possible" | "not_found"
+        fallback_reason = None
 
         if best_score <= 0.0:
-            fallback_used = True
+            decision = "not_found"
             fallback_reason = "bm25_zero"
-        elif anchor_evidence < MIN_EVIDENCE:
-            fallback_used = True
-            fallback_reason = "low_evidence"
-        elif anchor_coverage < MIN_COVERAGE_MIN:
-            fallback_used = True
-            fallback_reason = "low_coverage"
-        elif best_score < MIN_BEST_SCORE and anchor_coverage < MIN_COVERAGE_STRONG:
-            fallback_used = True
-            fallback_reason = "low_best_and_coverage"
+        elif (anchor_evidence >= MIN_EVIDENCE_FOUND) and (
+            anchor_coverage >= MIN_COVERAGE_FOUND
+        ):
+            decision = "found"
+        elif (anchor_evidence >= MIN_EVIDENCE_POSSIBLE) and (
+            anchor_coverage >= MIN_COVERAGE_POSSIBLE
+        ):
+            decision = "possible"
+            fallback_reason = "weak_match"
         else:
-            fallback_used = False
-            fallback_reason = None
+            decision = "not_found"
+            # conserva razón más específica
+            if anchor_evidence < MIN_EVIDENCE_POSSIBLE:
+                fallback_reason = "low_evidence"
+            elif anchor_coverage < MIN_COVERAGE_POSSIBLE:
+                fallback_reason = "low_coverage"
+            else:
+                fallback_reason = "low_match"
 
-        print("DEBUG fallback_used=", fallback_used, "reason=", fallback_reason)
+        fallback_used = decision == "not_found"
+
+        print(
+            "DEBUG decision=",
+            decision,
+            "fallback_used=",
+            fallback_used,
+            "reason=",
+            fallback_reason,
+        )
 
         if not fallback_used:
             MIN_RATIO = 0.75
@@ -1038,13 +927,18 @@ def generate_support(
             if len(bucket_docs) < 4:
                 bucket_docs = reranked_pool[:]
 
-            # ✅ asegurar anchor incluido
+            # asegurar anchor incluido
             if anchor_doc and anchor_doc not in bucket_docs:
                 bucket_docs = [anchor_doc] + [d for d in bucket_docs if d != anchor_doc]
 
             rest_docs = [d for d in bucket_docs if d != anchor_doc]
+
+            # Si es match débil, intenta traer 2 en vez de 1 para mejorar recall
+            min_k = 2 if decision == "possible" else 1
+            max_k = 2 if decision == "possible" else 2
+
             picked_rest = _pick_subset_from_pool(
-                rest_docs, job_id_seed=job_id, min_k=1, max_k=2
+                rest_docs, job_id_seed=job_id, min_k=min_k, max_k=max_k
             )
 
             playbooks = ([anchor_doc] if anchor_doc else []) + picked_rest
@@ -1060,10 +954,9 @@ def generate_support(
     print("DEBUG RAG selected_count=", rag_selected_count, "job_id_seed=", job_id)
 
     # ----------------------------
-    # 3) Build output
+    # 4) Build output
     # ----------------------------
     if not fallback_used and playbooks:
-        # ✅ STRICT: solo playbook
         parsed_pbs: List[Dict[str, Any]] = []
         for pb_text in playbooks:
             obj = parse_playbook_doc_v2(pb_text)
@@ -1082,7 +975,6 @@ def generate_support(
             ]
         )[:10]
 
-        # ✅ Summary: incluye resumen del problema desde el reporte del maestro (sin LLM)
         problem_lines = _dedupe_keep_order(
             [
                 re.sub(r"^[-•*]\s*", "", ln.strip()).strip()
@@ -1127,7 +1019,6 @@ def generate_support(
         parsed = AIGeneratedSupport.model_validate(data)
 
     else:
-        # ✅ FALLBACK: LLM general + nota
         agent = Agent(model=get_ai_model(), tools=[], instructions=[SYSTEM_PROMPT])
         base_prompt = build_user_prompt(student_name, age, group, report_text)
 
@@ -1187,10 +1078,10 @@ def generate_support(
         parsed = AIGeneratedSupport.model_validate(data)
 
     # ----------------------------
-    # 4) META worker/UI
+    # 5) META worker/UI
     # ----------------------------
     query_full = (report_text or "").strip()
-    query_text = query_full[:4000] if len(query_full) > 4000 else query_full
+    query_text = query_full[:MAX_FULL] if len(query_full) > MAX_FULL else query_full
 
     model_output_text = ""
     try:
@@ -1213,11 +1104,13 @@ def generate_support(
         "rerank_second_score": second_score,
         "rerank_gap": gap,
         "rerank_anchor_coverage": anchor_coverage,
-        "rerank_anchor_evidence": anchor_evidence,  # ✅ NUEVO
+        "rerank_anchor_evidence": anchor_evidence,
         "rerank_top_n": 10 if pool_playbooks else 0,
         "rerank_bucket_size": len(bucket_docs) if bucket_docs else 0,
         "rerank_min_ratio": min_ratio_used,
-        "rag_query_text": query_text_for_rag,  # ✅ NUEVO para debug
+        "rag_query_text": query_text_for_rag,
+        "rerank_decision": decision if pool_playbooks else "not_found",
+        "rerank_top_candidates": top_debug[:10] if pool_playbooks else [],
     }
 
     return parsed, model_info.name, meta
