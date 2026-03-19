@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Text, String, Boolean, DateTime
+from sqlalchemy import Text, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
@@ -15,13 +15,22 @@ class StudentReport(Base):
     )
 
     school_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("schools.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     teacher_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
 
     mood: Mapped[str | None] = mapped_column(String(50), nullable=True)

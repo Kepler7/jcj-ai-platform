@@ -298,7 +298,6 @@ Then open a Pull Request on GitHub and request approval from the **CTO**.
 ## 👥 Contributors
 
 * **Kepler Hiram Velasco Guzmán** – CTO
-* **Jefte Velasco Solano** – Software Developer
 * JCJ Neuroeducativo Team
 
 ---
