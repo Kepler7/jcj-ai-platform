@@ -52,6 +52,42 @@ export async function api<T>(
   return data as T;
 }
 
+export async function apiForm<T>(
+  path: string,
+  formData: FormData,
+  opts: {
+    method?: "POST" | "PATCH";
+    auth?: boolean;
+    headers?: Record<string, string>;
+  } = {}
+): Promise<T> {
+  const method = opts.method ?? "POST";
+  const headers: Record<string, string> = {
+    ...(opts.headers ?? {}),
+    // NO pongas Content-Type aquí. El browser lo pone con boundary.
+  };
+
+  if (opts.auth) {
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: formData,
+  });
+
+  const text = await res.text();
+  const data = text ? safeJson(text) : null;
+
+  if (!res.ok) {
+    throw new ApiError(data?.detail ?? res.statusText, res.status, data);
+  }
+
+  return data as T;
+}
+
 function safeJson(text: string) {
   try {
     return JSON.parse(text);

@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Box, Button, Flex, Spacer, Text, Badge, HStack } from '@chakra-ui/react';
-import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { Box, Button, Flex, Spacer, Text, Badge, HStack } from "@chakra-ui/react";
+import { Link as RouterLink, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/apiClient";
+
+const canSee = (role: string | undefined, allowed: string[]) =>
+  !!role && allowed.includes(role);
 
 export default function AppShell() {
   const { me, signOut } = useAuth();
@@ -15,17 +18,17 @@ export default function AppShell() {
 
     try {
       // Si tu endpoint no trae total, contamos rows.
-      // Limit=200 es suficiente en esta etapa; si luego crece, hacemos endpoint de /count.
       const data = await api<any[]>(
         `/v1/playbook-fallbacks?status_filter=pending&limit=200`,
         { auth: true }
       );
 
-      // "pending" debería venir ya filtrado, pero por si acaso:
-      const cnt = Array.isArray(data) ? data.filter((r) => !r.resolved_at).length : 0;
+      const cnt = Array.isArray(data)
+        ? data.filter((r) => !r.resolved_at).length
+        : 0;
+
       setPendingCount(cnt);
     } catch {
-      // No bloquea UI
       setPendingCount(0);
     }
   }
@@ -35,7 +38,6 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.role]);
 
-  // Re-cargar cuando cambias de ruta (útil cuando marcas "resuelto" y vuelves)
   useEffect(() => {
     loadPendingCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,18 +57,19 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.role]);
 
-
   return (
     <Box minH="100vh">
       <Flex px="6" py="4" borderBottomWidth="1px" align="center">
         <Text fontWeight="bold">IHUI AI</Text>
 
-        <Flex ml="6" gap="4">
+        <Flex ml="6" gap="4" align="center" wrap="wrap">
+          {/* Platform admin links */}
           {me?.role === "platform_admin" && (
             <>
               <Text as={RouterLink} to="/schools">
                 Schools
               </Text>
+
               <HStack as={RouterLink} to="/playbook-pendientes" spacing={2}>
                 <Text>Pendientes de Playbook</Text>
                 {pendingCount > 0 && (
@@ -77,10 +80,29 @@ export default function AppShell() {
               </HStack>
             </>
           )}
-          <Text as={RouterLink} to="/students">
-            Students
-          </Text>
+
+          {/* Shared */}
+          {canSee(me?.role, ["platform_admin", "school_admin", "teacher"]) && (
+            <Text as={RouterLink} to="/students">
+              Students
+            </Text>
+          )}
+
+          {/* NEW: Classes Board */}
+          {canSee(me?.role, ["platform_admin", "school_admin", "teacher"]) && (
+            <Text as={RouterLink} to="/admin/classes-board">
+              Classes Board
+            </Text>
+          )}
+
+          {/* NEW: Bulk Students */}
+          {canSee(me?.role, ["platform_admin", "school_admin"]) && (
+            <Text as={RouterLink} to="/admin/bulk-students">
+              Bulk Students
+            </Text>
+          )}
         </Flex>
+
         <Spacer />
 
         <Text fontSize="sm" mr="4">
