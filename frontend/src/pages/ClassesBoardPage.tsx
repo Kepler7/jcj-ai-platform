@@ -49,20 +49,12 @@ function getSchoolName(): string {
   return localStorage.getItem(SCHOOL_NAME_KEY) || "";
 }
 
-function setSchoolName(name: string) {
-  localStorage.setItem(SCHOOL_NAME_KEY, name);
-}
-
 function setSchoolId(id: string) {
   localStorage.setItem(SCHOOL_ID_KEY, id);
 }
 
 function clearSchoolId() {
   localStorage.removeItem(SCHOOL_ID_KEY);
-}
-
-function clearSchoolName() {
-  localStorage.removeItem(SCHOOL_NAME_KEY);
 }
 
 type BoardClass = {

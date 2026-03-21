@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -578,10 +578,10 @@ export default function PlaybookPendientesPage() {
                             <Stack spacing={1}>
                               {(aiDetail.parent_version?.signals_detected ??
                                 []).map((s, idx) => (
-                                <Text key={idx} fontSize="sm">
-                                  • {s}
-                                </Text>
-                              ))}
+                                  <Text key={idx} fontSize="sm">
+                                    • {s}
+                                  </Text>
+                                ))}
                             </Stack>
                           )}
                         </Box>

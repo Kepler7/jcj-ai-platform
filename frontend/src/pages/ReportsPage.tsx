@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -37,8 +37,6 @@ import {
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../lib/apiClient';
 import type { Guardian } from "../types/guardian";
-
-type Role = 'platform_admin' | 'school_admin' | 'teacher';
 
 type Student = {
   id: string;
@@ -832,8 +830,8 @@ export default function ReportsPage() {
                                         {!hasSelectedReport
                                           ? "Selecciona un reporte."
                                           : !hasAiForSelected
-                                          ? "Genera el apoyo AI primero."
-                                          : sendState.reason}
+                                            ? "Genera el apoyo AI primero."
+                                            : sendState.reason}
                                       </Text>
                                     )}
                                   </Box>
