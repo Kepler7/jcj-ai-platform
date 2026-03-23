@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { Box, Button, Heading, Input, Stack, Text, Link } from '@chakra-ui/react';
 import { Link as RouterLink, useSearchParams, useNavigate } from 'react-router-dom';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+console.log('API_BASE:', API_BASE);
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
