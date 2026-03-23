@@ -21,11 +21,29 @@ def include_object(object_, name, type_, reflected, compare_to):
     return True
 
 
+def normalize_database_url(url: str | None) -> str | None:
+    if not url:
+        return url
+
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    return url
+
+
 def get_url() -> str:
     url = os.getenv("DATABASE_URL")
     if url:
-        return url
-    return config.get_main_option("sqlalchemy.url")
+        normalized = normalize_database_url(url)
+        if not normalized:
+            raise RuntimeError("DATABASE_URL is set but invalid")
+        return normalized
+
+    fallback = config.get_main_option("sqlalchemy.url")
+    normalized = normalize_database_url(fallback)
+    if not normalized:
+        raise RuntimeError("sqlalchemy.url is not set")
+    return normalized
 
 
 def run_migrations_offline() -> None:
