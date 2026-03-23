@@ -15,6 +15,7 @@ from app.ai.providers import get_ai_model, get_model_info
 from app.ai.rerank_bm25 import bm25_coverage, bm25_rank
 from app.ai.schemas import AIGeneratedSupport
 from app.rag.chroma_client import ChromaPlaybookStore
+import os
 
 try:
     from app.ai.schemas import SupportMeta  # type: ignore
@@ -32,6 +33,10 @@ FALLBACK_NOTE = (
 )
 
 MAX_FULL = 4000  # protección contra textos enormes en DB (ajústalo si quieres)
+
+CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "jcj_playbooks_v1")
 
 
 # =========================
@@ -767,7 +772,9 @@ def generate_support(
     # 2) Retrieve pool
     # ----------------------------
     store = ChromaPlaybookStore(
-        host="chroma", port=8000, collection_name="jcj_playbooks_v1"
+        host=CHROMA_HOST,
+        port=CHROMA_PORT,
+        collection_name=CHROMA_COLLECTION,
     )
     pool_playbooks: List[str] = (
         retrieve_playbooks(store, report_text=query_text_for_rag, age=age, n_results=40)
