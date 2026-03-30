@@ -159,7 +159,6 @@ export default function PlaybookPendientesPage() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [latestSync, setLatestSync] = useState<PlaybookSyncStatusResponse | null>(null);
-  const latestResult = latestSync?.result;
 
   const toast = useToast();
 
