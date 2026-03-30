@@ -31,9 +31,15 @@ import {
   useDisclosure,
   Code,
   Stack,
+  useToast,
 } from "@chakra-ui/react";
 import { api } from "../lib/apiClient";
 import { useNavigate } from "react-router-dom";
+import {
+  getLatestPlaybookSync,
+  startPlaybookSync,
+  type PlaybookSyncStatusResponse,
+} from "../services/playbooks";
 
 type StatusFilter = "pending" | "resolved" | "all";
 
@@ -149,6 +155,66 @@ export default function PlaybookPendientesPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selected, setSelected] = useState<PlaybookFallbackEvent | null>(null);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [latestSync, setLatestSync] = useState<PlaybookSyncStatusResponse | null>(null);
+  const latestResult = latestSync?.result;
+
+  const toast = useToast();
+
+  const loadLatestSync = async () => {
+    try {
+      const result = await getLatestPlaybookSync();
+      setLatestSync(result);
+      setSyncStatus(result.status);
+      setSyncError(result.error_message ?? null);
+
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo consultar el último sync";
+
+      setSyncError(message);
+      return null;
+    }
+  };
+
+  const handleReprocessPlaybooks = async () => {
+    try {
+      setSyncError(null);
+      setIsSyncing(true);
+
+      const result = await startPlaybookSync();
+
+      setSyncStatus(result.status);
+
+      toast({
+        title: "Sincronización iniciada",
+        description: `Job ${result.job_id} en estado: ${result.status}`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+
+      await loadLatestSync();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo iniciar la sincronización";
+
+      setSyncError(message);
+      setIsSyncing(false);
+
+      toast({
+        title: "Error al reprocesar playbooks",
+        description: message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   async function openDetail(r: PlaybookFallbackEvent) {
     setSelected(r);
     setDetailError(null);
@@ -247,6 +313,52 @@ export default function PlaybookPendientesPage() {
     [rows]
   );
 
+  useEffect(() => {
+    if (!isSyncing) return;
+
+    const intervalId = window.setInterval(async () => {
+      const current = await loadLatestSync();
+
+      if (!current) {
+        window.clearInterval(intervalId);
+        setIsSyncing(false);
+        return;
+      }
+
+      const stillActive =
+        current.status === "queued" || current.status === "started";
+
+      if (!stillActive) {
+        window.clearInterval(intervalId);
+        setIsSyncing(false);
+
+        if (current.status === "finished") {
+          toast({
+            title: "Playbooks reprocesados",
+            description: "La sincronización terminó correctamente.",
+            status: "success",
+            duration: 4000,
+            isClosable: true,
+          });
+        }
+
+        if (current.status === "failed") {
+          toast({
+            title: "La sincronización falló",
+            description: current.error_message || "Ocurrió un error en el proceso",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      }
+    }, 2500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isSyncing, toast]);
+
   const selectedIsResolved = !!selected?.resolved_at;
 
   return (
@@ -260,7 +372,7 @@ export default function PlaybookPendientesPage() {
           </Text>
         </Box>
 
-        <HStack spacing={3}>
+        <HStack spacing={3} align="center">
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -274,8 +386,108 @@ export default function PlaybookPendientesPage() {
           <Button onClick={load} variant="outline" isLoading={loading}>
             Recargar
           </Button>
+
+          <Button
+            onClick={handleReprocessPlaybooks}
+            isLoading={isSyncing}
+            loadingText="Procesando..."
+            colorScheme="blue"
+          >
+            Reprocesar playbooks
+          </Button>
+
+          {isSyncing && <Spinner size="sm" />}
+
+          {syncStatus && (
+            <Badge
+              colorScheme={
+                syncStatus === "finished"
+                  ? "green"
+                  : syncStatus === "failed"
+                    ? "red"
+                    : "blue"
+              }
+            >
+              {syncStatus}
+            </Badge>
+          )}
         </HStack>
       </HStack>
+
+      <Box p={4} borderWidth="1px" borderRadius="md" bg="gray.50" mb={4}>
+        <VStack align="start" spacing={1}>
+          <Text fontWeight="bold">Última sincronización</Text>
+
+          <HStack>
+            <Text fontSize="sm">Estado:</Text>
+            <Badge
+              colorScheme={
+                syncStatus === "finished"
+                  ? "green"
+                  : syncStatus === "failed"
+                    ? "red"
+                    : "blue"
+              }
+            >
+              {syncStatus || "N/A"}
+            </Badge>
+          </HStack>
+
+          {isSyncing && (
+            <Text fontSize="sm" color="blue.600">
+              Procesando playbooks...
+            </Text>
+          )}
+
+          {latestSync?.finished_at && (
+            <Text fontSize="sm" color="gray.600">
+              Fecha: {new Date(latestSync.finished_at).toLocaleString()}
+            </Text>
+          )}
+
+          {latestSync?.result?.loaded_count !== undefined && (
+            <Text fontSize="sm">
+              Playbooks cargados: {latestSync.result.loaded_count}
+            </Text>
+          )}
+
+          {latestSync?.result?.chroma_collection && (
+            <Text fontSize="sm">
+              Colección: {latestSync.result.chroma_collection}
+            </Text>
+          )}
+
+          {syncStatus === "finished" && latestSync?.finished_at && (
+            <Text fontSize="sm" color="green.600">
+              Última sincronización completada.
+            </Text>
+          )}
+
+          {syncError && (
+            <Text fontSize="sm" color="red.500">
+              {syncError}
+            </Text>
+          )}
+
+          {latestSync?.error_message && (
+            <Text fontSize="sm" color="red.500">
+              Error: {latestSync.error_message}
+            </Text>
+          )}
+
+          {syncError && (
+            <Text fontSize="sm" color="red.500">
+              {syncError}
+            </Text>
+          )}
+
+          {latestSync?.error_message && (
+            <Text fontSize="sm" color="red.500">
+              Error: {latestSync.error_message}
+            </Text>
+          )}
+        </VStack>
+      </Box>
 
       {error && (
         <Alert status="error" mb={4} borderRadius="md">

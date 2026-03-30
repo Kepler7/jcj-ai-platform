@@ -68,6 +68,8 @@ pydantic_core==2.41.5
 Pygments==2.19.2
 PyPika==0.48.9
 pyproject_hooks==1.2.0
+pytest
+pytest-mock
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0
