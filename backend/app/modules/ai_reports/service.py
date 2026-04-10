@@ -9,7 +9,8 @@ from app.modules.reports.models import StudentReport
 from app.modules.students.models import Student
 from app.modules.ai_reports.models import AIReport
 
-from app.ai.orchestrator import generate_support
+# from app.ai.orchestrator import generate_support
+from app.ai.generate_support_v2 import generate_support_v2
 
 
 def generate_ai_report(
@@ -39,6 +40,16 @@ def generate_ai_report(
     if not student:
         raise ValueError("Student not found")
 
+    print(
+        "DEBUG REPORT STUDENT:",
+        {
+            "report_id": str(report.id),
+            "student_id": str(student.id),
+            "student_name": student.full_name,
+            "student_age": student.age,
+        },
+    )
+
     # 3) Armar report_text según tus campos reales
     parts: List[str] = []
 
@@ -61,26 +72,19 @@ def generate_ai_report(
     model_name: str
     meta: Dict[str, Any] = {}
 
-    out = generate_support(
-        student_name=student.full_name,
-        age=student.age,
-        group=getattr(student, "group", "") or "",
+    out = generate_support_v2(
+        db=db,
+        report_id=report.id,
         report_text=report_text,
-        contexts=contexts,
-        job_id=job_id,
+        age=student.age,
+        student_id=student.id,
+        school_id=report.school_id,
+        model_name="v2-initial",
     )
 
-    if isinstance(out, tuple) and len(out) == 3:
-        support, model_name, meta = out
-        if meta is None:
-            meta = {}
-    elif isinstance(out, tuple) and len(out) == 2:
-        support, model_name = out
-        meta = {}
-    else:
-        support = out
-        model_name = getattr(out, "model_name", "unknown")
-        meta = {}
+    support = out["support"]
+    model_name = out["model_name"]
+    meta = out["meta"] or {}
 
     # 5) Derivar fallback desde meta (worker tracking)
     fallback_used = bool(meta.get("fallback_used", False))
@@ -129,7 +133,6 @@ def generate_ai_report(
     db.commit()
     db.refresh(ai_report)
 
-    # 8) Preparar respuesta para el worker (Pendientes de Playbook)
     def _clip(s: str, n: int) -> str:
         s = (s or "").strip()
         if len(s) <= n:
@@ -164,19 +167,23 @@ def generate_ai_report(
         model_output_full, 240
     )
 
-    return {
-        "ai_report_id": str(ai_report.id),
-        "fallback_used": fallback_used,
-        "fallback_reason": fallback_reason,
-        "topic_nucleo": meta.get("topic_nucleo"),
-        # ✅ estandar: lista de contexts usados
-        "contexts": contexts_used,
-        # ✅ opcional: primer contexto “principal”
-        "context_primary": (contexts_used[0] if contexts_used else None),
-        # ✅ FULL + PREVIEW
-        "query_text": query_text_full,
-        "query_preview": query_preview,
-        "model_output_summary": model_output_full,
-        "model_output_preview": model_output_preview,
-        "rag_items_count": meta.get("rag_items_count", None),
-    }
+    # Si fue fallback, crear evento pendiente para Deneb
+    if fallback_used:
+        from app.jobs.ai_tasks import create_fallback_event
+
+        create_fallback_event(
+            db=db,
+            school_id=report.school_id,
+            student_id=report.student_id,
+            report_id=report.id,
+            ai_report_id=ai_report.id,
+            reason=fallback_reason or "no_match",
+            topic_nucleo=meta.get("topic_nucleo"),
+            context=contexts_used,
+            query_text=query_text_full,
+            model_output_summary=model_output_full,
+            created_by_user_id=user_id,
+        )
+        db.commit()
+
+    return ai_report

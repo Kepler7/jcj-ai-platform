@@ -111,7 +111,19 @@ class ChromaPlaybookStore:
         )
 
         documents: List[str] = (results.get("documents") or [[]])[0] or []
-        return documents
+        metadatas = results.get("metadatas") or []
+        print(
+            "DEBUG CHROMA PROCESSED:",
+            {
+                "documents_count": len(documents),
+                "metadatas_count": len(metadatas),
+                "sample_metadata": metadatas[0] if metadatas else None,
+            },
+        )
+        return {
+            "documents": documents,
+            "metadatas": metadatas,
+        }
 
 
 _CONTEXT_NORMALIZE = {

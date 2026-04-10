@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
+  AlertIcon,
+  Badge,
   Box,
   Button,
   Card,
   CardBody,
   CardHeader,
+  Code,
+  Divider,
   Heading,
   HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
   Select,
   Spinner,
+  Stack,
   Table,
   Tbody,
   Td,
@@ -16,25 +29,13 @@ import {
   Th,
   Thead,
   Tr,
-  Alert,
-  AlertIcon,
-  Badge,
   VStack,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalCloseButton,
-  ModalBody,
-  ModalFooter,
-  Divider,
   useDisclosure,
-  Code,
-  Stack,
   useToast,
+  Input
 } from "@chakra-ui/react";
-import { api } from "../lib/apiClient";
 import { useNavigate } from "react-router-dom";
+import { api } from "../lib/apiClient";
 import {
   getLatestPlaybookSync,
   startPlaybookSync,
@@ -49,77 +50,136 @@ type PlaybookFallbackEvent = {
   student_id: string;
   report_id: string;
   ai_report_id: string | null;
-
   topic_nucleo: string | null;
-  // context: string | string[] | null;  // ❌ ya no lo mostramos
-  signals_detected?: string[] | null;   // ✅ nuevo
+  signals_detected?: string[] | null;
   reason: string;
-
   query_text: string | null;
   model_output_summary: string | null;
-
   created_by_user_id: string | null;
   created_at: string;
   resolved_at: string | null;
 };
 
-
 type StudentReport = {
   id: string;
   student_id: string;
   school_id: string;
-  strengths: string;
-  challenges: string;
+  strengths?: string | null;
+  challenges?: string | null;
   notes: string | null;
   created_at: string;
   signals_observed: string | null;
 };
-/*
-type Recommendation = {
-  title: string;
-  steps: string[];
-  when_to_use?: string | null;
-};*/
+
+type MicroIntervention = {
+  duracion: string;
+  frecuencia: string;
+  escalamiento: string;
+  subhabilidad: string;
+  topic_nucleo: string;
+  microobjetivo: string;
+  senal_observable: string;
+  hipotesis_funcional: string;
+  indicador_de_avance: string;
+  estrategias_paso_a_paso: string[];
+};
 
 type AIVersion = {
   summary: string;
   signals_detected?: string[];
   microintervenciones?: MicroIntervention[];
-  // classroom_plan_7_days / home_plan_7_days los dejamos fuera a propósito (spoiler: luego lo quitamos)
 };
 
 type AIReport = {
   id: string;
+  school_id: string;
+  student_id: string;
+  report_id: string;
+  generated_by_user_id: string;
+  model_name: string;
+  teacher_version: AIVersion;
+  parent_version: AIVersion;
+  signals_detected: string[];
+  guardrails_passed: boolean;
+  guardrails_notes: string | null;
+  created_at: string;
+};
+
+type PlaybookPreview = {
+  id: string;
+  topic_nucleo?: string | null;
+  subhabilidad?: string | null;
+  senal_observable?: string | null;
+  age_min?: number | null;
+  age_max?: number | null;
+};
+
+type AIPrediction = {
+  id: string;
+  report_id: string;
+  predicted_playbook_id: string | null;
+  predicted_playbook_base_row: string | null;
+  status: string;
+  confidence_score: number | null;
+  confidence_gap: number | null;
+  top_candidates_json: string[] | null;
+  top_scores_json: number[] | null;
+  retrieval_version: string | null;
+  reranker_version: string | null;
+  used_hyde: boolean;
+  model_name: string | null;
+  resolved_by_human: boolean;
+  final_playbook_id: string | null;
+  created_at: string;
+
+  predicted_playbook_preview?: PlaybookPreview | null;
+  top_candidates_preview?: PlaybookPreview[] | null;
+};
+
+type PendingRow = {
+  row_type: "fallback" | "prediction_pending";
+  id: string;
   report_id: string;
   student_id: string;
   school_id: string;
-  model_name: string;
+  ai_report_id: string | null;
+
+  reason: string;
+  query_text: string | null;
+  model_output_summary: string | null;
+  topic_nucleo: string | null;
+  signals_detected?: string[] | null;
+
+  resolved_at: string | null;
   created_at: string;
-  teacher_version: AIVersion;
-  parent_version: AIVersion;
-  guardrails_passed: boolean;
-  guardrails_notes: string | null;
+
+  // prediction_pending
+  prediction_id?: string;
+  predicted_playbook_id?: string | null;
+  confidence_score?: number | null;
+  confidence_gap?: number | null;
+  top_candidates_json?: string[] | null;
+
+  // previews enriquecidos desde backend
+  predicted_playbook_preview?: PlaybookPreview | null;
+  top_candidates_preview?: PlaybookPreview[] | null;
 };
 
-type MicroIntervention = {
-  topic_nucleo: string;
-  subhabilidad: string;
-  senal_observable: string;
-  hipotesis_funcional: string;
-  microobjetivo: string;
-  estrategias_paso_a_paso: string[];
-  frecuencia: string;
-  duracion: string;
-  indicador_de_avance: string;
-  escalamiento: string;
-};
+function safeText(x: unknown) {
+  if (x === null || x === undefined) return "";
+  return String(x);
+}
 
+function truncate(text: string | null | undefined, max = 100) {
+  const value = safeText(text).trim();
+  if (!value) return "-";
+  return value.length <= max ? value : `${value.slice(0, max).trim()}...`;
+}
 
-/*function formatContext(ctx: PlaybookFallbackEvent["context"]) {
-  if (!ctx) return "-";
-  if (Array.isArray(ctx)) return ctx.join(", ");
-  return String(ctx);
-}*/
+function formatReason(reason: string | null | undefined) {
+  if (!reason) return "-";
+  return String(reason).toUpperCase();
+}
 
 function formatSignals(signals?: string[] | null) {
   if (!signals || signals.length === 0) return "-";
@@ -128,62 +188,117 @@ function formatSignals(signals?: string[] | null) {
   return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
 }
 
-function safeText(x: any) {
-  if (x === null || x === undefined) return "";
-  return String(x);
-}
-
 export default function PlaybookPendientesPage() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
-  const [rows, setRows] = useState<PlaybookFallbackEvent[]>([]);
+  const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+
+  const [selected, setSelected] = useState<PendingRow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
   const [reportDetail, setReportDetail] = useState<StudentReport | null>(null);
   const [aiDetail, setAiDetail] = useState<AIReport | null>(null);
 
+  const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
+  const [selectedPlaybookDetail, setSelectedPlaybookDetail] = useState<any | null>(null);
+  const [loadingPlaybookDetail, setLoadingPlaybookDetail] = useState(false);
+
+  const [pendingPrediction, setPendingPrediction] =
+    useState<AIPrediction | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [approvingSuggestion, setApprovingSuggestion] = useState(false);
+
   const [resolvingById, setResolvingById] = useState<Record<string, boolean>>(
     {}
   );
 
-  // ✅ Modal state
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selected, setSelected] = useState<PlaybookFallbackEvent | null>(null);
-
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [latestSync, setLatestSync] = useState<PlaybookSyncStatusResponse | null>(null);
+  const [latestSync, setLatestSync] =
+    useState<PlaybookSyncStatusResponse | null>(null);
 
-  const toast = useToast();
+  const [showAlternativeSearch, setShowAlternativeSearch] = useState(false);
+  const [playbookSearchQuery, setPlaybookSearchQuery] = useState("");
+  const [playbookSearchResults, setPlaybookSearchResults] = useState<PlaybookPreview[]>([]);
+  const [searchingPlaybooks, setSearchingPlaybooks] = useState(false);
 
-  const loadLatestSync = async () => {
+  function renderPlaybookPreview(pb?: PlaybookPreview | null) {
+    if (!pb) return null;
+
+    const isSelected = selectedPlaybookId === pb.id;
+
+    return (
+      <Box
+        borderWidth="2px"
+        borderColor={isSelected ? "blue.400" : "gray.200"}
+        borderRadius="md"
+        p={3}
+        bg={isSelected ? "blue.50" : "gray.50"}
+        cursor="pointer"
+        onClick={() => loadPlaybookDetail(pb.id)}
+        _hover={{ borderColor: "blue.300", bg: "blue.50" }}
+      >
+        <HStack justify="space-between" align="start">
+          <Text fontSize="sm" fontWeight="semibold">
+            {pb.topic_nucleo || "Sin topic_nucleo"}
+          </Text>
+
+          {isSelected ? (
+            <Badge colorScheme="blue">Seleccionado</Badge>
+          ) : null}
+        </HStack>
+
+        {pb.subhabilidad ? (
+          <Text fontSize="sm" color="gray.700" mt={1}>
+            Subhabilidad: {pb.subhabilidad}
+          </Text>
+        ) : null}
+
+        {pb.senal_observable ? (
+          <Text fontSize="sm" color="gray.700" mt={1}>
+            Señal observable: {pb.senal_observable}
+          </Text>
+        ) : null}
+
+        <HStack mt={2} spacing={2} flexWrap="wrap">
+          <Code fontSize="xs">{pb.id}</Code>
+          {(pb.age_min !== null && pb.age_min !== undefined) ||
+            (pb.age_max !== null && pb.age_max !== undefined) ? (
+            <Badge variant="subtle">
+              Edad: {pb.age_min ?? "?"}–{pb.age_max ?? "?"}
+            </Badge>
+          ) : null}
+        </HStack>
+      </Box>
+    );
+  }
+
+  async function loadLatestSync() {
     try {
-      const result = await getLatestPlaybookSync();
-      setLatestSync(result);
-      setSyncStatus(result.status);
-      setSyncError(result.error_message ?? null);
-
-      return result;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No se pudo consultar el último sync";
-
-      setSyncError(message);
+      const latest = await getLatestPlaybookSync();
+      setLatestSync(latest);
+      setSyncStatus(latest?.status ?? null);
+      return latest;
+    } catch {
+      setLatestSync(null);
+      setSyncStatus(null);
       return null;
     }
-  };
+  }
 
-  const handleReprocessPlaybooks = async () => {
+  async function handleReprocessPlaybooks() {
+    setSyncError(null);
+    setIsSyncing(true);
+
     try {
-      setSyncError(null);
-      setIsSyncing(true);
-
       const result = await startPlaybookSync();
 
       setSyncStatus(result.status);
@@ -197,9 +312,11 @@ export default function PlaybookPendientesPage() {
       });
 
       await loadLatestSync();
-    } catch (error) {
+    } catch (e: any) {
       const message =
-        error instanceof Error ? error.message : "No se pudo iniciar la sincronización";
+        e instanceof Error
+          ? e.message
+          : e?.message ?? "No se pudo iniciar la sincronización";
 
       setSyncError(message);
       setIsSyncing(false);
@@ -212,50 +329,6 @@ export default function PlaybookPendientesPage() {
         isClosable: true,
       });
     }
-  };
-
-  async function openDetail(r: PlaybookFallbackEvent) {
-    setSelected(r);
-    setDetailError(null);
-    setReportDetail(null);
-    setAiDetail(null);
-    onOpen();
-
-    setDetailLoading(true);
-    try {
-      // 1) Traer el reporte base
-      // Preferimos /v1/reports/{id} si existe. Si no existe, fallback con lista por student_id.
-      let rep: StudentReport | null = null;
-
-      try {
-        rep = await api<StudentReport>(`/v1/reports/${r.report_id}`, {
-          auth: true,
-        });
-      } catch (e1: any) {
-        // fallback: listar por alumno y buscar el ID
-        const list = await api<StudentReport[]>(
-          `/v1/reports?student_id=${encodeURIComponent(r.student_id)}`,
-          { auth: true }
-        );
-        rep = list.find((x) => x.id === r.report_id) ?? null;
-      }
-
-      setReportDetail(rep);
-
-      // 2) Traer el AI report más reciente del report_id (igual que en ReportsPage)
-      const ai = await api<any>(
-        `/v1/ai-reports?report_id=${encodeURIComponent(r.report_id)}`,
-        { auth: true }
-      );
-      const latest: AIReport | null = Array.isArray(ai)
-        ? ai?.[0] ?? null
-        : ai ?? null;
-      setAiDetail(latest);
-    } catch (e: any) {
-      setDetailError(e?.message ?? "No se pudo cargar el detalle del reporte");
-    } finally {
-      setDetailLoading(false);
-    }
   }
 
   function closeDetail() {
@@ -264,41 +337,360 @@ export default function PlaybookPendientesPage() {
     setDetailError(null);
     setReportDetail(null);
     setAiDetail(null);
-  }
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api<PlaybookFallbackEvent[]>(
-        `/v1/playbook-fallbacks?status_filter=${encodeURIComponent(
-          statusFilter
-        )}&limit=200`,
-        { auth: true }
-      );
-      setRows(data);
-    } catch (e: any) {
-      setError(e?.message ?? "No se pudo cargar Pendientes de Playbook");
-    } finally {
-      setLoading(false);
-    }
+    setPendingPrediction(null);
+    setPredictionLoading(false);
+    setApprovingSuggestion(false);
+    setSelectedPlaybookId(null);
+    setSelectedPlaybookDetail(null);
+    setLoadingPlaybookDetail(false);
+    setShowAlternativeSearch(false);
+    setPlaybookSearchQuery("");
+    setPlaybookSearchResults([]);
   }
 
   async function resolveEvent(id: string) {
     setResolvingById((p) => ({ ...p, [id]: true }));
+    setError(null);
+
     try {
       await api(`/v1/playbook-fallbacks/${id}/resolve`, {
         method: "POST",
         auth: true,
       });
-      await load();
 
-      // ✅ avisa al navbar que refresque el badge
+      await load();
       window.dispatchEvent(new Event("playbook:pending-changed"));
+
+      toast({
+        title: "Pendiente resuelto",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
+      if (selected?.id === id) {
+        closeDetail();
+      }
     } catch (e: any) {
       setError(e?.message ?? "No se pudo resolver el evento");
+      toast({
+        title: "Error al resolver",
+        description: e?.message ?? "No se pudo resolver el evento",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     } finally {
       setResolvingById((p) => ({ ...p, [id]: false }));
+    }
+  }
+
+  async function approvePredictionSuggestion(
+    predictionId: string,
+    fallbackEventId?: string
+  ) {
+    setApprovingSuggestion(true);
+    setError(null);
+
+    try {
+      await api("/v1/ai-feedback", {
+        method: "POST",
+        auth: true,
+        body: JSON.stringify({
+          prediction_id: predictionId,
+          verdict: "correct",
+          note: "Aprobado desde UI de Pendientes de Playbook",
+        }),
+      });
+
+      if (selected?.report_id) {
+        const ai = await api<any>(
+          `/v1/ai-reports?report_id=${encodeURIComponent(selected.report_id)}`,
+          { auth: true }
+        );
+
+        const latest: AIReport | null = Array.isArray(ai)
+          ? ai?.[0] ?? null
+          : ai ?? null;
+
+        setAiDetail(latest);
+      }
+
+      setPendingPrediction(null);
+
+      if (fallbackEventId) {
+        await api(`/v1/playbook-fallbacks/${fallbackEventId}/resolve`, {
+          method: "POST",
+          auth: true,
+        });
+      }
+
+      await load();
+      window.dispatchEvent(new Event("playbook:pending-changed"));
+
+      toast({
+        title: "Sugerencia aprobada",
+        description: "El AI report fue actualizado con el playbook confirmado.",
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo aprobar la sugerencia");
+      toast({
+        title: "Error al aprobar sugerencia",
+        description: e?.message ?? "No se pudo aprobar la sugerencia",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setApprovingSuggestion(false);
+    }
+  }
+
+  async function loadPlaybookDetail(playbookId: string) {
+    setSelectedPlaybookId(playbookId);
+    setLoadingPlaybookDetail(true);
+
+    try {
+      const pb = await api<any>(`/v1/playbooks/${playbookId}`, { auth: true });
+      setSelectedPlaybookDetail(pb);
+    } catch (e: any) {
+      setSelectedPlaybookDetail(null);
+      toast({
+        title: "Error al cargar playbook",
+        description: e?.message ?? "No se pudo cargar el detalle del playbook",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setLoadingPlaybookDetail(false);
+    }
+  }
+
+  async function searchAlternativePlaybooks() {
+    const q = playbookSearchQuery.trim();
+    if (!q || q.length < 2) {
+      setPlaybookSearchResults([]);
+      return;
+    }
+
+    setSearchingPlaybooks(true);
+
+    try {
+      const rows = await api<PlaybookPreview[]>(
+        `/v1/playbooks/search?q=${encodeURIComponent(q)}&limit=10`,
+        { auth: true }
+      );
+      setPlaybookSearchResults(rows);
+    } catch (e: any) {
+      setPlaybookSearchResults([]);
+      toast({
+        title: "Error al buscar playbooks",
+        description: e?.message ?? "No se pudo buscar playbooks",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setSearchingPlaybooks(false);
+    }
+  }
+
+  async function openDetail(r: PendingRow) {
+    setShowAlternativeSearch(false);
+    setPlaybookSearchQuery("");
+    setPlaybookSearchResults([]);
+    setSelected(r);
+    setDetailError(null);
+    setReportDetail(null);
+    setAiDetail(null);
+    setPendingPrediction(null);
+    onOpen();
+
+    if (r.row_type === "prediction_pending" && r.prediction_id) {
+      setPendingPrediction({
+        id: r.prediction_id,
+        report_id: r.report_id,
+        predicted_playbook_id: r.predicted_playbook_id ?? null,
+        predicted_playbook_base_row: null,
+        status: "pending_human_review",
+        confidence_score: r.confidence_score ?? null,
+        confidence_gap: r.confidence_gap ?? null,
+        top_candidates_json: r.top_candidates_json ?? [],
+        top_scores_json: [],
+        retrieval_version: null,
+        reranker_version: null,
+        used_hyde: false,
+        model_name: null,
+        resolved_by_human: false,
+        final_playbook_id: null,
+        created_at: r.created_at,
+
+        predicted_playbook_preview: r.predicted_playbook_preview ?? null,
+        top_candidates_preview: r.top_candidates_preview ?? [],
+      });
+    }
+
+    const initialSelectedId = r.predicted_playbook_id ?? null;
+    setSelectedPlaybookId(initialSelectedId);
+    setSelectedPlaybookDetail(null);
+
+    if (initialSelectedId) {
+      void loadPlaybookDetail(initialSelectedId);
+    }
+
+    setDetailLoading(true);
+
+    try {
+      let aiLoaded: AIReport | null = null;
+
+      try {
+        const ai = await api<any>(
+          `/v1/ai-reports?report_id=${encodeURIComponent(r.report_id)}`,
+          { auth: true }
+        );
+        aiLoaded = Array.isArray(ai) ? ai?.[0] ?? null : ai ?? null;
+        setAiDetail(aiLoaded);
+      } catch {
+        setAiDetail(null);
+      }
+
+      let rep: StudentReport | null = null;
+
+      try {
+        rep = await api<StudentReport>(`/v1/reports/${r.report_id}`, {
+          auth: true,
+        });
+      } catch {
+        const fallbackStudentId = r.student_id || aiLoaded?.student_id || "";
+
+        if (fallbackStudentId) {
+          const list = await api<StudentReport[]>(
+            `/v1/reports?student_id=${encodeURIComponent(fallbackStudentId)}`,
+            { auth: true }
+          );
+          rep = list.find((x) => x.id === r.report_id) ?? null;
+        }
+      }
+
+      setReportDetail(rep);
+
+      if (r.row_type !== "prediction_pending") {
+        setPredictionLoading(true);
+
+        try {
+          const pending = await api<AIPrediction[]>(
+            `/v1/ai-feedback/pending?limit=200`,
+            { auth: true }
+          );
+
+          const match =
+            pending
+              .filter((x) => x.report_id === r.report_id)
+              .sort(
+                (a, b) =>
+                  new Date(b.created_at).getTime() -
+                  new Date(a.created_at).getTime()
+              )[0] ?? null;
+          if (match?.predicted_playbook_id) {
+            setSelectedPlaybookId(match.predicted_playbook_id);
+            void loadPlaybookDetail(match.predicted_playbook_id);
+          }
+
+          setPendingPrediction(match);
+        } catch {
+          setPendingPrediction(null);
+        } finally {
+          setPredictionLoading(false);
+        }
+      } else {
+        setPredictionLoading(false);
+      }
+    } catch (e: any) {
+      setDetailError(e?.message ?? "No se pudo cargar el detalle");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const fallbackRows = await api<PlaybookFallbackEvent[]>(
+        `/v1/playbook-fallbacks?status_filter=${encodeURIComponent(
+          statusFilter
+        )}&limit=200`,
+        { auth: true }
+      );
+
+      const fallbackMapped: PendingRow[] = fallbackRows.map((row) => ({
+        row_type: "fallback",
+        id: row.id,
+        report_id: row.report_id,
+        student_id: row.student_id,
+        school_id: row.school_id,
+        ai_report_id: row.ai_report_id,
+        reason: row.reason,
+        query_text: row.query_text,
+        model_output_summary: row.model_output_summary,
+        topic_nucleo: row.topic_nucleo,
+        signals_detected: row.signals_detected,
+        resolved_at: row.resolved_at,
+        created_at: row.created_at,
+      }));
+
+      let predictionMapped: PendingRow[] = [];
+
+      if (statusFilter !== "resolved") {
+        const predictions = await api<AIPrediction[]>(
+          `/v1/ai-feedback/pending?limit=200`,
+          { auth: true }
+        );
+
+        const fallbackReportIds = new Set(fallbackRows.map((x) => x.report_id));
+
+        predictionMapped = predictions
+          .filter((p) => !fallbackReportIds.has(p.report_id))
+          .map((p) => ({
+            row_type: "prediction_pending" as const,
+            id: `prediction-${p.id}`,
+            prediction_id: p.id,
+            report_id: p.report_id,
+            student_id: "",
+            school_id: "",
+            ai_report_id: null,
+            reason: "pending_human_review",
+            query_text: null,
+            model_output_summary:
+              "Este caso requiere validación humana antes de compartir una estrategia final.",
+            topic_nucleo: null,
+            signals_detected: [],
+            resolved_at: null,
+            created_at: p.created_at,
+            predicted_playbook_id: p.predicted_playbook_id,
+            confidence_score: p.confidence_score,
+            confidence_gap: p.confidence_gap,
+            top_candidates_json: p.top_candidates_json,
+            predicted_playbook_preview: p.predicted_playbook_preview ?? null,
+            top_candidates_preview: p.top_candidates_preview ?? [],
+          }));
+      }
+
+      const combined = [...fallbackMapped, ...predictionMapped].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setRows(combined);
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo cargar Pendientes de Playbook");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -307,10 +699,9 @@ export default function PlaybookPendientesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
-  const pendingCount = useMemo(
-    () => rows.filter((r) => !r.resolved_at).length,
-    [rows]
-  );
+  useEffect(() => {
+    loadLatestSync();
+  }, []);
 
   useEffect(() => {
     if (!isSyncing) return;
@@ -344,7 +735,8 @@ export default function PlaybookPendientesPage() {
         if (current.status === "failed") {
           toast({
             title: "La sincronización falló",
-            description: current.error_message || "Ocurrió un error en el proceso",
+            description:
+              current.error_message || "Ocurrió un error en el proceso",
             status: "error",
             duration: 5000,
             isClosable: true,
@@ -353,12 +745,16 @@ export default function PlaybookPendientesPage() {
       }
     }, 2500);
 
-    return () => {
-      window.clearInterval(intervalId);
-    };
+    return () => window.clearInterval(intervalId);
   }, [isSyncing, toast]);
 
+  const pendingCount = useMemo(
+    () => rows.filter((r) => !r.resolved_at).length,
+    [rows]
+  );
+
   const selectedIsResolved = !!selected?.resolved_at;
+  const detailStudentId = selected?.student_id || reportDetail?.student_id || "";
 
   return (
     <Box p={6}>
@@ -366,8 +762,8 @@ export default function PlaybookPendientesPage() {
         <Box>
           <Heading size="lg">Pendientes de Playbook</Heading>
           <Text color="gray.600" mt={1}>
-            Eventos donde <b>no se encontraron estrategias JCJ</b> y el modelo
-            tuvo que responder con sugerencias generales.
+            Casos donde no se encontró estrategia JCJ o donde una sugerencia JCJ
+            requiere validación humana.
           </Text>
         </Box>
 
@@ -417,73 +813,60 @@ export default function PlaybookPendientesPage() {
         <VStack align="start" spacing={1}>
           <Text fontWeight="bold">Última sincronización</Text>
 
-          <HStack>
-            <Text fontSize="sm">Estado:</Text>
-            <Badge
-              colorScheme={
-                syncStatus === "finished"
-                  ? "green"
-                  : syncStatus === "failed"
-                    ? "red"
-                    : "blue"
-              }
-            >
-              {syncStatus || "N/A"}
-            </Badge>
-          </HStack>
+          {syncError ? (
+            <Alert status="error" borderRadius="md">
+              <AlertIcon />
+              <Text>{syncError}</Text>
+            </Alert>
+          ) : !latestSync ? (
+            <HStack>
+              <Text>Estado:</Text>
+              <Badge colorScheme="blue">N/A</Badge>
+            </HStack>
+          ) : (
+            <Stack spacing={1}>
+              <HStack>
+                <Text fontWeight="medium">Estado:</Text>
+                <Badge
+                  colorScheme={
+                    latestSync.status === "finished"
+                      ? "green"
+                      : latestSync.status === "failed"
+                        ? "red"
+                        : "blue"
+                  }
+                >
+                  {latestSync.status}
+                </Badge>
+              </HStack>
 
-          {isSyncing && (
-            <Text fontSize="sm" color="blue.600">
-              Procesando playbooks...
-            </Text>
-          )}
+              <Text fontSize="sm" color="gray.700">
+                Fecha:{" "}
+                {latestSync.finished_at
+                  ? new Date(latestSync.finished_at).toLocaleString()
+                  : latestSync.created_at
+                    ? new Date(latestSync.created_at).toLocaleString()
+                    : "-"}
+              </Text>
 
-          {latestSync?.finished_at && (
-            <Text fontSize="sm" color="gray.600">
-              Fecha: {new Date(latestSync.finished_at).toLocaleString()}
-            </Text>
-          )}
+              <Text fontSize="sm" color="gray.700">
+                Playbooks cargados:{" "}
+                {typeof (latestSync.result as any)?.loaded_count === "number"
+                  ? (latestSync.result as any).loaded_count
+                  : "-"}
+              </Text>
 
-          {latestSync?.result?.loaded_count !== undefined && (
-            <Text fontSize="sm">
-              Playbooks cargados: {latestSync.result.loaded_count}
-            </Text>
-          )}
+              <Text fontSize="sm" color="gray.700">
+                Colección:{" "}
+                {(latestSync.result as any)?.chroma_collection ?? "-"}
+              </Text>
 
-          {latestSync?.result?.chroma_collection && (
-            <Text fontSize="sm">
-              Colección: {latestSync.result.chroma_collection}
-            </Text>
-          )}
-
-          {syncStatus === "finished" && latestSync?.finished_at && (
-            <Text fontSize="sm" color="green.600">
-              Última sincronización completada.
-            </Text>
-          )}
-
-          {syncError && (
-            <Text fontSize="sm" color="red.500">
-              {syncError}
-            </Text>
-          )}
-
-          {latestSync?.error_message && (
-            <Text fontSize="sm" color="red.500">
-              Error: {latestSync.error_message}
-            </Text>
-          )}
-
-          {syncError && (
-            <Text fontSize="sm" color="red.500">
-              {syncError}
-            </Text>
-          )}
-
-          {latestSync?.error_message && (
-            <Text fontSize="sm" color="red.500">
-              Error: {latestSync.error_message}
-            </Text>
+              {latestSync.error_message ? (
+                <Text fontSize="sm" color="red.600">
+                  {latestSync.error_message}
+                </Text>
+              ) : null}
+            </Stack>
           )}
         </VStack>
       </Box>
@@ -497,104 +880,113 @@ export default function PlaybookPendientesPage() {
 
       <Card>
         <CardHeader>
-          <HStack justify="space-between">
-            <Heading size="md">
-              Lista{" "}
-              {statusFilter === "pending" && (
-                <Badge ml={2} colorScheme="orange">
-                  {pendingCount} pendientes
-                </Badge>
-              )}
-            </Heading>
-
-            {loading && (
-              <HStack>
-                <Spinner size="sm" />
-                <Text color="gray.600">Cargando…</Text>
-              </HStack>
-            )}
+          <HStack justify="space-between" align="center">
+            <HStack spacing={3}>
+              <Heading size="md">Lista</Heading>
+              <Badge colorScheme="orange">{pendingCount} PENDIENTES</Badge>
+            </HStack>
           </HStack>
         </CardHeader>
 
-        <CardBody>
-          {rows.length === 0 ? (
-            <Text color="gray.600">
-              No hay eventos para este filtro por ahora.
-            </Text>
+        <CardBody pt={0}>
+          {loading ? (
+            <HStack py={6}>
+              <Spinner />
+              <Text>Cargando pendientes…</Text>
+            </HStack>
+          ) : rows.length === 0 ? (
+            <Text color="gray.600">No hay eventos para este filtro.</Text>
           ) : (
             <Box overflowX="auto">
-              <Table size="sm">
+              <Table size="sm" variant="simple">
                 <Thead>
                   <Tr>
-                    <Th>CREATED</Th>
-                    <Th>REASON</Th>
-                    <Th>QUERY</Th>
-                    <Th>SUMMARY</Th>
-                    <Th>STATUS</Th>
-                    <Th>ACTIONS</Th>
+                    <Th>Created</Th>
+                    <Th>Reason</Th>
+                    <Th>Query</Th>
+                    <Th>Summary</Th>
+                    <Th>Status</Th>
+                    <Th>Actions</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {rows.map((r) => {
-                    const isResolved = !!r.resolved_at;
+                  {rows.map((row) => {
+                    const isResolved = !!row.resolved_at;
 
                     return (
-                      <Tr key={r.id} opacity={isResolved ? 0.7 : 1}>
+                      <Tr key={row.id}>
                         <Td whiteSpace="nowrap">
-                          {new Date(r.created_at).toLocaleString()}
+                          {new Date(row.created_at).toLocaleString()}
                         </Td>
 
                         <Td>
-                          <Badge colorScheme={r.reason ? "purple" : "gray"}>
-                            {r.reason || "n/a"}
-                          </Badge>
+                          <VStack align="start" spacing={1}>
+                            <Badge colorScheme="purple">
+                              {formatReason(row.reason)}
+                            </Badge>
+                            <Badge
+                              colorScheme={
+                                row.row_type === "prediction_pending"
+                                  ? "orange"
+                                  : "blue"
+                              }
+                              variant="subtle"
+                            >
+                              {row.row_type === "prediction_pending"
+                                ? "REVISIÓN HUMANA"
+                                : "FALLBACK"}
+                            </Badge>
+                          </VStack>
                         </Td>
 
-                        <Td maxW="280px">
-                          <Text fontSize="sm" noOfLines={3}>
-                            {r.query_text ?? "-"}
-                          </Text>
-                        </Td>
-
-                        <Td maxW="320px">
-                          <Text fontSize="sm" noOfLines={3}>
-                            {r.model_output_summary ?? "-"}
-                          </Text>
-                        </Td>
-
-                        <Td whiteSpace="nowrap">
-                          {isResolved ? (
-                            <Badge colorScheme="green">Resuelto</Badge>
+                        <Td maxW="360px">
+                          {row.query_text ? (
+                            <Text whiteSpace="normal">
+                              {truncate(row.query_text, 120)}
+                            </Text>
+                          ) : row.predicted_playbook_id ? (
+                            <Text whiteSpace="normal">
+                              Suggested playbook:{" "}
+                              {truncate(row.predicted_playbook_id, 80)}
+                            </Text>
                           ) : (
-                            <Badge colorScheme="orange">Pendiente</Badge>
+                            <Text whiteSpace="normal">-</Text>
                           )}
                         </Td>
 
-                        <Td whiteSpace="nowrap">
+                        <Td maxW="360px">
+                          <Text whiteSpace="normal">
+                            {truncate(row.model_output_summary, 120)}
+                          </Text>
+                        </Td>
+
+                        <Td>
+                          {isResolved ? (
+                            <Badge colorScheme="green">RESUELTO</Badge>
+                          ) : (
+                            <Badge colorScheme="orange">PENDIENTE</Badge>
+                          )}
+                        </Td>
+
+                        <Td>
                           <VStack align="stretch" spacing={2}>
                             <Button
-                              size="xs"
+                              size="sm"
                               variant="outline"
-                              onClick={() => openDetail(r)}
+                              onClick={() => openDetail(row)}
                             >
                               Ver detalle
                             </Button>
 
-                            {!isResolved ? (
+                            {!isResolved && row.row_type === "fallback" && (
                               <Button
-                                size="xs"
-                                onClick={() => resolveEvent(r.id)}
-                                isLoading={!!resolvingById[r.id]}
+                                size="sm"
                                 colorScheme="green"
+                                onClick={() => resolveEvent(row.id)}
+                                isLoading={!!resolvingById[row.id]}
                               >
                                 Marcar resuelto
                               </Button>
-                            ) : (
-                              <Text fontSize="xs" color="gray.600">
-                                {r.resolved_at
-                                  ? new Date(r.resolved_at).toLocaleString()
-                                  : ""}
-                              </Text>
                             )}
                           </VStack>
                         </Td>
@@ -608,19 +1000,10 @@ export default function PlaybookPendientesPage() {
         </CardBody>
       </Card>
 
-      {/* ✅ MODAL DETALLE (con Reporte + AI completo) */}
-      <Modal
-        isOpen={isOpen}
-        onClose={closeDetail}
-        size="4xl"
-        scrollBehavior="inside"
-      >
+      <Modal isOpen={isOpen} onClose={closeDetail} size="6xl" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>
-            Detalle de fallback{" "}
-            {selected ? `• ${new Date(selected.created_at).toLocaleString()}` : ""}
-          </ModalHeader>
+          <ModalHeader>Detalle del pendiente</ModalHeader>
           <ModalCloseButton />
 
           <ModalBody>
@@ -640,7 +1023,6 @@ export default function PlaybookPendientesPage() {
               </HStack>
             ) : (
               <VStack align="stretch" spacing={4}>
-                {/* Header */}
                 <HStack justify="space-between" align="start">
                   <Box>
                     <Text fontSize="sm" color="gray.600">
@@ -653,6 +1035,14 @@ export default function PlaybookPendientesPage() {
                     )}
                     <Text fontSize="xs" color="gray.600" mt={1}>
                       Reason: <b>{selected.reason || "n/a"}</b>
+                    </Text>
+                    <Text fontSize="xs" color="gray.600" mt={1}>
+                      Tipo:{" "}
+                      <b>
+                        {selected.row_type === "prediction_pending"
+                          ? "Revisión humana"
+                          : "Fallback"}
+                      </b>
                     </Text>
                   </Box>
 
@@ -668,17 +1058,18 @@ export default function PlaybookPendientesPage() {
 
                 <Divider />
 
-                {/* Fallback content */}
-                <Box>
-                  <Text fontWeight="semibold" mb={1}>
-                    Query (completo)
-                  </Text>
-                  <Box borderWidth="1px" borderRadius="md" p={3} bg="gray.50">
-                    <Text fontSize="sm" whiteSpace="pre-wrap">
-                      {selected.query_text ?? "-"}
+                {selected.query_text ? (
+                  <Box>
+                    <Text fontWeight="semibold" mb={1}>
+                      Query (completo)
                     </Text>
+                    <Box borderWidth="1px" borderRadius="md" p={3} bg="gray.50">
+                      <Text fontSize="sm" whiteSpace="pre-wrap">
+                        {selected.query_text}
+                      </Text>
+                    </Box>
                   </Box>
-                </Box>
+                ) : null}
 
                 <Box>
                   <Text fontWeight="semibold" mb={1}>
@@ -693,7 +1084,6 @@ export default function PlaybookPendientesPage() {
 
                 <Divider />
 
-                {/* StudentReport */}
                 <Box>
                   <Heading size="sm" mb={2}>
                     Reporte del maestro (StudentReport)
@@ -703,11 +1093,7 @@ export default function PlaybookPendientesPage() {
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
                       <Text fontSize="sm">
-                        No se pudo cargar el reporte base. (Revisa si existe
-                        <Code mx={1} fontSize="xs">
-                          GET /v1/reports/:id
-                        </Code>
-                        o si el reporte pertenece al alumno.)
+                        No se pudo cargar el reporte base.
                       </Text>
                     </Alert>
                   ) : (
@@ -720,7 +1106,7 @@ export default function PlaybookPendientesPage() {
                       </Box>
 
                       <Box>
-                        <Text fontWeight="semibold">Notas (opcional)</Text>
+                        <Text fontWeight="semibold">Notas</Text>
                         <Text fontSize="sm" whiteSpace="pre-wrap">
                           {reportDetail.notes ?? "-"}
                         </Text>
@@ -731,7 +1117,6 @@ export default function PlaybookPendientesPage() {
 
                 <Divider />
 
-                {/* AI Report */}
                 <Box>
                   <Heading size="sm" mb={2}>
                     Apoyo generado por IA
@@ -741,8 +1126,7 @@ export default function PlaybookPendientesPage() {
                     <Alert status="warning" borderRadius="md">
                       <AlertIcon />
                       <Text fontSize="sm">
-                        No se encontró AI report para este reporte (o no se pudo
-                        cargar).
+                        No se encontró AI report para este reporte.
                       </Text>
                     </Alert>
                   ) : (
@@ -754,6 +1138,7 @@ export default function PlaybookPendientesPage() {
                           </Text>
                           <Text fontWeight="semibold">{aiDetail.model_name}</Text>
                         </Box>
+
                         <Box textAlign="right">
                           <Text fontSize="sm" color="gray.600">
                             Creado
@@ -775,39 +1160,29 @@ export default function PlaybookPendientesPage() {
                         </Box>
                       </Box>
 
-                      <Box>
-                        <Text fontWeight="semibold" mb={1}>
-                          Señales detectadas (familia)
-                        </Text>
-                        <Box borderWidth="1px" borderRadius="md" p={3}>
-                          {(aiDetail.parent_version?.signals_detected ?? [])
-                            .length === 0 ? (
-                            <Text fontSize="sm" color="gray.600">
-                              -
-                            </Text>
-                          ) : (
-                            <Stack spacing={1}>
-                              {(aiDetail.parent_version?.signals_detected ??
-                                []).map((s, idx) => (
-                                  <Text key={idx} fontSize="sm">
-                                    • {s}
-                                  </Text>
-                                ))}
-                            </Stack>
-                          )}
-                        </Box>
-                      </Box>
-
-                      <Box>
-                        <Text fontWeight="semibold" mb={1}>
-                          Microintervenciones (familia)
-                        </Text>
-
-                        {(aiDetail.parent_version?.microintervenciones ?? []).length === 0 ? (
-                          <Text fontSize="sm" color="gray.600">
-                            -
+                      {(aiDetail.parent_version?.signals_detected ?? []).length > 0 ? (
+                        <Box>
+                          <Text fontWeight="semibold" mb={1}>
+                            Señales detectadas (familia)
                           </Text>
-                        ) : (
+                          <Box borderWidth="1px" borderRadius="md" p={3}>
+                            <Stack spacing={1}>
+                              {(aiDetail.parent_version?.signals_detected ?? []).map((s, idx) => (
+                                <Text key={idx} fontSize="sm">
+                                  • {s}
+                                </Text>
+                              ))}
+                            </Stack>
+                          </Box>
+                        </Box>
+                      ) : null}
+
+                      {(aiDetail.parent_version?.microintervenciones ?? []).length > 0 ? (
+                        <Box>
+                          <Text fontWeight="semibold" mb={1}>
+                            Microintervenciones (familia)
+                          </Text>
+
                           <Stack spacing={3}>
                             {(aiDetail.parent_version?.microintervenciones ?? []).map((mi, idx) => (
                               <Box key={idx} borderWidth="1px" borderRadius="md" p={3}>
@@ -886,9 +1261,8 @@ export default function PlaybookPendientesPage() {
                               </Box>
                             ))}
                           </Stack>
-                        )}
-                      </Box>
-
+                        </Box>
+                      ) : null}
 
                       {aiDetail.guardrails_notes ? (
                         <Alert status="warning" borderRadius="md">
@@ -902,19 +1276,318 @@ export default function PlaybookPendientesPage() {
 
                 <Divider />
 
-                {/* IDs debug */}
+                <Box>
+                  <Heading size="sm" mb={2}>
+                    Revisión humana de sugerencia JCJ
+                  </Heading>
+
+                  {predictionLoading ? (
+                    <HStack>
+                      <Spinner size="sm" />
+                      <Text fontSize="sm">Buscando sugerencia pendiente…</Text>
+                    </HStack>
+                  ) : !pendingPrediction ? (
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Text fontSize="sm">
+                        No hay una sugerencia de playbook pendiente para este
+                        reporte.
+                      </Text>
+                    </Alert>
+                  ) : (
+                    <Stack spacing={3}>
+                      <Alert status="warning" borderRadius="md">
+                        <AlertIcon />
+                        <Box>
+                          <Text fontSize="sm" fontWeight="semibold">
+                            Este reporte tiene una sugerencia JCJ pendiente de
+                            validación humana.
+                          </Text>
+                          <Text fontSize="sm" mt={1}>
+                            Si esta sugerencia es correcta, puedes aprobarla y
+                            el AI report se actualizará.
+                          </Text>
+                        </Box>
+                      </Alert>
+
+                      <HStack justify="space-between" align="start" flexWrap="wrap">
+                        <Box>
+                          <Text fontSize="sm" color="gray.600">
+                            Sugerencia principal
+                          </Text>
+                        </Box>
+
+                        <VStack align="end" spacing={1}>
+                          <Badge colorScheme="orange">
+                            Score: {pendingPrediction.confidence_score ?? "-"}
+                          </Badge>
+                          <Badge variant="subtle">
+                            Gap: {pendingPrediction.confidence_gap ?? "-"}
+                          </Badge>
+                        </VStack>
+                      </HStack>
+
+                      {pendingPrediction.predicted_playbook_preview ? (
+                        <Box>
+                          {renderPlaybookPreview(pendingPrediction.predicted_playbook_preview)}
+                        </Box>
+                      ) : (
+                        <Box>
+                          <Text fontSize="sm" color="gray.600" mb={1}>
+                            Predicted playbook ID
+                          </Text>
+                          <Code fontSize="xs">
+                            {pendingPrediction.predicted_playbook_id ?? "-"}
+                          </Code>
+                        </Box>
+                      )}
+
+                      {!!pendingPrediction.top_candidates_preview?.length && (
+                        <Box>
+                          <Text fontWeight="semibold" mb={2}>
+                            Candidatos sugeridos
+                          </Text>
+                          <Stack spacing={2}>
+                            {pendingPrediction.top_candidates_preview.map((pb, idx) => (
+                              <Box key={`${pb.id}-${idx}`}>
+                                <Text fontSize="sm" fontWeight="medium" mb={1}>
+                                  {idx + 1}.
+                                </Text>
+                                {renderPlaybookPreview(pb)}
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Box>
+                      )}
+
+                      {!pendingPrediction.top_candidates_preview?.length &&
+                        !!pendingPrediction.top_candidates_json?.length ? (
+                        <Box>
+                          <Text fontWeight="semibold" mb={1}>
+                            Top candidates
+                          </Text>
+                          <Stack spacing={1}>
+                            {pendingPrediction.top_candidates_json.map((id, idx) => (
+                              <Text key={`${id}-${idx}`} fontSize="sm">
+                                {idx + 1}. <Code fontSize="xs">{id}</Code>
+                              </Text>
+                            ))}
+                          </Stack>
+                        </Box>
+                      ) : null}
+                      {loadingPlaybookDetail ? (
+                        <HStack>
+                          <Spinner size="sm" />
+                          <Text fontSize="sm">Cargando detalle del playbook…</Text>
+                        </HStack>
+                      ) : selectedPlaybookDetail ? (
+                        <Box mt={4}>
+                          <Heading size="sm" mb={2}>
+                            Detalle del playbook seleccionado
+                          </Heading>
+
+                          <Box borderWidth="1px" borderRadius="md" p={4} bg="gray.50">
+                            <Text fontWeight="bold">
+                              {selectedPlaybookDetail.topic_nucleo || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Subhabilidad:</b> {selectedPlaybookDetail.subhabilidad || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Señal observable:</b> {selectedPlaybookDetail.senal_observable || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Hipótesis funcional:</b>{" "}
+                              {selectedPlaybookDetail.hipotesis_funcional || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Microobjetivo:</b> {selectedPlaybookDetail.microobjetivo || "-"}
+                            </Text>
+
+                            <Box mt={2}>
+                              <b>Estrategias paso a paso:</b>
+                              <Stack mt={1}>
+                                {(selectedPlaybookDetail.estrategias_paso_a_paso || []).map(
+                                  (s: string, i: number) => (
+                                    <Text key={i}>• {s}</Text>
+                                  )
+                                )}
+                              </Stack>
+                            </Box>
+
+                            <Text mt={2}>
+                              <b>Frecuencia:</b> {selectedPlaybookDetail.frecuencia || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Duración:</b> {selectedPlaybookDetail.duracion || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Indicador de avance:</b>{" "}
+                              {selectedPlaybookDetail.indicador_de_avance || "-"}
+                            </Text>
+
+                            <Text mt={2}>
+                              <b>Escalamiento:</b> {selectedPlaybookDetail.escalamiento || "-"}
+                            </Text>
+                          </Box>
+                        </Box>
+                      ) : null}
+
+                      <Box>
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowAlternativeSearch((v) => !v)}
+                        >
+                          No es ninguna de estas opciones
+                        </Button>
+                      </Box>
+
+                      {showAlternativeSearch ? (
+                        <Box mt={3}>
+                          <Text fontWeight="semibold" mb={2}>
+                            Buscar otro playbook
+                          </Text>
+
+                          <HStack align="stretch">
+                            <Input
+                              placeholder="Busca por topic, subhabilidad o señal observable"
+                              value={playbookSearchQuery}
+                              onChange={(e) => setPlaybookSearchQuery(e.target.value)}
+                            />
+                            <Button
+                              onClick={searchAlternativePlaybooks}
+                              isLoading={searchingPlaybooks}
+                            >
+                              Buscar
+                            </Button>
+                          </HStack>
+
+                          {playbookSearchResults.length > 0 ? (
+                            <Stack spacing={2} mt={3}>
+                              {playbookSearchResults.map((pb) => (
+                                <Box key={pb.id}>{renderPlaybookPreview(pb)}</Box>
+                              ))}
+                            </Stack>
+                          ) : playbookSearchQuery.trim().length >= 2 && !searchingPlaybooks ? (
+                            <Text fontSize="sm" color="gray.600" mt={3}>
+                              No se encontraron resultados.
+                            </Text>
+                          ) : null}
+                        </Box>
+                      ) : null}
+
+                      <HStack>
+                        <Button
+                          colorScheme="blue"
+                          onClick={() =>
+                            approvePredictionSuggestion(
+                              pendingPrediction.id,
+                              selected.row_type === "fallback"
+                                ? selected.id
+                                : undefined
+                            )
+                          }
+                          isLoading={approvingSuggestion}
+                        >
+                          Aprobar sugerencia
+                        </Button>
+                        {selectedPlaybookId &&
+                          selectedPlaybookId !== pendingPrediction.predicted_playbook_id ? (
+                          <Button
+                            colorScheme="purple"
+                            onClick={async () => {
+                              setApprovingSuggestion(true);
+                              setError(null);
+
+                              try {
+                                await api("/v1/ai-feedback", {
+                                  method: "POST",
+                                  auth: true,
+                                  body: JSON.stringify({
+                                    prediction_id: pendingPrediction.id,
+                                    verdict: "incorrect",
+                                    corrected_playbook_id: selectedPlaybookId,
+                                    note: "Corregido desde UI de Pendientes de Playbook",
+                                  }),
+                                });
+
+                                if (selected?.report_id) {
+                                  const ai = await api<any>(
+                                    `/v1/ai-reports?report_id=${encodeURIComponent(selected.report_id)}`,
+                                    { auth: true }
+                                  );
+
+                                  const latest: AIReport | null = Array.isArray(ai)
+                                    ? ai?.[0] ?? null
+                                    : ai ?? null;
+
+                                  setAiDetail(latest);
+                                }
+
+                                setPendingPrediction(null);
+
+                                if (selected?.row_type === "fallback") {
+                                  await api(`/v1/playbook-fallbacks/${selected.id}/resolve`, {
+                                    method: "POST",
+                                    auth: true,
+                                  });
+                                }
+
+                                await load();
+                                window.dispatchEvent(new Event("playbook:pending-changed"));
+
+                                toast({
+                                  title: "Playbook corregido",
+                                  description: "El AI report fue actualizado con el playbook seleccionado.",
+                                  status: "success",
+                                  duration: 4000,
+                                  isClosable: true,
+                                });
+                              } catch (e: any) {
+                                setError(e?.message ?? "No se pudo corregir el playbook");
+                                toast({
+                                  title: "Error al corregir playbook",
+                                  description: e?.message ?? "No se pudo corregir el playbook",
+                                  status: "error",
+                                  duration: 5000,
+                                  isClosable: true,
+                                });
+                              } finally {
+                                setApprovingSuggestion(false);
+                              }
+                            }}
+                            isLoading={approvingSuggestion}
+                          >
+                            Usar playbook seleccionado
+                          </Button>
+                        ) : null}
+                      </HStack>
+                    </Stack>
+                  )}
+                </Box>
+
+                <Divider />
+
                 <Box>
                   <Text fontWeight="semibold" mb={2}>
                     IDs (debug)
                   </Text>
                   <VStack align="stretch" spacing={1}>
                     <Text fontSize="sm">
-                      student_id:{" "}
-                      <Code fontSize="xs">{selected.student_id}</Code>
+                      row_type: <Code fontSize="xs">{selected.row_type}</Code>
                     </Text>
                     <Text fontSize="sm">
-                      report_id:{" "}
-                      <Code fontSize="xs">{selected.report_id}</Code>
+                      report_id: <Code fontSize="xs">{selected.report_id}</Code>
+                    </Text>
+                    <Text fontSize="sm">
+                      student_id:{" "}
+                      <Code fontSize="xs">{detailStudentId || "-"}</Code>
                     </Text>
                     <Text fontSize="sm">
                       ai_report_id:{" "}
@@ -922,8 +1595,16 @@ export default function PlaybookPendientesPage() {
                     </Text>
                     <Text fontSize="sm">
                       school_id:{" "}
-                      <Code fontSize="xs">{selected.school_id}</Code>
+                      <Code fontSize="xs">
+                        {selected.school_id || reportDetail?.school_id || "-"}
+                      </Code>
                     </Text>
+                    {selected.prediction_id ? (
+                      <Text fontSize="sm">
+                        prediction_id:{" "}
+                        <Code fontSize="xs">{selected.prediction_id}</Code>
+                      </Text>
+                    ) : null}
                   </VStack>
                 </Box>
               </VStack>
@@ -932,14 +1613,12 @@ export default function PlaybookPendientesPage() {
 
           <ModalFooter>
             <HStack spacing={3}>
-              {selected?.student_id && selected?.report_id ? (
+              {detailStudentId && selected?.report_id ? (
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // ✅ Navega a los reportes del alumno.
-                    // Si luego quieres autoseleccionar el reporte, lo haces con query param.
                     navigate(
-                      `/students/${selected.student_id}/reports?report_id=${encodeURIComponent(
+                      `/students/${detailStudentId}/reports?report_id=${encodeURIComponent(
                         selected.report_id
                       )}`
                     );
@@ -950,20 +1629,21 @@ export default function PlaybookPendientesPage() {
                 </Button>
               ) : null}
 
-              {!selectedIsResolved && selected ? (
+              {selected &&
+                selected.row_type === "fallback" &&
+                !selectedIsResolved ? (
                 <Button
                   colorScheme="green"
+                  onClick={() => resolveEvent(selected.id)}
                   isLoading={!!resolvingById[selected.id]}
-                  onClick={async () => {
-                    await resolveEvent(selected.id);
-                    closeDetail();
-                  }}
                 >
                   Marcar resuelto
                 </Button>
               ) : null}
 
-              <Button onClick={closeDetail}>Cerrar</Button>
+              <Button variant="ghost" onClick={closeDetail}>
+                Cerrar
+              </Button>
             </HStack>
           </ModalFooter>
         </ModalContent>
