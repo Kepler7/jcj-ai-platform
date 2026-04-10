@@ -232,19 +232,24 @@ def _pb_debug_info(pb_doc: str) -> Dict[str, Any]:
 
 def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
     """
-    Devuelve dict con keys "internas" (las que usa _micro_from_pb):
+    Devuelve dict con keys internas:
+      id, base_row,
       topic_nucleo, subhabilidad, senal_observable, hipotesis_funcional,
       microobjetivo, estrategias_paso_a_paso, frecuencia, duracion,
-      indicador_de_avance, escalamiento
-
-    Soporta:
-    - JSON (schema sheet)
-    - Texto con headers
+      indicador_de_avance, escalamiento, age_min, age_max
     """
     if not doc or not isinstance(doc, str):
         return None
 
     text = doc.strip()
+
+    def _to_int_or_none(v: Any) -> Optional[int]:
+        try:
+            if v is None or str(v).strip() == "":
+                return None
+            return int(str(v).strip())
+        except Exception:
+            return None
 
     # 1) JSON
     pbj = _try_parse_playbook_json(text)
@@ -275,8 +280,10 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
         )[:8]
 
         out = {
+            "id": (pbj.get("id") or "").strip(),
+            "base_row": str(pbj.get("base_row") or "").strip(),
             "topic_nucleo": topic,
-            "subhabilidad": sub,  # map subskill -> subhabilidad
+            "subhabilidad": sub,
             "senal_observable": sig,
             "hipotesis_funcional": hyp,
             "microobjetivo": micro,
@@ -285,6 +292,8 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
             "duracion": dur,
             "indicador_de_avance": ind,
             "escalamiento": esc,
+            "age_min": _to_int_or_none(pbj.get("age_min")),
+            "age_max": _to_int_or_none(pbj.get("age_max")),
         }
 
         if (
@@ -296,12 +305,27 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
 
         return out
 
-    # 2) Texto con headers (formato actual)
+    # 2) Texto con headers
     inline: Dict[str, str] = {}
     for m in re.finditer(r"^(FRECUENCIA|DURACION)\s*:\s*(.+?)\s*$", text, re.MULTILINE):
         inline[m.group(1)] = (m.group(2) or "").strip()
 
+    age_min_raw = (
+        _line_value(text, "AGE_MIN")
+        or _line_value(text, "AGE MIN ESPERADO")
+        or _line_value(text, "EDAD_MIN")
+        or _line_value(text, "EDAD MINIMA ESPERADA")
+    )
+    age_max_raw = (
+        _line_value(text, "AGE_MAX")
+        or _line_value(text, "AGE MAX ESPERADO")
+        or _line_value(text, "EDAD_MAX")
+        or _line_value(text, "EDAD MAXIMA ESPERADA")
+    )
+
     out2: Dict[str, Any] = {
+        "id": "",
+        "base_row": "",
         "topic_nucleo": _line_value(text, "TOPIC_NUCLEO"),
         "subhabilidad": _line_value(text, "SUBHABILIDAD"),
         "senal_observable": _extract_block(text, "SEÑAL_OBSERVABLE"),
@@ -314,6 +338,8 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
         "duracion": inline.get("DURACION", ""),
         "indicador_de_avance": _extract_block(text, "INDICADOR_DE_AVANCE"),
         "escalamiento": _extract_block(text, "ESCALAMIENTO"),
+        "age_min": _to_int_or_none(age_min_raw),
+        "age_max": _to_int_or_none(age_max_raw),
     }
 
     out2["estrategias_paso_a_paso"] = _dedupe_keep_order(
@@ -334,76 +360,91 @@ def retrieve_playbooks(
     store: ChromaPlaybookStore,
     *,
     report_text: str,
-    age: int,
     n_results: int = 40,
 ) -> List[str]:
     """
-    Strategy:
-    1) Query Chroma con filtro por edad (metadatas: age_min/age_max) -> ideal
-    2) Si no hay resultados, query sin filtro y post-filtrar por edad en Python (fallback robusto)
+    Recupera playbooks por similitud semántica.
+
+    Soporta dos tipos de retorno de store.query():
+    1) list[str] -> solo documentos
+    2) dict -> respuesta cruda de Chroma con documents/metadatas
+
+    Si hay metadatas, enriquece el documento con:
+    id, base_row, age_min, age_max
+    y regresa JSON string para que parse_playbook_doc_v2 lo lea bien.
     """
-
-    # 1) Con filtro (rápido si metadatas existen)
-    docs = store.query(query_text=report_text, age=age, n_results=n_results) or []
-    if docs:
-        print("DEBUG retrieve_playbooks: using_chroma_age_filter count=", len(docs))
-        return docs
-
-    print("DEBUG retrieve_playbooks: no_docs_with_age_filter -> retry_without_filter")
-
-    # 2) Sin filtro (recuperar más para poder filtrar local)
-    docs2 = (
+    res = (
         store.query(
             query_text=report_text,
             age=None,
-            n_results=max(80, n_results),  # un poco más para no perder recall
+            n_results=max(80, n_results),
         )
         or []
     )
 
-    if not docs2:
-        print("DEBUG retrieve_playbooks: no_docs_even_without_filter")
+    docs: List[str] = []
+    metas: List[Dict[str, Any]] = []
+
+    # Caso 1: wrapper ya regresó lista de documentos
+    if isinstance(res, list):
+        docs = [d for d in res if isinstance(d, str)]
+
+    # Caso 2: respuesta cruda de Chroma
+    elif isinstance(res, dict):
+        docs = res.get("documents") or []
+        metas = res.get("metadatas") or []
+
+        if docs and isinstance(docs[0], list):
+            docs = docs[0]
+        if metas and isinstance(metas[0], list):
+            metas = metas[0]
+
+        docs = [d for d in docs if isinstance(d, str)]
+
+    else:
+        print("DEBUG retrieve_playbooks: unsupported_response_type=", type(res))
         return []
 
-    # Post-filter por edad usando JSON del documento (robusto incluso si metadatas fallan)
-    filtered: List[str] = []
-    for d in docs2:
-        if not isinstance(d, str):
-            continue
+    if not docs:
+        print("DEBUG retrieve_playbooks: no_docs")
+        return []
 
+    out: List[str] = []
+
+    for idx, d in enumerate(docs):
         s = d.strip()
         if not s:
             continue
 
-        if s.startswith("{"):
-            try:
-                obj = json.loads(s)
-            except Exception:
-                obj = None
+        pb = parse_playbook_doc_v2(s) or {}
 
-            if isinstance(obj, dict):
-                amin = obj.get("age_min", None)
-                amax = obj.get("age_max", None)
-                try:
-                    amin_i = int(amin) if amin is not None else None
-                    amax_i = int(amax) if amax is not None else None
-                except Exception:
-                    amin_i, amax_i = None, None
+        md = metas[idx] if idx < len(metas) and isinstance(metas[idx], dict) else {}
 
-                # Si el doc trae rango, usamos filtro estricto
-                if (amin_i is not None) and (amax_i is not None):
-                    if amin_i <= age <= amax_i:
-                        filtered.append(d)
-                    continue  # ya filtramos, no lo agregues por default
+        if md:
+            if not pb.get("id"):
+                pb["id"] = str(md.get("id") or "")
+            if not pb.get("base_row"):
+                pb["base_row"] = str(md.get("base_row") or "")
+            if pb.get("age_min") is None:
+                pb["age_min"] = md.get("age_min")
+            if pb.get("age_max") is None:
+                pb["age_max"] = md.get("age_max")
 
-        # Si no es JSON o no trae rango, lo dejamos pasar (legacy)
-        filtered.append(d)
+            if pb.get("age_min") is None:
+                pb["age_min"] = md.get("edad_min")
+            if pb.get("age_max") is None:
+                pb["age_max"] = md.get("edad_max")
 
-        if len(filtered) >= n_results:
+        if pb:
+            out.append(json.dumps(pb, ensure_ascii=False))
+        else:
+            out.append(s)
+
+        if len(out) >= n_results:
             break
 
-    print("DEBUG retrieve_playbooks: post_filter_count=", len(filtered))
-    return filtered[:n_results]
+    print("DEBUG retrieve_playbooks: semantic_only_count=", len(out))
+    return out[:n_results]
 
 
 # =========================
@@ -680,7 +721,37 @@ def generate_support(
             return pool_docs[:]
         return rng.sample(pool_docs, k=k)
 
-    def _micro_from_pb(pb: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _to_int_or_none(v: Any) -> Optional[int]:
+        try:
+            if v is None or str(v).strip() == "":
+                return None
+            return int(v)
+        except Exception:
+            return None
+
+    def _age_status_for_playbook(pb: Dict[str, Any], student_age: int) -> str:
+        """
+        Regresa:
+        - 'below_range'
+        - 'in_range'
+        - 'above_range'
+        - 'unknown_range'
+        """
+        amin = _to_int_or_none(pb.get("age_min"))
+        amax = _to_int_or_none(pb.get("age_max"))
+
+        if amin is None or amax is None:
+            return "unknown_range"
+
+        if student_age < amin:
+            return "below_range"
+        if student_age > amax:
+            return "above_range"
+        return "in_range"
+
+    def _micro_from_pb(
+        pb: Dict[str, Any], student_age: int
+    ) -> Optional[Dict[str, Any]]:
         def _s(x: Any) -> str:
             return (x or "").strip()
 
@@ -697,9 +768,11 @@ def generate_support(
             "duracion": _s(pb.get("duracion")),
             "indicador_de_avance": _s(pb.get("indicador_de_avance")),
             "escalamiento": _s(pb.get("escalamiento")),
+            "age_status": _age_status_for_playbook(pb, student_age),
+            "age_min": pb.get("age_min"),
+            "age_max": pb.get("age_max"),
         }
 
-        # Validación mínima local para evitar romper Pydantic:
         if len(mi["topic_nucleo"]) < 3:
             return None
         if len(mi["subhabilidad"]) < 2:
@@ -722,6 +795,43 @@ def generate_support(
             return None
 
         return mi
+
+    def _resolve_final_micro(pb_micro: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        above = [x for x in pb_micro if x.get("age_status") == "above_range"]
+        in_range = [x for x in pb_micro if x.get("age_status") == "in_range"]
+        below = [x for x in pb_micro if x.get("age_status") == "below_range"]
+        unknown = [x for x in pb_micro if x.get("age_status") == "unknown_range"]
+
+        print(
+            "DEBUG AGE buckets:",
+            {
+                "above_range": len(above),
+                "in_range": len(in_range),
+                "below_range": len(below),
+                "unknown_range": len(unknown),
+            },
+        )
+
+        # Prioridad:
+        # 1) above_range
+        # 2) in_range
+        # 3) below_range
+        # 4) unknown_range
+        if above:
+            print("DEBUG AGE decision=above_range")
+            return above
+        if in_range:
+            print("DEBUG AGE decision=in_range")
+            return in_range
+        if below:
+            print("DEBUG AGE decision=below_range")
+            return below
+        if unknown:
+            print("DEBUG AGE decision=unknown_range")
+            return unknown
+
+        print("DEBUG AGE decision=empty")
+        return pb_micro
 
     def _dedupe_micro(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
@@ -777,8 +887,7 @@ def generate_support(
         collection_name=CHROMA_COLLECTION,
     )
     pool_playbooks: List[str] = (
-        retrieve_playbooks(store, report_text=query_text_for_rag, age=age, n_results=40)
-        or []
+        retrieve_playbooks(store, report_text=query_text_for_rag, n_results=40) or []
     )
 
     rag_pool_count = len(pool_playbooks)
@@ -970,9 +1079,71 @@ def generate_support(
             if obj:
                 parsed_pbs.append(obj)
 
+        print(
+            "DEBUG AGE parsed_pbs=",
+            [
+                {
+                    "senal_observable": (pb.get("senal_observable") or "")[:120],
+                    "age_min": pb.get("age_min"),
+                    "age_max": pb.get("age_max"),
+                    "escalamiento": (pb.get("escalamiento") or "")[:120],
+                }
+                for pb in parsed_pbs
+            ],
+        )
+
         pb_micro = _dedupe_micro(
-            [mi for pb in parsed_pbs for mi in [_micro_from_pb(pb)] if mi]
-        )[:10]
+            [mi for pb in parsed_pbs for mi in [_micro_from_pb(pb, age)] if mi]
+        )
+
+        print(
+            "DEBUG AGE raw_micro=",
+            [
+                {
+                    "senal_observable": (x.get("senal_observable") or "")[:120],
+                    "age_status": x.get("age_status"),
+                    "age_min": x.get("age_min"),
+                    "age_max": x.get("age_max"),
+                }
+                for x in pb_micro
+            ],
+        )
+
+        pb_micro = _resolve_final_micro(pb_micro)[:10]
+
+        print(
+            "DEBUG AGE final_micro=",
+            [
+                {
+                    "senal_observable": (x.get("senal_observable") or "")[:120],
+                    "age_status": x.get("age_status"),
+                    "age_min": x.get("age_min"),
+                    "age_max": x.get("age_max"),
+                }
+                for x in pb_micro
+            ],
+        )
+
+        def _resolve_final_micro(
+            pb_micro: List[Dict[str, Any]],
+        ) -> List[Dict[str, Any]]:
+            above = [x for x in pb_micro if x.get("age_status") == "above_range"]
+            in_range = [x for x in pb_micro if x.get("age_status") == "in_range"]
+            below = [x for x in pb_micro if x.get("age_status") == "below_range"]
+
+            # PRIORIDAD:
+            # 1) above_range
+            # 2) in_range
+            # 3) below_range
+
+            if above:
+                return above
+            if in_range:
+                return in_range
+            if below:
+                return below
+
+            return pb_micro
 
         signals_detected = _dedupe_keep_order(
             [
@@ -991,14 +1162,62 @@ def generate_support(
         )
         problem_preview = " ".join(problem_lines)[:420]
 
+        def _build_age_framing(pb_micro: List[Dict[str, Any]]) -> Dict[str, str]:
+            above_items = [x for x in pb_micro if x.get("age_status") == "above_range"]
+            below_items = [x for x in pb_micro if x.get("age_status") == "below_range"]
+
+            if above_items:
+                escalations: List[str] = []
+                for item in above_items:
+                    esc = (item.get("escalamiento") or "").strip()
+                    if esc and esc not in escalations:
+                        escalations.append(esc)
+
+                escalation_text = " ".join(escalations[:2]).strip()
+
+                teacher_intro = (
+                    "Por la edad del alumno, esta señal requiere mayor atención. "
+                    "Antes de aplicar las estrategias, considera lo siguiente:"
+                )
+                parent_intro = (
+                    "Por la edad del alumno, esta señal merece observarse con mayor atención. "
+                    "Antes de aplicar las estrategias, considera lo siguiente:"
+                )
+
+                if escalation_text:
+                    teacher_intro = f"{teacher_intro}\n{escalation_text}"
+                    parent_intro = f"{parent_intro}\n{escalation_text}"
+
+                return {
+                    "teacher_intro": teacher_intro,
+                    "parent_intro": parent_intro,
+                }
+
+            if below_items:
+                msg = (
+                    "No te preocupes, esta señal puede ser esperada para su edad. "
+                    "Aun así, te compartimos algunas estrategias útiles para acompañar su desarrollo."
+                )
+                return {
+                    "teacher_intro": msg,
+                    "parent_intro": msg,
+                }
+
+            return {
+                "teacher_intro": "Estrategias seleccionadas del Playbook JCJ para este caso.",
+                "parent_intro": "Sugerencias basadas en el Playbook JCJ para este caso.",
+            }
+
+        framing = _build_age_framing(pb_micro)
+
         teacher_summary = (
             f"Resumen del reporte del maestro: {problem_preview}\n"
-            f"Estrategias seleccionadas del Playbook JCJ para este caso."
+            f"{framing['teacher_intro']}"
         )[:800]
 
         parent_summary = (
             f"Resumen del reporte del maestro: {problem_preview}\n"
-            f"Sugerencias basadas en el Playbook JCJ para este caso."
+            f"{framing['parent_intro']}"
         )[:800]
 
         data: Dict[str, Any] = {
@@ -1119,5 +1338,60 @@ def generate_support(
         "rerank_decision": decision if pool_playbooks else "not_found",
         "rerank_top_candidates": top_debug[:10] if pool_playbooks else [],
     }
+
+    def _age_status_for_playbook(pb: Dict[str, Any], student_age: int) -> str:
+        amin = _to_int_or_none(pb.get("age_min"))
+        amax = _to_int_or_none(pb.get("age_max"))
+
+        if amin is None or amax is None:
+            print(
+                "DEBUG AGE compare:",
+                {
+                    "student_age": student_age,
+                    "age_min": amin,
+                    "age_max": amax,
+                    "status": "unknown_range",
+                    "signal": (pb.get("senal_observable") or "")[:120],
+                },
+            )
+            return "unknown_range"
+
+        if student_age < amin:
+            print(
+                "DEBUG AGE compare:",
+                {
+                    "student_age": student_age,
+                    "age_min": amin,
+                    "age_max": amax,
+                    "status": "below_range",
+                    "signal": (pb.get("senal_observable") or "")[:120],
+                },
+            )
+            return "below_range"
+
+        if student_age > amax:
+            print(
+                "DEBUG AGE compare:",
+                {
+                    "student_age": student_age,
+                    "age_min": amin,
+                    "age_max": amax,
+                    "status": "above_range",
+                    "signal": (pb.get("senal_observable") or "")[:120],
+                },
+            )
+            return "above_range"
+
+        print(
+            "DEBUG AGE compare:",
+            {
+                "student_age": student_age,
+                "age_min": amin,
+                "age_max": amax,
+                "status": "in_range",
+                "signal": (pb.get("senal_observable") or "")[:120],
+            },
+        )
+        return "in_range"
 
     return parsed, model_info.name, meta
