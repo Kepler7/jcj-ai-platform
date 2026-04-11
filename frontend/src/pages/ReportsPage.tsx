@@ -648,6 +648,19 @@ export default function ReportsPage() {
   const teacherHasNew = teacherMIs.length > 0;
   const parentHasNew = parentMIs.length > 0;
 
+  const pendingMessage =
+    "IHUI detectó que este caso necesita validación humana y queremos asegurarnos de darte una estrategia clara, segura y útil.\n\nEscríbenos por WhatsApp y lo resolvemos contigo en un lapso maximo de 24 hrs:";
+
+  const pendingWhatsappHref =
+    "https://wa.me/5213346451964?text=Hola%20IHUI,%20necesito%20ayuda%20con%20un%20caso";
+
+  const isPending =
+    !!aiReport &&
+    (
+      aiReport.teacher_version?.summary?.includes("validación humana") ||
+      aiReport.parent_version?.summary?.includes("validación humana")
+    );
+
   return (
     <Box p={6}>
       <HStack justify="space-between" align="flex-start" mb={4}>
@@ -1044,7 +1057,36 @@ export default function ReportsPage() {
                 <Text fontWeight="semibold" mb={2}>
                   Resumen
                 </Text>
-                <Text mb={4}>{aiReport.teacher_version.summary}</Text>
+
+                {isPending ? (
+                  <Box
+                    p={4}
+                    mb={4}
+                    borderRadius="md"
+                    bg="yellow.50"
+                    border="1px solid"
+                    borderColor="yellow.300"
+                  >
+                    <Text fontWeight="bold" mb={2}>
+                      ⚠️ Validación en proceso
+                    </Text>
+
+                    <Text mb={4}>{pendingMessage}</Text>
+
+                    <Button
+                      as="a"
+                      href={pendingWhatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      colorScheme="green"
+                      width="100%"
+                    >
+                      Contactar por WhatsApp
+                    </Button>
+                  </Box>
+                ) : (
+                  <Text mb={4}>{aiReport.teacher_version.summary}</Text>
+                )}
 
                 <Divider my={3} />
 
@@ -1142,7 +1184,36 @@ export default function ReportsPage() {
                 <Text fontWeight="semibold" mb={2}>
                   Resumen
                 </Text>
-                <Text mb={4}>{aiReport.parent_version.summary}</Text>
+
+                {isPending ? (
+                  <Box
+                    p={4}
+                    mb={4}
+                    borderRadius="md"
+                    bg="yellow.50"
+                    border="1px solid"
+                    borderColor="yellow.300"
+                  >
+                    <Text fontWeight="bold" mb={2}>
+                      ⚠️ Validación en proceso
+                    </Text>
+
+                    <Text mb={4}>{pendingMessage}</Text>
+
+                    <Button
+                      as="a"
+                      href={pendingWhatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      colorScheme="green"
+                      width="100%"
+                    >
+                      Contactar por WhatsApp
+                    </Button>
+                  </Box>
+                ) : (
+                  <Text mb={4}>{aiReport.parent_version.summary}</Text>
+                )}
 
                 <Divider my={3} />
 
@@ -1229,5 +1300,3 @@ export default function ReportsPage() {
     </Box>
   );
 }
-
-

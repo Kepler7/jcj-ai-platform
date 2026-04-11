@@ -662,7 +662,10 @@ def build_confirmed_response(
 
 def build_pending_response(prediction_id) -> AIGeneratedSupport:
     msg = (
-        "Este caso requiere validación humana antes de compartir una estrategia final."
+        "IHUI detectó que este caso necesita validación humana y queremos "
+        "asegurarnos de darte una estrategia clara, segura y útil.\n\n"
+        "Escríbenos por WhatsApp y lo resolvemos contigo en un lapso máximo "
+        "de 24 hrs:\n"
     )
 
     return AIGeneratedSupport(
