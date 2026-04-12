@@ -13,10 +13,30 @@ import {
   Th,
   Td,
   Select,
+  Flex,
+  Grid,
+  GridItem,
+  Avatar,
+  Badge,
+  InputGroup,
+  InputLeftElement,
+  HStack,
+  IconButton,
+  Textarea,
 } from '@chakra-ui/react';
 import { api } from '../lib/apiClient';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import {
+  Users,
+  GraduationCap,
+  UserPlus,
+  ArrowRight,
+  Search,
+  ListFilter,
+  Download,
+  FileText
+} from 'lucide-react';
 
 type Class = {
   id: string;
@@ -149,7 +169,7 @@ export default function StudentsPage() {
       );
 
       setFullName('');
-      setAge(7);
+      setAge('');
       setSelectedClass('');
       setNotes('');
     } catch (e: any) {
@@ -172,157 +192,378 @@ export default function StudentsPage() {
 
   return (
     <Box>
-      <Heading size="md" mb="4">
-        Students
-      </Heading>
-
-      {me?.role === 'platform_admin' && (
-        <Box borderWidth="1px" borderRadius="lg" p="4" mb="4">
-          <Text fontWeight="semibold" mb="2">
-            Select school
-          </Text>
-          <Select
-            placeholder={
-              !effectiveSchoolId
-                ? 'Select school first'
-                : classes.length
-                  ? 'Select class'
-                  : 'No classes available'
-            }
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            width={{ base: '100%', md: '220px' }}
-            isDisabled={!effectiveSchoolId || classes.length === 0}
-          >
-            {classes.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-        </Box>
-      )}
-
-      <Box borderWidth="1px" borderRadius="lg" p="4" mb="6">
-        <Text fontWeight="semibold" mb="3">
-          Create student
+      {/* Header */}
+      <Box mb="8">
+        <Text fontSize="xs" fontWeight="bold" color="#737686" letterSpacing="widest" textTransform="uppercase" mb="2">
+          Platform <Text as="span" color="#c3c5d7" mx="2">›</Text> <Text as="span" color="#003597">Students</Text>
         </Text>
-
-        <Stack direction={{ base: 'column', md: 'row' }} gap="3">
-          <Input
-            placeholder="Full name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
-
-          <Input
-            placeholder="Age"
-            type="number"
-            value={age}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (/^\d*$/.test(val)) {
-                setAge(val === '' ? '' : Number(val));
-              }
-            }}
-            min={1}
-            max={16}
-            width={{ base: '100%', md: '120px' }}
-          />
-
-          <Select
-            placeholder={classes.length ? 'Select class' : 'No classes available'}
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            width={{ base: '100%', md: '220px' }}
-            isDisabled={!effectiveSchoolId || classes.length === 0}
-          >
-            {classes.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-
-          <Input
-            placeholder="Notes (optional)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-
-          <Button
-            onClick={createStudent}
-            isLoading={creating}
-            isDisabled={!fullName.trim() || !effectiveSchoolId || !selectedClass}
-          >
-            Create
-          </Button>
-
-          <Button variant="outline" onClick={loadStudents} isLoading={loading}>
-            Refresh
-          </Button>
-        </Stack>
-
-        {error && (
-          <Text mt="3" color="red.500" fontSize="sm">
-            {error}
+        <Heading as="h1" fontSize={{ base: "3xl", md: "5xl" }} fontWeight="extrabold" color="#191c1d" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="4">
+          Students
+        </Heading>
+        <Flex align="center" gap="2" color="#434654">
+          <Users size={20} color="#003597" />
+          <Text fontWeight="medium" fontSize="sm">
+            <Text as="span" fontWeight="bold" color="#191c1d">{students.length.toLocaleString()}</Text> Active Students across all campuses
           </Text>
-        )}
-
-        {!effectiveSchoolId && (
-          <Text mt="3" fontSize="sm" color="orange.500">
-            Select a school first.
-          </Text>
-        )}
+        </Flex>
       </Box>
 
-      {loading ? (
-        <Text>Loading...</Text>
-      ) : (
-        <Box borderWidth="1px" borderRadius="lg" overflowX="auto">
-          <Table size="sm">
-            <Thead>
-              <Tr>
-                <Th>Actions</Th>
-                <Th>Full name</Th>
-                <Th>Age</Th>
-                <Th>Classes</Th>
-                <Th>Active</Th>
-                <Th>ID</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {students.map((student) => (
-                <Tr key={student.id}>
-                  <Td>
-                    <Button
-                      size="xs"
-                      colorScheme={(student.reports_count ?? 0) > 0 ? 'green' : 'gray'}
-                      variant={(student.reports_count ?? 0) > 0 ? 'solid' : 'outline'}
-                      onClick={() => navigate(`/students/${student.id}/reports`)}
-                    >
-                      Reports{' '}
-                      {(student.reports_count ?? 0) > 0
-                        ? `(${student.reports_count})`
-                        : ''}
-                    </Button>
-                  </Td>
+      {/* Main Layout Grid */}
+      <Grid templateColumns={{ base: '1fr', lg: '350px 1fr' }} gap="8">
 
-                  <Td>{student.full_name}</Td>
-                  <Td>{student.age}</Td>
-                  <Td>
-                    {student.classes?.length
-                      ? student.classes.map((c) => c.name).join(', ')
-                      : '—'}
-                  </Td>
-                  <Td>{student.is_active ? 'Yes' : 'No'}</Td>
-                  <Td>{student.id}</Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
-      )}
+        {/* Left Column */}
+        <GridItem>
+          {me?.role === 'platform_admin' && (
+            <Box bg="#f8f9fa" borderRadius="2rem" p={{ base: 6, lg: 8 }} mb="6">
+              <Text fontSize="xs" fontWeight="bold" color="#434654" textTransform="uppercase" letterSpacing="wider" mb="4">
+                Current Campus
+              </Text>
+              <Box bg="#ffffff" p="2" borderRadius="xl" boxShadow="0px 4px 12px rgba(25, 28, 29, 0.04)" mb="4">
+                <Flex align="center">
+                  <Flex align="center" justify="center" w="10" h="10" bg="#003597" color="white" borderRadius="lg" mr="3">
+                    <GraduationCap size={20} />
+                  </Flex>
+                  <Select
+                    variant="unstyled"
+                    fontWeight="bold"
+                    fontSize="sm"
+                    color="#191c1d"
+                    value={selectedSchoolId}
+                    onChange={(e) => setSelectedSchoolId(e.target.value)}
+                    iconColor="#003597"
+                    cursor="pointer"
+                  >
+                    {schools.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Flex>
+              </Box>
+              <Text color="#737686" fontSize="sm" lineHeight="tall">
+                Selecciona la instancia escolar para gestionar registros específicos de estudiantes y datos de rendimiento académico.
+              </Text>
+            </Box>
+          )}
+
+          <Box bg="#ffffff" borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+            <Flex align="center" justify="space-between" mb="8">
+              <Text fontSize="xl" fontWeight="extrabold" color="#191c1d" fontFamily="'Plus Jakarta Sans', sans-serif">
+                Agrega un nuevo estudiante
+              </Text>
+              <Flex align="center" justify="center" w="10" h="10" bg="#e8edff" color="#003597" borderRadius="full">
+                <UserPlus size={18} />
+              </Flex>
+            </Flex>
+
+            <Stack gap="5">
+              <Box>
+                <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
+                  Full Name
+                </Text>
+                <Input
+                  placeholder="e.g. Johnathan Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  bg="#f3f4f5"
+                  border="none"
+                  borderRadius="xl"
+                  py="6"
+                  fontSize="sm"
+                  color="#191c1d"
+                  _placeholder={{ color: "#737686" }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff", outline: "none" }}
+                />
+              </Box>
+
+              <Flex gap="4">
+                <Box flex="1">
+                  <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
+                    Age
+                  </Text>
+                  <Input
+                    placeholder="14"
+                    type="number"
+                    value={age}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^\d*$/.test(val)) {
+                        setAge(val === '' ? '' : Number(val));
+                      }
+                    }}
+                    min={1}
+                    max={16}
+                    bg="#f3f4f5"
+                    border="none"
+                    borderRadius="xl"
+                    py="6"
+                    fontSize="sm"
+                    color="#191c1d"
+                    _placeholder={{ color: "#737686" }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff", outline: "none" }}
+                  />
+                </Box>
+                <Box flex="1">
+                  <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
+                    Class
+                  </Text>
+                  <Select
+                    placeholder={classes.length ? 'Select class' : 'No classes...'}
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    isDisabled={!effectiveSchoolId || classes.length === 0}
+                    bg="#f3f4f5"
+                    border="none"
+                    borderRadius="xl"
+                    h="auto"
+                    py="3"
+                    fontSize="sm"
+                    color="#191c1d"
+                    _placeholder={{ color: "#737686" }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff", outline: "none" }}
+                  >
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Box>
+              </Flex>
+
+              <Box>
+                <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
+                  Internal Notes
+                </Text>
+                <Textarea
+                  placeholder="Enter special requirements or background..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  bg="#f3f4f5"
+                  border="none"
+                  borderRadius="xl"
+                  py="4"
+                  fontSize="sm"
+                  color="#191c1d"
+                  resize="none"
+                  rows={4}
+                  _placeholder={{ color: "#737686" }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff", outline: "none" }}
+                />
+              </Box>
+
+              <Button
+                mt="2"
+                onClick={createStudent}
+                isLoading={creating}
+                isDisabled={!fullName.trim() || !effectiveSchoolId || (!selectedClass && classes.length > 0)}
+                w="full"
+                py="6"
+                bgGradient="linear(to-r, #003597, #0049ca)"
+                color="white"
+                borderRadius="xl"
+                fontWeight="bold"
+                fontSize="md"
+                boxShadow="0px 10px 15px -3px rgba(0, 53, 151, 0.2)"
+                _hover={{ transform: "scale(1.02)", bgGradient: "linear(to-r, #003597, #0049ca)" }}
+                _active={{ transform: "scale(0.98)" }}
+                transition="all 0.2s"
+                rightIcon={<ArrowRight size={18} />}
+              >
+                Add Student
+              </Button>
+
+              {error && (
+                <Text mt="1" color="#ba1a1a" fontSize="sm" textAlign="center">
+                  {error}
+                </Text>
+              )}
+
+              {!effectiveSchoolId && (
+                <Text mt="1" fontSize="sm" color="#ba1a1a" textAlign="center">
+                  Select a school first.
+                </Text>
+              )}
+            </Stack>
+          </Box>
+        </GridItem>
+
+        <GridItem>
+          {/* Controls Bar */}
+          <Flex gap="4" mb="6" direction={{ base: "column", md: "row" }}>
+            <InputGroup size="lg" flex="1">
+              <InputLeftElement pointerEvents="none" color="#737686">
+                <Search size={20} />
+              </InputLeftElement>
+              <Input
+                placeholder="Search students by name, ID or class..."
+                bg="#ffffff"
+                border="none"
+                borderRadius="full"
+                fontSize="sm"
+                color="#191c1d"
+                boxShadow="0px 4px 12px rgba(25,28,29,0.03)"
+                _placeholder={{ color: "#737686" }}
+                _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", outline: "none" }}
+              />
+            </InputGroup>
+
+            <HStack spacing="3">
+              <IconButton aria-label="Filter" icon={<ListFilter size={18} />} bg="#ffffff" border="none" borderRadius="xl" boxShadow="0px 4px 12px rgba(25,28,29,0.03)" w="12" h="12" color="#191c1d" _hover={{ bg: "#f3f4f5" }} />
+              <IconButton aria-label="Download" icon={<Download size={18} />} bg="#ffffff" border="none" borderRadius="xl" boxShadow="0px 4px 12px rgba(25,28,29,0.03)" w="12" h="12" color="#191c1d" _hover={{ bg: "#f3f4f5" }} />
+            </HStack>
+          </Flex>
+
+          {/* Table Box */}
+          <Box bg="#ffffff" borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" overflow="hidden" position="relative">
+            {loading ? (
+              <Box p="10" textAlign="center">
+                <Text color="#737686" fontWeight="medium">Loading students...</Text>
+              </Box>
+            ) : (
+              <>
+                <Box w="full" overflowX="auto" pb="4">
+                  <Table variant="unstyled" sx={{
+                    "tbody tr": { transition: "background 0.2s" },
+                    "tbody tr:hover": { bg: "#f8f9fa" }
+                  }}>
+                    <Thead>
+                      <Tr borderBottom="1px solid #f3f4f5">
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pl={{ base: 4, md: 8 }} py="6">ACTIONS</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">FULL NAME</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">AGE</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">CLASSES</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6">STATUS</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {students.map((student, idx) => {
+                        const colors = [
+                          { bg: "#e8edff", text: "#003597" },
+                          { bg: "#e1fedc", text: "#006c4a" },
+                          { bg: "#ffeceb", text: "#ba1a1a" }
+                        ];
+                        const color = colors[idx % 3];
+                        const isYes = student.is_active;
+
+                        return (
+                          <Tr key={student.id} position="relative" role="group">
+                            <Td pl={{ base: 4, md: 8 }} py="4">
+                              <HStack spacing="2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  color={(student.reports_count ?? 0) > 0 ? "#003597" : "#737686"}
+                                  bg={(student.reports_count ?? 0) > 0 ? "#e8edff" : "transparent"}
+                                  onClick={() => navigate(`/students/${student.id}/reports`)}
+                                  borderRadius="xl"
+                                  leftIcon={<FileText size={16} />}
+                                >
+                                  Informe {(student.reports_count ?? 0) > 0 ? `(${student.reports_count})` : ''}
+                                </Button>
+                              </HStack>
+                            </Td>
+                            <Td py="4">
+                              <Flex align="center" gap="4">
+                                <Avatar
+                                  size="md"
+                                  name={student.full_name}
+                                  bg={color.bg}
+                                  color={color.text}
+                                  fontWeight="bold"
+                                />
+                                <Box>
+                                  <Text fontWeight="bold" color="#191c1d" fontSize="sm">{student.full_name}</Text>
+                                  <Text fontSize="xs" color="#737686">ID: {(student.id || '').substring(0, 36)}</Text>
+                                </Box>
+                              </Flex>
+                            </Td>
+                            <Td py="4">
+                              <Text fontWeight="semibold" color="#434654" fontSize="sm">{student.age ?? '-'}</Text>
+                            </Td>
+                            <Td py="4">
+                              {student.classes?.length > 0 ? (
+                                <>
+                                  <Badge bg="#f3f4f5" color="#434654" fontFamily="'Manrope', sans-serif" fontSize="xs" px="3" py="1.5" borderRadius="full" textTransform="none" fontWeight="bold">
+                                    {student.classes[0].name}
+                                  </Badge>
+                                  {student.classes.length > 1 && (
+                                    <Badge ml="2" bg="#e8edff" color="#003597" fontFamily="'Manrope', sans-serif" fontSize="xs" px="2" py="1.5" borderRadius="full" textTransform="none">
+                                      +{student.classes.length - 1}
+                                    </Badge>
+                                  )}
+                                </>
+                              ) : (
+                                <Text color="#737686" fontSize="sm">—</Text>
+                              )}
+                            </Td>
+                            <Td pr={{ base: 4, md: 8 }} py="4">
+                              <Badge
+                                bg={isYes ? "#e1fedc" : "#ffeceb"}
+                                color={isYes ? "#006c4a" : "#ba1a1a"}
+                                borderRadius="full"
+                                px="3"
+                                py="1"
+                                textTransform="none"
+                                fontWeight="bold"
+                                fontSize="xs"
+                                display="inline-flex"
+                                alignItems="center"
+                                gap="1.5"
+                              >
+                                <Box w="1.5" h="1.5" borderRadius="full" bg={isYes ? "#006c4a" : "#ba1a1a"} />
+                                {isYes ? 'YES' : 'NO'}
+                              </Badge>
+                            </Td>
+                          </Tr>
+                        )
+                      })}
+                      {students.length === 0 && !loading && (
+                        <Tr>
+                          <Td colSpan={5} textAlign="center" py="10" color="#737686" fontSize="sm">
+                            No students found in this campus. Start adding students in the <strong>Bulk Students</strong> section.
+                          </Td>
+                        </Tr>
+                      )}
+                    </Tbody>
+                  </Table>
+                </Box>
+
+                {/* Pagination Footer */}
+                {students.length > 0 && (
+                  <Flex borderTop="1px solid #f3f4f5" px={{ base: 4, md: 8 }} py="4" justify="space-between" align="center">
+                    <Text fontSize="xs" color="#737686" fontWeight="medium">
+                      Showing {students.length > 0 ? '1' : '0'}-{Math.min(10, students.length)} of {students.length} students
+                    </Text>
+                    <HStack spacing="2">
+                      <Button size="sm" bg="white" color="#191c1d" border="1px solid #e1e3e4" borderRadius="md" fontSize="xs">Previous</Button>
+                      <Button size="sm" bg="#003597" color="white" borderRadius="md" _hover={{ bg: "#0049ca" }} fontSize="xs">Next</Button>
+                    </HStack>
+                  </Flex>
+                )}
+              </>
+            )}
+          </Box>
+        </GridItem>
+      </Grid>
+
+      {/* Floating Action Button */}
+      <IconButton
+        aria-label="Add"
+        icon={<Box as="span" fontSize="2xl" lineHeight="1" mt="-1">+</Box>}
+        position="fixed"
+        bottom="6"
+        right="6"
+        w="14"
+        h="14"
+        borderRadius="full"
+        bg="#003597"
+        color="white"
+        boxShadow="0px 12px 24px rgba(0, 53, 151, 0.4)"
+        _hover={{ transform: "scale(1.05)", bg: "#0049ca" }}
+        zIndex="100"
+      />
     </Box>
   );
 }
