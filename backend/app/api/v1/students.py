@@ -2,12 +2,18 @@ import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, func
+from app.modules.reports.models import StudentReport
 from uuid import UUID
 
 from app.db.db import get_db
 
-from app.modules.students.schemas import StudentCreate, StudentUpdate, StudentOut
+from app.modules.students.schemas import (
+    StudentCreate,
+    StudentUpdate,
+    StudentOut,
+    StudentOutWithClasses,
+)
 
 from app.auth.deps import get_current_user, require_role
 from app.auth.roles import Role
@@ -15,14 +21,11 @@ from app.modules.users.models import User
 
 from app.modules.classes.models import Class, StudentClass
 from app.modules.students.models import Student
-from app.modules.users.models import User
 from app.modules.students.bulk_schemas import (
     BulkStudentsPreviewResponse,
     BulkStudentsApplyResponse,
     BulkRowError,
 )
-
-from app.modules.students.schemas import StudentOutWithClasses
 
 router = APIRouter(prefix="/v1/students", tags=["students"])
 
@@ -78,6 +81,45 @@ def _get_or_create_class(db: Session, school_id: UUID, name: str) -> tuple[Class
     return c, True
 
 
+def _get_classes_by_names(
+    db: Session, school_id: UUID, class_names: list[str]
+) -> list[Class]:
+    if not class_names:
+        return []
+
+    normalized = []
+    seen = set()
+    for name in class_names:
+        clean = (name or "").strip()
+        if clean and clean not in seen:
+            normalized.append(clean)
+            seen.add(clean)
+
+    if not normalized:
+        return []
+
+    found_classes = (
+        db.execute(
+            select(Class).where(
+                Class.school_id == school_id,
+                Class.name.in_(normalized),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    found_names = {c.name for c in found_classes}
+    missing_names = [name for name in normalized if name not in found_names]
+    if missing_names:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Classes not found for this school: {missing_names}",
+        )
+
+    return found_classes
+
+
 def ensure_same_school(current_user: User, school_id: UUID):
     # platform_admin puede todo
     if current_user.role == Role.platform_admin.value:
@@ -87,7 +129,9 @@ def ensure_same_school(current_user: User, school_id: UUID):
         raise HTTPException(status_code=403, detail="Forbidden (different school)")
 
 
-@router.post("", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=StudentOutWithClasses, status_code=status.HTTP_201_CREATED
+)
 def create_student(
     payload: StudentCreate,
     db: Session = Depends(get_db),
@@ -97,11 +141,35 @@ def create_student(
 ):
     ensure_same_school(current_user, payload.school_id)
 
-    student = Student(**payload.model_dump())
+    class_names = payload.classes or []
+
+    student_data = payload.model_dump(exclude={"classes"})
+    student = Student(**student_data)
     db.add(student)
+    db.flush()
+
+    if class_names:
+        found_classes = _get_classes_by_names(db, payload.school_id, class_names)
+        student.classes = found_classes
+
     db.commit()
-    db.refresh(student)
-    return student
+
+    student = db.execute(
+        select(Student)
+        .where(Student.id == student.id)
+        .options(selectinload(Student.classes))
+    ).scalar_one()
+
+    return StudentOutWithClasses(
+        id=student.id,
+        school_id=student.school_id,
+        full_name=student.full_name,
+        age=getattr(student, "age", None),
+        notes=getattr(student, "notes", None),
+        is_active=getattr(student, "is_active", None),
+        created_at=getattr(student, "created_at", None),
+        classes=[{"id": c.id, "name": c.name} for c in getattr(student, "classes", [])],
+    )
 
 
 @router.get(
@@ -112,7 +180,7 @@ def create_student(
     ],
 )
 def list_students_with_classes(
-    school_id: UUID,  # query param obligatorio: /v1/students?school_id=...
+    school_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -120,13 +188,24 @@ def list_students_with_classes(
         if current_user.school_id != school_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
+    reports_count_sq = (
+        select(func.count(StudentReport.id))
+        .where(StudentReport.student_id == Student.id)
+        .correlate(Student)
+        .scalar_subquery()
+    )
+
     stmt = (
-        select(Student)
+        select(
+            Student,
+            func.coalesce(reports_count_sq, 0).label("reports_count"),
+        )
         .where(Student.school_id == school_id)
         .options(selectinload(Student.classes))
         .order_by(Student.full_name.asc())
     )
-    students = list(db.execute(stmt).scalars().all())
+
+    rows = db.execute(stmt).all()
 
     return [
         StudentOutWithClasses(
@@ -137,9 +216,10 @@ def list_students_with_classes(
             notes=getattr(s, "notes", None),
             is_active=getattr(s, "is_active", None),
             created_at=getattr(s, "created_at", None),
+            reports_count=int(reports_count or 0),
             classes=[{"id": c.id, "name": c.name} for c in getattr(s, "classes", [])],
         )
-        for s in students
+        for s, reports_count in rows
     ]
 
 
@@ -155,22 +235,19 @@ def get_student_with_classes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Carga student + clases en 2 queries (selectinload) sin recursion
     stmt = (
         select(Student)
         .where(Student.id == student_id)
-        .options(selectinload(Student.classes))  # requiere relationship Student.classes
+        .options(selectinload(Student.classes))
     )
     s = db.execute(stmt).scalar_one_or_none()
     if not s:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # school_admin/teacher solo su escuela
     if current_user.role in ("school_admin", "teacher"):
         if current_user.school_id != s.school_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Construcción explícita (evita loops y controla payload)
     return StudentOutWithClasses(
         id=s.id,
         school_id=s.school_id,
@@ -183,7 +260,7 @@ def get_student_with_classes(
     )
 
 
-@router.patch("/{student_id}", response_model=StudentOut)
+@router.patch("/{student_id}", response_model=StudentOutWithClasses)
 def update_student(
     student_id: UUID,
     payload: StudentUpdate,
@@ -192,19 +269,64 @@ def update_student(
         require_role(Role.platform_admin, Role.school_admin, Role.teacher)
     ),
 ):
-    student = db.get(Student, student_id)
+    student = db.execute(
+        select(Student)
+        .where(Student.id == student_id)
+        .options(selectinload(Student.classes))
+    ).scalar_one_or_none()
+
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
     ensure_same_school(current_user, UUID(str(student.school_id)))
 
     data = payload.model_dump(exclude_unset=True)
+
+    class_ids = data.pop("class_ids", None)
+    class_names = data.pop("classes", None)
+
     for k, v in data.items():
         setattr(student, k, v)
 
+    if class_ids is not None:
+        classes = (
+            db.execute(
+                select(Class).where(
+                    Class.id.in_(class_ids),
+                    Class.school_id == student.school_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        if len(classes) != len(set(class_ids)):
+            raise HTTPException(status_code=400, detail="Some classes not found")
+
+        student.classes = classes
+
+    elif class_names is not None:
+        classes = _get_classes_by_names(db, student.school_id, class_names)
+        student.classes = classes
+
     db.commit()
-    db.refresh(student)
-    return student
+
+    student = db.execute(
+        select(Student)
+        .where(Student.id == student.id)
+        .options(selectinload(Student.classes))
+    ).scalar_one()
+
+    return StudentOutWithClasses(
+        id=student.id,
+        school_id=student.school_id,
+        full_name=student.full_name,
+        age=getattr(student, "age", None),
+        notes=getattr(student, "notes", None),
+        is_active=getattr(student, "is_active", None),
+        created_at=getattr(student, "created_at", None),
+        classes=[{"id": c.id, "name": c.name} for c in getattr(student, "classes", [])],
+    )
 
 
 @router.post(
@@ -224,11 +346,9 @@ async def bulk_students_preview(
     raw = await file.read()
     text = raw.decode("utf-8-sig", errors="replace")
 
-    # delimiter
     delimiter = _sniff_delimiter(text[:2048])
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
-    required = {"full_name"}
     errors: list[BulkRowError] = []
     sample: list[dict] = []
     will_create_classes: set[str] = set()
@@ -236,7 +356,7 @@ async def bulk_students_preview(
     total = 0
     valid = 0
 
-    for i, row in enumerate(reader, start=2):  # header is row 1
+    for i, row in enumerate(reader, start=2):
         total += 1
 
         full_name = (row.get("full_name") or "").strip()
@@ -246,17 +366,14 @@ async def bulk_students_preview(
             )
             continue
 
-        # school_id resolution
         try:
             resolved_school_id = _get_school_id_for_row(row, current_user, school_id)
         except Exception as e:
             errors.append(BulkRowError(row=i, field="school_id", message=str(e)))
             continue
 
-        # parse classes list (optional)
         class_names = _parse_classes(row)
 
-        # validate age if present
         age_raw = (row.get("age") or "").strip()
         if age_raw:
             try:
@@ -273,7 +390,6 @@ async def bulk_students_preview(
                 )
                 continue
 
-        # Check which classes would be created (preview only; do NOT create)
         for cname in class_names:
             exists = db.execute(
                 select(Class.id).where(
@@ -374,7 +490,6 @@ async def bulk_students_apply(
             group = (row.get("group") or "").strip() or None
             class_names = _parse_classes(row)
 
-            # Create student
             s = Student(
                 school_id=resolved_school_id,
                 full_name=full_name,
@@ -383,17 +498,15 @@ async def bulk_students_apply(
                 notes=notes,
             )
             db.add(s)
-            db.flush()  # gets s.id
+            db.flush()
 
             created_students += 1
 
-            # Create classes + pivot links
             for cname in class_names:
                 c, was_created = _get_or_create_class(db, resolved_school_id, cname)
                 if was_created:
                     created_classes += 1
 
-                # avoid duplicates
                 exists_link = db.execute(
                     select(StudentClass.id).where(
                         StudentClass.student_id == s.id,
@@ -405,7 +518,9 @@ async def bulk_students_apply(
                     db.add(StudentClass(student_id=s.id, class_id=c.id))
                     created_links += 1
 
-        # If any row errors, stop and rollback (safer)
+            if class_names and not group:
+                s.group = class_names[0]
+
         if errors:
             db.rollback()
             raise HTTPException(
@@ -449,9 +564,6 @@ def replace_student_classes(
     if current_user.role == "school_admin" and current_user.school_id != s.school_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # validar que todas las class_ids pertenezcan a la misma school del student
-    from app.modules.classes.models import Class
-
     classes = db.execute(select(Class).where(Class.id.in_(class_ids))).scalars().all()
     if len(classes) != len(set(class_ids)):
         raise HTTPException(status_code=400, detail="Some classes not found")
@@ -461,12 +573,16 @@ def replace_student_classes(
             status_code=400, detail="All classes must belong to student's school"
         )
 
-    # reemplazo
     db.query(StudentClass).filter(StudentClass.student_id == student_id).delete(
         synchronize_session=False
     )
     for cid in class_ids:
         db.add(StudentClass(student_id=student_id, class_id=cid))
+
+    if classes:
+        s.group = classes[0].name
+    else:
+        s.group = None
 
     db.commit()
     return {"ok": True}
