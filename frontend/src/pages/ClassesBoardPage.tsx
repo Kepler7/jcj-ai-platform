@@ -405,29 +405,37 @@ export default function ClassesBoardPage() {
   // --- UI: Selector de escuela para platform_admin ---
   if (!loading && isPlatformAdmin && !schoolId) {
     return (
-      <Box p={{ base: 4, md: 8 }}>
-        <VStack align="stretch" spacing={4} maxW="520px">
-          <Heading size="lg">Class Manager</Heading>
-          <Text color="blackAlpha.700">
-            Eres <b>platform_admin</b>. Selecciona la escuela para cargar el tablero.
-          </Text>
+      <Box p={{ base: 6, md: 8 }}>
+        <VStack align="stretch" spacing={6} maxW="520px" bg="#ffffff" p={8} borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+          <Box>
+            <Heading size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>School Manager</Heading>
+            <Text color="#434654" fontFamily="'Manrope', sans-serif">
+              Eres <b>platform_admin</b>. Selecciona una escuela para empezar a gestionar las clases.
+            </Text>
+          </Box>
 
           {loadingSchools ? (
-            <HStack spacing={3}>
-              <Spinner />
-              <Text>Cargando escuelas…</Text>
+            <HStack spacing={3} p={4} bg="#f3f4f5" borderRadius="xl">
+              <Spinner color="#003597" />
+              <Text fontFamily="'Manrope', sans-serif">Cargando escuelas…</Text>
             </HStack>
           ) : schools.length === 0 ? (
-            <Text color="red.500">
-              No hay escuelas para seleccionar (o falló el endpoint). Revisa permisos o
-              el endpoint <b>/v1/schools</b>.
+            <Text color="red.500" fontFamily="'Manrope', sans-serif">
+              No hay escuelas para seleccionar. Revisa permisos o el endpoint <b>/v1/schools</b>.
             </Text>
           ) : (
-            <>
+            <VStack align="stretch" spacing={6}>
               <Select
                 placeholder="Elige una escuela…"
                 value={selectedSchool}
                 onChange={(e) => setSelectedSchool(e.target.value)}
+                size="lg"
+                bg="#f8f9fa"
+                border="1px solid rgba(195, 197, 215, 0.15)"
+                borderRadius="xl"
+                _focus={{ bg: "#ffffff", borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
+                fontFamily="'Manrope', sans-serif"
+                color="#191c1d"
               >
                 {schools.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -437,7 +445,12 @@ export default function ClassesBoardPage() {
               </Select>
 
               <Button
-                colorScheme="blue"
+                size="lg"
+                bg="#003597"
+                color="#ffffff"
+                borderRadius="full"
+                _hover={{ bg: "#0049ca", transform: "translateY(-1px)", boxShadow: "0px 8px 16px rgba(0, 53, 151, 0.2)" }}
+                transition="all 0.2s"
                 isDisabled={!selectedSchool}
                 onClick={() => {
                   const school = schools.find((s) => s.id === selectedSchool);
@@ -452,10 +465,12 @@ export default function ClassesBoardPage() {
                     description: "Cargando tablero…",
                   });
                 }}
+                fontFamily="'Manrope', sans-serif"
+                fontWeight="bold"
               >
-                Entrar
+                Ingresar al Board
               </Button>
-            </>
+            </VStack>
           )}
         </VStack>
       </Box>
@@ -475,29 +490,42 @@ export default function ClassesBoardPage() {
   }
 
   return (
-    <Box p={{ base: 4, md: 8 }}>
-      <VStack align="stretch" spacing={5}>
+    <Box p={{ base: 6, lg: 8 }}>
+      <VStack align="stretch" spacing={8}>
         <Box>
-          <HStack justify="space-between" align="flex-start" wrap="wrap" gap={3}>
+          <HStack justify="space-between" align="flex-start" wrap="wrap" gap={4}>
             <Box>
-              <Heading size="lg" mb={1}>
+              <Heading
+                as="h1"
+                fontSize={{ base: "3xl", md: "4xl" }}
+                fontWeight="extrabold"
+                color="#191c1d"
+                fontFamily="'Plus Jakarta Sans', sans-serif"
+                letterSpacing="tight"
+                mb={2}
+              >
                 Classes Board
               </Heading>
-              <Text color="blackAlpha.700">
-                Arrastra alumnos entre columnas. Modo <b>Agregar</b> inscribe sin quitar;
-                modo <b>Mover</b> cambia de clase.
+              <Text color="#434654" fontFamily="'Manrope', sans-serif">
+                Arrastra alumnos entre columnas. Modo <Text as="span" fontWeight="bold" color="#003597">Agregar</Text> inscribe sin quitar;
+                modo <Text as="span" fontWeight="bold" color="#003597">Mover</Text> cambia de clase.
               </Text>
             </Box>
 
             {/* platform_admin: muestra escuela activa y botón cambiar */}
             {isPlatformAdmin && schoolId && (
-              <HStack spacing={3}>
-                <Badge colorScheme="purple" borderRadius="full" px={3} py={1}>
+              <HStack spacing={4}>
+                <Badge bg="#e8edff" color="#003597" borderRadius="full" px={4} py={1.5} textTransform="none" fontSize="sm" fontFamily="'Manrope', sans-serif">
                   School: {schoolName || schoolId}
                 </Badge>
                 <Button
                   size="sm"
                   variant="outline"
+                  borderRadius="full"
+                  color="#434654"
+                  borderColor="rgba(195, 197, 215, 0.4)"
+                  _hover={{ bg: "#f3f4f5" }}
+                  fontFamily="'Manrope', sans-serif"
                   onClick={() => {
                     clearSchoolId();
                     setSchoolName("");
@@ -534,14 +562,21 @@ export default function ClassesBoardPage() {
           onDragEnd={onDragEnd}
           onDragCancel={onDragCancel}
         >
-          <Box
-            borderRadius="2xl"
-            bg="blackAlpha.50"
-            p={4}
-            borderWidth="1px"
-            borderColor="blackAlpha.100"
-          >
-            <Flex gap={5} align="flex-start" wrap="nowrap" overflowX="auto" pb={2}>
+          <Box w="100%" overflow="hidden">
+            <Flex 
+              gap={6} 
+              align="flex-start" 
+              wrap="nowrap" 
+              overflowX="auto" 
+              pb={4} 
+              px={2}
+              css={{
+                "&::-webkit-scrollbar": { height: "8px" },
+                "&::-webkit-scrollbar-track": { background: "transparent" },
+                "&::-webkit-scrollbar-thumb": { background: "rgba(0, 53, 151, 0.15)", borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: "rgba(0, 53, 151, 0.3)" }
+              }}
+            >
               {filteredClasses.map((c) => (
                 <ClassColumn
                   key={c.id}
@@ -566,7 +601,7 @@ export default function ClassesBoardPage() {
             {activeMembership ? (
               <Box
                 w="100%"
-                maxW="280px"
+                maxW="300px"
                 boxShadow="2xl"
                 borderRadius="xl"
                 zIndex={9999}

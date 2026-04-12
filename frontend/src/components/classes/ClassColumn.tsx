@@ -14,36 +14,37 @@ export default function ClassColumn({ classId, name, count, children }: Props) {
   return (
     <Box
       ref={setNodeRef}
-      w="320px"
-      minH="520px"
-      borderRadius="2xl"
-      borderWidth="1px"
-      borderColor={isOver ? "blue.300" : "blackAlpha.100"}
-      bg={isOver ? "blue.50" : "gray.50"}
-      boxShadow="sm"
+      minW="340px"
+      w="340px"
+      minH="600px"
+      borderRadius="2rem"
+      bg={isOver ? "#dbe1ff" : "#f3f4f5"} // Primary-fixed vs surface-container-low
       overflow="hidden"
-      transition="all 0.12s ease"
+      transition="all 0.2s ease"
     >
-      <Box px={4} pt={4} pb={3} bg="white" borderBottomWidth="1px" borderColor="blackAlpha.100">
-        <HStack justify="space-between" align="center">
-          <Heading size="sm">{name}</Heading>
+      <Box px={6} pt={6} pb={4}>
+        <HStack justify="space-between" align="center" mb="1">
+          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+            {name}
+          </Heading>
           <Box
-            px={2}
-            py={0.5}
+            px={3}
+            py={1}
             borderRadius="full"
-            bg="blackAlpha.100"
+            bg="#e1e3e4"
+            color="#434654"
             fontSize="sm"
-            fontWeight="semibold"
+            fontWeight="bold"
           >
             {count}
           </Box>
         </HStack>
-        <Text fontSize="xs" color="blackAlpha.600" mt={1}>
+        <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
           Arrastra alumnos aquí
         </Text>
       </Box>
 
-      <VStack align="stretch" spacing={3} p={4}>
+      <VStack align="stretch" spacing={4} p={6} pt={0}>
         {children}
       </VStack>
     </Box>

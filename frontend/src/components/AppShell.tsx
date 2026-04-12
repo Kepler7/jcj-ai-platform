@@ -12,10 +12,10 @@ import {
   Flex,
   HStack,
   IconButton,
-  Link,
   Spacer,
   Text,
   VStack,
+  Avatar,
   useDisclosure,
 } from "@chakra-ui/react";
 import { HamburgerIcon } from "@chakra-ui/icons";
@@ -124,26 +124,34 @@ export default function AppShell() {
         as={RouterLink}
         to={to}
         spacing={2}
-        px={3}
+        px={1}
         py={2}
-        borderRadius="md"
-        bg={active ? "blue.50" : "transparent"}
-        color={active ? "blue.700" : "inherit"}
-        fontWeight={active ? "semibold" : "normal"}
-        borderWidth={active ? "1px" : "1px"}
-        borderColor={active ? "blue.200" : "transparent"}
+        position="relative"
+        color={active ? "#003597" : "#737686"}
+        fontWeight={active ? "bold" : "semibold"}
         _hover={{
           textDecoration: "none",
-          bg: active ? "blue.50" : "gray.50",
+          color: "#003597",
         }}
         onClick={onNavigate}
         align="center"
       >
-        <Text>{label}</Text>
+        <Text fontSize="sm" fontFamily="'Manrope', sans-serif">{label}</Text>
         {showBadge && pendingCount > 0 && (
-          <Badge colorScheme="red" borderRadius="full" px={2}>
+          <Badge bg="#ba1a1a" color="white" borderRadius="full" px={2} fontSize="xs">
             {pendingCount}
           </Badge>
+        )}
+        {active && (
+          <Box 
+            position="absolute" 
+            bottom="-4px" 
+            left="0" 
+            w="full" 
+            h="2px" 
+            bg="#003597" 
+            borderRadius="full"
+          />
         )}
       </HStack>
     );
@@ -152,7 +160,7 @@ export default function AppShell() {
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
     <VStack
       align={mobile ? "stretch" : "center"}
-      spacing={mobile ? 2 : 0}
+      spacing={mobile ? 4 : 8}
       display={mobile ? "flex" : "contents"}
     >
       {me?.role === "platform_admin" && (
@@ -199,15 +207,34 @@ export default function AppShell() {
   );
 
   return (
-    <Box minH="100vh">
-      <Flex px="6" py="4" borderBottomWidth="1px" align="center" gap={4}>
-        <Text fontWeight="bold">IHUI AI</Text>
+    <Box minH="100vh" bg="#f8f9fa" fontFamily="'Manrope', sans-serif">
+      <Flex 
+        px={{ base: 4, md: 8 }} 
+        py="4" 
+        align="center" 
+        bg="#ffffff" 
+        borderBottomWidth="1px" 
+        borderColor="#e1e3e4"
+        position="sticky"
+        top="0"
+        zIndex="100"
+      >
+        {/* IHUI Logo Mark */}
+        <Text 
+          fontWeight="extrabold" 
+          fontSize="xl" 
+          color="#003597" 
+          fontFamily="'Plus Jakarta Sans', sans-serif"
+          letterSpacing="tight"
+        >
+          IHUI AI
+        </Text>
 
+        {/* Desktop Navigation Links */}
         <Flex
-          ml="6"
-          gap="2"
+          ml={10}
+          gap={8}
           align="center"
-          wrap="wrap"
           display={{ base: "none", md: "flex" }}
         >
           <NavLinks />
@@ -215,51 +242,73 @@ export default function AppShell() {
 
         <Spacer />
 
+        {/* Desktop User Section */}
         <HStack display={{ base: "none", md: "flex" }} spacing={4}>
-          <Text fontSize="sm">
-            {me?.email} ({me?.role})
-          </Text>
-
-          <Button size="sm" onClick={signOut}>
-            Sign out
-          </Button>
+          <HStack spacing={3}>
+            <Avatar size="sm" name={me?.email || "User"} src="" bg="#c3c5d7" color="#191c1d" />
+            <Text 
+              fontSize="sm" 
+              fontWeight="semibold" 
+              color="#434654" 
+              cursor="pointer" 
+              _hover={{ color: "#003597" }}
+              onClick={signOut}
+              transition="colors 0.2s"
+            >
+              Sign out
+            </Text>
+          </HStack>
         </HStack>
 
+        {/* Mobile menu trigger */}
         <IconButton
           aria-label="Open menu"
           icon={<HamburgerIcon />}
           onClick={onOpen}
           display={{ base: "inline-flex", md: "none" }}
-          variant="outline"
+          variant="ghost"
+          color="#191c1d"
+          _hover={{ bg: "#f3f4f5" }}
         />
       </Flex>
 
+      {/* Mobile Menu Drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose}>
         <DrawerOverlay />
-        <DrawerContent>
-          <DrawerCloseButton />
-          <DrawerHeader>IHUI AI</DrawerHeader>
+        <DrawerContent bg="#ffffff">
+          <DrawerCloseButton color="#191c1d" />
+          <DrawerHeader color="#003597" fontFamily="'Plus Jakarta Sans', sans-serif" fontWeight="extrabold">
+            IHUI AI
+          </DrawerHeader>
 
           <DrawerBody>
-            <VStack align="stretch" spacing={6}>
-              <Box>
-                <Text fontSize="sm" color="gray.600">
-                  Usuario
-                </Text>
-                <Text fontWeight="medium">{me?.email}</Text>
-                <Text fontSize="sm" color="gray.600">
-                  {me?.role}
-                </Text>
+            <VStack align="stretch" spacing={8}>
+              <Box p={4} bg="#f3f4f5" borderRadius="xl">
+                <HStack mb={2}>
+                  <Avatar size="sm" name={me?.email || "User"} />
+                  <Box>
+                    <Text fontWeight="bold" fontSize="sm" color="#191c1d">
+                      {me?.email}
+                    </Text>
+                    <Text fontSize="xs" color="#737686" textTransform="capitalize">
+                      {me?.role?.replace('_', ' ')}
+                    </Text>
+                  </Box>
+                </HStack>
               </Box>
 
               <NavLinks mobile />
 
               <Button
-                size="sm"
+                variant="outline"
+                borderColor="#c3c5d7"
+                color="#434654"
+                mt={8}
                 onClick={() => {
                   onClose();
                   signOut();
                 }}
+                _hover={{ bg: "#f3f4f5", color: "#003597" }}
               >
                 Sign out
               </Button>
@@ -268,7 +317,7 @@ export default function AppShell() {
         </DrawerContent>
       </Drawer>
 
-      <Box p="6">
+      <Box p={{ base: 4, md: 8 }}>
         <Outlet />
       </Box>
     </Box>
