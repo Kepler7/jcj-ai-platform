@@ -239,8 +239,6 @@ export default function ReportsPage() {
   const [expandTeacher, setExpandTeacher] = useState(true);
   const [expandParent, setExpandParent] = useState(true);
 
-  const studentName = useMemo(() => student?.full_name ?? 'alumno', [student]);
-
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardiansLoading, setGuardiansLoading] = useState(false);
   const [guardiansError, setGuardiansError] = useState<string | null>(null);
