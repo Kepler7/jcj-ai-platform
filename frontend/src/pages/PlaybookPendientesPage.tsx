@@ -754,7 +754,7 @@ export default function PlaybookPendientesPage() {
   const detailStudentId = selected?.student_id || reportDetail?.student_id || "";
 
   return (
-    <Box p={{ base: 6, lg: 8 }} minH="100vh" bg="#f8f9fa">
+    <Box px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 8 }} minH="100vh" bg="#f8f9fa" maxW="100%" overflowX="hidden">
       <HStack justify="space-between" align="flex-start" mb={8} wrap="wrap" gap={4}>
         <Box>
           <Heading
@@ -940,10 +940,10 @@ export default function PlaybookPendientesPage() {
               }}>
                 <Thead>
                   <Tr borderBottom="1px solid rgba(195, 197, 215, 0.15)">
-                    <Th>Created</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>Created</Th>
                     <Th>Reason</Th>
-                    <Th>Query</Th>
-                    <Th>Summary</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>Query</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>Summary</Th>
                     <Th>Status</Th>
                     <Th>Actions</Th>
                   </Tr>
@@ -954,7 +954,7 @@ export default function PlaybookPendientesPage() {
 
                     return (
                       <Tr key={row.id}>
-                        <Td whiteSpace="nowrap" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#191c1d">
+                        <Td display={{ base: "none", md: "table-cell" }} whiteSpace="nowrap" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#191c1d">
                           {new Date(row.created_at).toLocaleString()}
                         </Td>
 
@@ -980,7 +980,7 @@ export default function PlaybookPendientesPage() {
                           </VStack>
                         </Td>
 
-                        <Td maxW="300px">
+                        <Td maxW="300px" display={{ base: "none", md: "table-cell" }}>
                           {row.query_text ? (
                             <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#434654">
                               {truncate(row.query_text, 100)}
@@ -995,7 +995,7 @@ export default function PlaybookPendientesPage() {
                           )}
                         </Td>
 
-                        <Td maxW="300px">
+                        <Td maxW="300px" display={{ base: "none", md: "table-cell" }}>
                           <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#434654">
                             {truncate(row.model_output_summary, 100)}
                           </Text>
@@ -1073,7 +1073,7 @@ export default function PlaybookPendientesPage() {
               </HStack>
             ) : (
               <VStack align="stretch" spacing={6}>
-                <HStack justify="space-between" align="start" p={6} bg="#f8f9fa" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)">
+                <HStack justify="space-between" align="start" p={{ base: 4, md: 6 }} bg="#f8f9fa" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" flexWrap="wrap" gap={4}>
                   <Box>
                     <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
                       Estado

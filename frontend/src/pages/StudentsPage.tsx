@@ -191,7 +191,7 @@ export default function StudentsPage() {
   }, [effectiveSchoolId]);
 
   return (
-    <Box>
+    <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }} maxW="100%" overflowX="hidden">
       {/* Header */}
       <Box mb="8">
         <Text fontSize="xs" fontWeight="bold" color="#737686" letterSpacing="widest" textTransform="uppercase" mb="2">
@@ -209,7 +209,7 @@ export default function StudentsPage() {
       </Box>
 
       {/* Main Layout Grid */}
-      <Grid templateColumns={{ base: '1fr', lg: '350px 1fr' }} gap="8">
+      <Grid templateColumns={{ base: '1fr', lg: '350px 1fr' }} gap={{ base: 6, md: 8 }}>
 
         {/* Left Column */}
         <GridItem>
@@ -277,7 +277,7 @@ export default function StudentsPage() {
                 />
               </Box>
 
-              <Flex gap="4">
+              <Flex gap="4" direction={{ base: "column", md: "row" }}>
                 <Box flex="1">
                   <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
                     Age
@@ -389,7 +389,7 @@ export default function StudentsPage() {
           </Box>
         </GridItem>
 
-        <GridItem>
+        <GridItem minW="0">
           {/* Controls Bar */}
           <Flex gap="4" mb="6" direction={{ base: "column", md: "row" }}>
             <InputGroup size="lg" flex="1">
@@ -432,9 +432,9 @@ export default function StudentsPage() {
                       <Tr borderBottom="1px solid #f3f4f5">
                         <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pl={{ base: 4, md: 8 }} py="6">ACTIONS</Th>
                         <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">FULL NAME</Th>
-                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">AGE</Th>
-                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">CLASSES</Th>
-                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6">STATUS</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6" display={{ base: "none", md: "table-cell" }}>AGE</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6" display={{ base: "none", md: "table-cell" }}>CLASSES</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6" display={{ base: "none", md: "table-cell" }}>STATUS</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -479,10 +479,10 @@ export default function StudentsPage() {
                                 </Box>
                               </Flex>
                             </Td>
-                            <Td py="4">
+                            <Td py="4" display={{ base: "none", md: "table-cell" }}>
                               <Text fontWeight="semibold" color="#434654" fontSize="sm">{student.age ?? '-'}</Text>
                             </Td>
-                            <Td py="4">
+                            <Td py="4" display={{ base: "none", md: "table-cell" }}>
                               {student.classes?.length > 0 ? (
                                 <>
                                   <Badge bg="#f3f4f5" color="#434654" fontFamily="'Manrope', sans-serif" fontSize="xs" px="3" py="1.5" borderRadius="full" textTransform="none" fontWeight="bold">
@@ -498,7 +498,7 @@ export default function StudentsPage() {
                                 <Text color="#737686" fontSize="sm">—</Text>
                               )}
                             </Td>
-                            <Td pr={{ base: 4, md: 8 }} py="4">
+                            <Td pr={{ base: 4, md: 8 }} py="4" display={{ base: "none", md: "table-cell" }}>
                               <Badge
                                 bg={isYes ? "#e1fedc" : "#ffeceb"}
                                 color={isYes ? "#006c4a" : "#ba1a1a"}
@@ -548,22 +548,6 @@ export default function StudentsPage() {
         </GridItem>
       </Grid>
 
-      {/* Floating Action Button */}
-      <IconButton
-        aria-label="Add"
-        icon={<Box as="span" fontSize="2xl" lineHeight="1" mt="-1">+</Box>}
-        position="fixed"
-        bottom="6"
-        right="6"
-        w="14"
-        h="14"
-        borderRadius="full"
-        bg="#003597"
-        color="white"
-        boxShadow="0px 12px 24px rgba(0, 53, 151, 0.4)"
-        _hover={{ transform: "scale(1.05)", bg: "#0049ca" }}
-        zIndex="100"
-      />
     </Box>
   );
 }
