@@ -405,7 +405,7 @@ export default function ClassesBoardPage() {
   // --- UI: Selector de escuela para platform_admin ---
   if (!loading && isPlatformAdmin && !schoolId) {
     return (
-      <Box p={{ base: 6, md: 8 }}>
+      <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }}>
         <VStack align="stretch" spacing={6} maxW="520px" bg="#ffffff" p={8} borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
           <Box>
             <Heading size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>School Manager</Heading>
@@ -490,7 +490,7 @@ export default function ClassesBoardPage() {
   }
 
   return (
-    <Box p={{ base: 6, lg: 8 }}>
+    <Box px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 8 }}>
       <VStack align="stretch" spacing={8}>
         <Box>
           <HStack justify="space-between" align="flex-start" wrap="wrap" gap={4}>

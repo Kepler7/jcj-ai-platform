@@ -126,8 +126,8 @@ export default function BulkStudentsPage() {
   }
 
   return (
-    <Box p={8} bg="#f8f9fa" minH="100vh">
-      <Flex justify="space-between" align="flex-start" mb={8} maxW="1200px" mx="auto">
+    <Box p={{ base: 4, md: 8 }} bg="#f8f9fa" minH="100vh" maxW="100%" overflowX="hidden">
+      <Flex justify="space-between" align="flex-start" mb={{ base: 6, md: 8 }} gap={4} direction={{ base: "column", md: "row" }} maxW="1200px" mx="auto">
         <Box>
           <Heading size="2xl" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>
             Bulk Students
@@ -138,6 +138,7 @@ export default function BulkStudentsPage() {
           </Text>
         </Box>
         <Button
+          w={{ base: "full", md: "auto" }}
           variant="outline"
           borderRadius="xl"
           borderColor="rgba(195, 197, 215, 0.4)"
@@ -152,7 +153,7 @@ export default function BulkStudentsPage() {
         </Button>
       </Flex>
 
-      <Grid templateColumns={{ base: "1fr", lg: "300px 1fr" }} gap={8} maxW="1200px" mx="auto">
+      <Grid templateColumns={{ base: "1fr", lg: "300px 1fr" }} gap={{ base: 6, md: 8 }} maxW="1200px" mx="auto">
         <GridItem>
           <Box bg="#f4f6fb" p={6} borderRadius="2rem" mb={6}>
             <Box bg="#00472f" w="48px" h="48px" borderRadius="xl" mb={4} display="flex" alignItems="center" justifyContent="center">
@@ -197,9 +198,9 @@ export default function BulkStudentsPage() {
           </Box>
         </GridItem>
 
-        <GridItem>
+        <GridItem minW="0">
 
-          <Box mb={6} bg="#ffffff" borderRadius="2rem" boxShadow="0 20px 40px rgba(0,0,0,0.03)" p={8}>
+          <Box mb={6} bg="#ffffff" borderRadius="2rem" boxShadow="0 20px 40px rgba(0,0,0,0.03)" p={{ base: 6, md: 8 }}>
             <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={8}>
               Subir archivo
             </Heading>
@@ -409,22 +410,22 @@ export default function BulkStudentsPage() {
                     <Thead bg="#f8f9fa">
                       <Tr>
                         <Th fontFamily="'Manrope', sans-serif" color="#737686">full_name</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">age</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">group</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>age</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>group</Th>
                         <Th fontFamily="'Manrope', sans-serif" color="#737686">classes</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">notes</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">school_id</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>notes</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>school_id</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
                       {preview.sample.map((r, idx) => (
                         <Tr key={idx} _hover={{ bg: "#f3f4f5" }}>
                           <Td fontFamily="'Manrope', sans-serif" color="#191c1d">{r.full_name}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654">{r.age ?? "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654">{r.group ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.age ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.group ?? "-"}</Td>
                           <Td fontFamily="'Manrope', sans-serif" color="#434654">{Array.isArray(r.classes) ? r.classes.join(" | ") : "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654">{r.notes ?? "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654">{r.school_id}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.notes ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.school_id}</Td>
                         </Tr>
                       ))}
                     </Tbody>

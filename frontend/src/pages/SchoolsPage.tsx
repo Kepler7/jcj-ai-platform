@@ -86,11 +86,11 @@ export default function SchoolsPage() {
   }, []);
 
   return (
-    <Box>
+    <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }} maxW="100%" overflowX="hidden">
       {/* Header */}
-      <Flex direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "flex-start", md: "center" }} mb="8" gap="4">
+      <Flex direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "flex-start", md: "center" }} mb={{ base: 6, md: 8 }} gap="4">
         <Box>
-          <Heading as="h1" fontSize="4xl" fontWeight="extrabold" color="#003597" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">
+          <Heading as="h1" fontSize={{ base: "3xl", md: "4xl" }} fontWeight="extrabold" color="#003597" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">
             Schools
           </Heading>
           <Text color="#737686" fontSize="sm" maxW="550px" lineHeight="tall">
@@ -104,12 +104,12 @@ export default function SchoolsPage() {
       </Flex>
 
       {/* Main Grid */}
-      <Grid templateColumns={{ base: '1fr', lg: '350px 1fr' }} gap="8">
+      <Grid templateColumns={{ base: '1fr', lg: '350px 1fr' }} gap={{ base: 6, md: 8 }}>
 
         {/* Left Column */}
-        <GridItem>
+        <GridItem minW="0">
           {/* Create School Widget */}
-          <Box bg="#ffffff" borderRadius="2rem" p="8" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" mb="6">
+          <Box bg="#ffffff" borderRadius="2rem" p={{ base: 6, md: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" mb="6">
             <Flex align="center" mb="8" gap="4">
               <Flex align="center" justify="center" w="12" h="12" bg="#e8edff" color="#003597" borderRadius="xl">
                 <Building2 size={24} />
@@ -137,7 +137,7 @@ export default function SchoolsPage() {
                 />
               </Box>
 
-              <Flex gap="4">
+              <Flex gap="4" direction={{ base: "column", md: "row" }}>
                 <Box flex="1">
                   <Text fontSize="xs" fontWeight="bold" color="#434654" mb="2" textTransform="uppercase" letterSpacing="wider">
                     City
@@ -206,7 +206,7 @@ export default function SchoolsPage() {
           </Box>
 
           {/* Active Institutions Widget */}
-          <Box bg="#f3f4f5" borderRadius="2rem" p="8" position="relative" overflow="hidden">
+          <Box bg="#f3f4f5" borderRadius="2rem" p={{ base: 6, md: 8 }} position="relative" overflow="hidden">
             <Box position="relative" zIndex="2">
               <Text fontSize="xs" fontWeight="bold" color="#434654" mb="1">
                 Active Institutions
@@ -221,7 +221,7 @@ export default function SchoolsPage() {
           </Box>
         </GridItem>
 
-        <GridItem>
+        <GridItem minW="0">
           {/* Controls Bar */}
           <Flex gap="4" mb="6" direction={{ base: "column", md: "row" }}>
             <InputGroup size="lg" flex="1">
@@ -268,8 +268,8 @@ export default function SchoolsPage() {
                       <Tr borderBottom="1px solid #f3f4f5">
                         <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pl={{ base: 4, md: 8 }} py="6">SCHOOL NAME</Th>
                         <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">LOCATION</Th>
-                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6">ACTIVE</Th>
-                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6">ID</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" py="6" display={{ base: "none", md: "table-cell" }}>ACTIVE</Th>
+                        <Th fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6" display={{ base: "none", md: "table-cell" }}>ID</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -305,7 +305,7 @@ export default function SchoolsPage() {
                                 <Text fontSize="xs" color="#737686">{s.state ? `${s.state}` : '-'}</Text>
                               </Box>
                             </Td>
-                            <Td py="4">
+                            <Td py="4" display={{ base: "none", md: "table-cell" }}>
                               <Badge
                                 bg={isYes ? "#e1fedc" : "#ffeceb"}
                                 color={isYes ? "#006c4a" : "#ba1a1a"}
@@ -323,7 +323,7 @@ export default function SchoolsPage() {
                                 {isYes ? 'YES' : 'NO'}
                               </Badge>
                             </Td>
-                            <Td pr={{ base: 4, md: 8 }} py="4">
+                            <Td pr={{ base: 4, md: 8 }} py="4" display={{ base: "none", md: "table-cell" }}>
                               <Badge bg="#f3f4f5" color="#434654" fontFamily="mono" fontSize="xs" px="2" py="1" borderRadius="md" textTransform="none">
                                 {(s.id || '').substring(0, 36)}
                               </Badge>

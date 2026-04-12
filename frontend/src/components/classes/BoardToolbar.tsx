@@ -54,7 +54,7 @@ export default function BoardToolbar({
           </InputGroup>
         </HStack>
 
-        <HStack spacing={6}>
+        <HStack spacing={{ base: 4, md: 6 }} wrap="wrap">
           <HStack spacing={3}>
             <Text fontSize="sm" color="#434654" fontFamily="'Manrope', sans-serif">
               Modo:
