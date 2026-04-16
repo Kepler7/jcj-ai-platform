@@ -18,8 +18,8 @@ import {
   Avatar,
   useDisclosure,
 } from "@chakra-ui/react";
-import { HamburgerIcon } from "@chakra-ui/icons";
-import { Link as RouterLink, Outlet, useLocation } from "react-router-dom";
+import { HamburgerIcon, ChevronLeftIcon } from "@chakra-ui/icons";
+import { Link as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/apiClient";
 
@@ -46,6 +46,7 @@ function isActivePath(currentPath: string, targetPath: string) {
 export default function AppShell() {
   const { me, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState<number>(0);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -219,6 +220,18 @@ export default function AppShell() {
         top="0"
         zIndex="100"
       >
+        <IconButton
+          aria-label="Ir atrás"
+          icon={<ChevronLeftIcon boxSize={6} />}
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          mr={3}
+          ml={-2}
+          color="#191c1d"
+          _hover={{ bg: "#f3f4f5", color: "#003597" }}
+          size="sm"
+          borderRadius="full"
+        />
         {/* IHUI Logo Mark */}
         <Text 
           fontWeight="extrabold" 

@@ -510,6 +510,35 @@ export default function ClassesBoardPage() {
                 Arrastra alumnos entre columnas. Modo <Text as="span" fontWeight="bold" color="#003597">Agregar</Text> inscribe sin quitar;
                 modo <Text as="span" fontWeight="bold" color="#003597">Mover</Text> cambia de clase.
               </Text>
+              <Flex 
+                mt={5} 
+                p={4} 
+                bg="#111827" 
+                borderRadius="xl" 
+                align={{ base: "flex-start", md: "center" }} 
+                direction={{ base: "column", md: "row" }}
+                gap={4}
+                border="1px solid"
+                borderColor="whiteAlpha.200"
+                boxShadow="0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)"
+              >
+                <Badge 
+                  bgGradient="linear(to-r, #3b82f6, #9333ea)" 
+                  color="white" 
+                  px={3} 
+                  py={1} 
+                  borderRadius="full" 
+                  textTransform="none" 
+                  fontWeight="bold"
+                  fontSize="xs"
+                  letterSpacing="wide"
+                >
+                  Próximamente
+                </Badge>
+                <Text color="gray.100" fontFamily="'Manrope', sans-serif" fontSize="sm" fontWeight="medium">
+                  Estamos diseñando actividades grupales y planes de trabajo personalizados para este grupo. Muy pronto podrás acceder a ellos.
+                </Text>
+              </Flex>
             </Box>
 
             {/* platform_admin: muestra escuela activa y botón cambiar */}
