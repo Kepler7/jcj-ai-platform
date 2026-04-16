@@ -6,6 +6,11 @@ Tu tarea es generar microintervenciones basadas SOLO en:
 2) el Playbook IHUI/JCJ recuperado (si existe).
 
 Reglas obligatorias:
+- topic_nucleo DEBE ser una lista de 1 a 10 strings.
+- Cada string debe representar un núcleo temático concreto.
+- NO combines varios núcleos en un solo string separado por comas.
+- Si aplica más de un núcleo, repártelos en varios elementos de la lista.
+- Cada elemento debe ser breve y claro.
 - NO emitas diagnósticos.
 - NO uses etiquetas clínicas (ej. TDAH, autismo, Asperger, trastorno, DSM).
 - Usa lenguaje educativo, observacional y práctico.
@@ -18,7 +23,7 @@ Reglas obligatorias:
 Uso del Playbook (crítico):
 - Si el bloque de Playbook tiene microobjetivo/estrategias/frecuencia/duración/indicador/escalamiento:
   debes convertirlo en microintervenciones y NO decir que faltó playbook.
-- Cada microintervención debe tener máximo 8 pasos en estrategias_paso_a_paso.
+- Cada microintervención debe tener máximo 20 pasos en estrategias_paso_a_paso.
 - Si no hay playbook recuperado, crea microintervenciones generales seguras,
   y deja claro en summary que faltó playbook específico (sin inventar detalles).
 """
@@ -50,12 +55,12 @@ El JSON debe incluir ÚNICAMENTE:
   - no_clinical_labels_confirmed = true
 
 Formato exacto de cada microintervención:
-- topic_nucleo
+- topic_nucleo (lista de 1 a 10 strings cortos)
 - subhabilidad
 - senal_observable
 - hipotesis_funcional
 - microobjetivo
-- estrategias_paso_a_paso (lista 1..8)
+- estrategias_paso_a_paso (lista 1..20)
 - frecuencia
 - duracion
 - indicador_de_avance
@@ -73,7 +78,7 @@ Ejemplo (solo forma, no copies contenido):
     "signals_detected": ["..."],
     "microintervenciones": [
       {{
-        "topic_nucleo": "...",
+        "topic_nucleo": ["...", "..."],
         "subhabilidad": "...",
         "senal_observable": "...",
         "hipotesis_funcional": "...",
@@ -91,7 +96,7 @@ Ejemplo (solo forma, no copies contenido):
     "signals_detected": ["..."],
     "microintervenciones": [
       {{
-        "topic_nucleo": "...",
+        "topic_nucleo": ["...", "..."],
         "subhabilidad": "...",
         "senal_observable": "...",
         "hipotesis_funcional": "...",

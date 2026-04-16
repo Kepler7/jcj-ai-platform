@@ -11,6 +11,7 @@ from app.modules.playbooks.sync_runs_service import (
     get_latest_sync_run,
     serialize_sync_run,
 )
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 router = APIRouter(prefix="/v1/playbooks", tags=["playbooks"])
 
@@ -67,7 +68,7 @@ def _load_all_playbooks_index():
 def _to_preview(pb: dict):
     return {
         "id": str(pb.get("id") or ""),
-        "topic_nucleo": pb.get("topic_nucleo"),
+        "topic_nucleo": normalize_topic_nucleo(pb.get("topic_nucleo")),
         "subhabilidad": pb.get("subhabilidad"),
         "senal_observable": pb.get("senal_observable"),
         "age_min": pb.get("age_min"),

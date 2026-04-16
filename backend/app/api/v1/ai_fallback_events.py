@@ -6,7 +6,7 @@ from uuid import UUID
 from app.modules.ai_reports.models import AIReport
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 
 from app.db.db import get_db
 from app.auth.deps import get_current_user, require_role
@@ -14,6 +14,7 @@ from app.api.v1.ai_reports import ensure_same_school
 
 from app.modules.ai_fallback_events.models import AIFallbackEvent
 from app.modules.ai_fallback_events.schemas import AIFallbackOut, ResolveFallbackRequest
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 router = APIRouter(prefix="/v1/ai-fallbacks", tags=["ai-fallbacks"])
 
@@ -51,9 +52,9 @@ def _extract_signals_from_ai(ai: Optional[AIReport]) -> List[str]:
     return []
 
 
-def _extract_topic_from_ai(ai: Optional[AIReport]) -> Optional[str]:
+def _extract_topic_from_ai(ai: Optional[AIReport]) -> Optional[List[str]]:
     """
-    Si el evento no trae topic_nucleo, lo derivamos del primer microintervenciones.
+    Si el evento no trae topic_nucleo, lo derivamos de la primera microintervención.
     Ojo: esto solo existirá cuando fallback_used=False y tu orchestrator construyó microintervenciones desde playbook.
     """
     if not ai:
@@ -77,10 +78,9 @@ def _extract_topic_from_ai(ai: Optional[AIReport]) -> Optional[str]:
     if isinstance(mi, list) and len(mi) > 0:
         first = mi[0]
         if isinstance(first, dict):
-            t = first.get("topic_nucleo")
+            t = normalize_topic_nucleo(first.get("topic_nucleo"))
         else:
-            t = getattr(first, "topic_nucleo", None)
-        t = (t or "").strip()
+            t = normalize_topic_nucleo(getattr(first, "topic_nucleo", None))
         return t or None
 
     return None
@@ -117,7 +117,7 @@ def list_fallbacks(
 
         signals = _extract_signals_from_ai(ai)
 
-        topic = getattr(e, "topic_nucleo", None)
+        topic = normalize_topic_nucleo(getattr(e, "topic_nucleo", None))
         if not topic:
             topic = _extract_topic_from_ai(ai)
 

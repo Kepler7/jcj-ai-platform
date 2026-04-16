@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.rag.chroma_client import ChromaPlaybookStore
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 
 def _s(x: Any) -> str:
@@ -17,7 +18,7 @@ def format_doc_from_row(row: Dict[str, Any]) -> str:
     """
     Documento rico para retrieval en Chroma.
     """
-    topic = _s(row.get("topic_nucleo"))
+    topic = normalize_topic_nucleo(row.get("topic_nucleo"))
     sub = _s(row.get("subskill"))
     signal = _s(row.get("signal_observable"))
     hyp = _s(row.get("functional_hypothesis"))
@@ -90,7 +91,7 @@ def build_metadata(row: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": doc_id,
         "source": _s(row.get("source")) or "sheet",
-        "topic_nucleo": _s(row.get("topic_nucleo")),
+        "topic_nucleo": normalize_topic_nucleo(row.get("topic_nucleo")),
         "subskill": _s(row.get("subskill")),
         "age_min": int(row.get("age_min")) if row.get("age_min") is not None else None,
         "age_max": int(row.get("age_max")) if row.get("age_max") is not None else None,

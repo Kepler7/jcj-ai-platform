@@ -1,10 +1,13 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional
+from typing import List, Annotated
+
+ShortTopic = Annotated[str, Field(min_length=2, max_length=80)]
+StepText = Annotated[str, Field(min_length=1, max_length=300)]
 
 
 class MicroIntervention(BaseModel):
     # Nombres alineados al sheet de Deneb (sin acentos por seguridad JSON)
-    topic_nucleo: str = Field(min_length=3, max_length=80)
+    topic_nucleo: List[ShortTopic] = Field(min_length=1, max_length=8)
     subhabilidad: str = Field(min_length=2, max_length=120)
     senal_observable: str = Field(min_length=5, max_length=600)
 

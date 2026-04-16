@@ -35,7 +35,7 @@ class AIPredictionCreate(BaseModel):
 
 class PlaybookPreviewOut(BaseModel):
     id: str
-    topic_nucleo: Optional[str] = None
+    topic_nucleo: Optional[List[str]] = None
     subhabilidad: Optional[str] = None
     senal_observable: Optional[str] = None
     age_min: Optional[int] = None
