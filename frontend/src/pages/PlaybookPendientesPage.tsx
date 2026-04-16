@@ -47,7 +47,7 @@ type PlaybookFallbackEvent = {
   student_id: string;
   report_id: string;
   ai_report_id: string | null;
-  topic_nucleo: string | null;
+  topic_nucleo: string[] | null;
   signals_detected?: string[] | null;
   reason: string;
   query_text: string | null;
@@ -73,7 +73,7 @@ type MicroIntervention = {
   frecuencia: string;
   escalamiento: string;
   subhabilidad: string;
-  topic_nucleo: string;
+  topic_nucleo: string[];
   microobjetivo: string;
   senal_observable: string;
   hipotesis_funcional: string;
@@ -104,7 +104,7 @@ type AIReport = {
 
 type PlaybookPreview = {
   id: string;
-  topic_nucleo?: string | null;
+  topic_nucleo?: string[] | null;
   subhabilidad?: string | null;
   senal_observable?: string | null;
   age_min?: number | null;
@@ -144,7 +144,7 @@ type PendingRow = {
   reason: string;
   query_text: string | null;
   model_output_summary: string | null;
-  topic_nucleo: string | null;
+  topic_nucleo: string[] | null;
   signals_detected?: string[] | null;
 
   resolved_at: string | null;
@@ -182,6 +182,24 @@ function formatSignals(signals?: string[] | null) {
   if (!signals || signals.length === 0) return "-";
   const first = signals.slice(0, 3);
   const extra = signals.length - first.length;
+  return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
+}
+
+function formatTopics(topics?: string[] | string | null, max = 3) {
+  if (!topics) return "-";
+
+  const list = Array.isArray(topics)
+    ? topics.map((x) => String(x).trim()).filter(Boolean)
+    : String(topics)
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+  if (list.length === 0) return "-";
+
+  const first = list.slice(0, max);
+  const extra = list.length - first.length;
+
   return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
 }
 
@@ -245,7 +263,7 @@ export default function PlaybookPendientesPage() {
       >
         <HStack justify="space-between" align="start">
           <Text fontSize="sm" fontWeight="semibold">
-            {pb.topic_nucleo || "Sin topic_nucleo"}
+            {formatTopics(pb.topic_nucleo) === "-" ? "Sin topic_nucleo" : formatTopics(pb.topic_nucleo)}
           </Text>
 
           {isSelected ? (
@@ -896,12 +914,12 @@ export default function PlaybookPendientesPage() {
               </Text>
 
               {latestSync.error_message ? (
-                 <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828" mt={2} p={3}>
+                <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828" mt={2} p={3}>
                   <AlertIcon color="#c52828" boxSize={4} />
                   <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
                     {latestSync.error_message}
                   </Text>
-                 </Alert>
+                </Alert>
               ) : null}
             </Stack>
           )}
@@ -917,10 +935,10 @@ export default function PlaybookPendientesPage() {
 
       <Box bg="#ffffff" borderRadius="2rem" p={6} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
         <HStack justify="space-between" align="center" mb={6}>
-            <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Lista</Heading>
-            <Badge bg="#e8edff" color="#003597" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-              {pendingCount} PENDIENTES
-            </Badge>
+          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Lista</Heading>
+          <Badge bg="#e8edff" color="#003597" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+            {pendingCount} PENDIENTES
+          </Badge>
         </HStack>
 
         <Box>
@@ -1097,8 +1115,17 @@ export default function PlaybookPendientesPage() {
                   </Box>
 
                   <HStack spacing={2} flexWrap="wrap" justify="flex-end">
-                    <Badge variant="subtle" bg="#e8edff" color="#003597" borderRadius="full" px={3} py={1.5} fontFamily="'Manrope', sans-serif" textTransform="none">
-                      Topic: {selected.topic_nucleo ?? "-"}
+                    <Badge
+                      variant="subtle"
+                      bg="#e8edff"
+                      color="#003597"
+                      borderRadius="full"
+                      px={3}
+                      py={1.5}
+                      fontFamily="'Manrope', sans-serif"
+                      textTransform="none"
+                    >
+                      Topic: {formatTopics(selected.topic_nucleo)}
                     </Badge>
                     <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={3} py={1.5} fontFamily="'Manrope', sans-serif" textTransform="none">
                       Signals: {formatSignals(selected.signals_detected)}
@@ -1239,7 +1266,7 @@ export default function PlaybookPendientesPage() {
                                 <HStack justify="space-between" align="start" flexWrap="wrap">
                                   <Box>
                                     <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
-                                      {mi.topic_nucleo} · {mi.subhabilidad}
+                                      {formatTopics(mi.topic_nucleo)} · {mi.subhabilidad}
                                     </Text>
                                     <Text fontSize="sm" color="#434654" mt={1} fontFamily="'Manrope', sans-serif">
                                       Señal observable: {mi.senal_observable}
@@ -1438,7 +1465,7 @@ export default function PlaybookPendientesPage() {
 
                           <Box>
                             <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
-                              {selectedPlaybookDetail.topic_nucleo || "-"}
+                              {formatTopics(selectedPlaybookDetail.topic_nucleo)}
                             </Text>
 
                             <Text mt={2} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
