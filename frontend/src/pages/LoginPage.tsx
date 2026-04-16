@@ -72,7 +72,7 @@ export default function LoginPage() {
                 w="auto"
                 mb="2"
                 objectFit="contain"
-                src="https://lh3.googleusercontent.com/aida/ADBb0uj6Tr60Z2GK4CSFcSmIAv1dxiPXY03Su6aokOAovSzjR7M1Wdrr4LZbBfC6jE0xgl7CnGotMHuVmG3qigERwKkEWC7JeTYNXhnWzLQVb0AXbtme20On8-hclGy6p-WFxqs7rJKlzggW_IN6yuCVeGnWhaCCVYB9_L_1zNsY9yuJR4_oSL9IfED9bT_9Sy74NHG1ff5gaujXshP8rOzgALXIspmc4tbJGz3a5wzWkwcfbvz9-JbMSzHAycZiBj2_Q1Ry82eJcfcetQ"
+                src="/ihui_logo.png"
               />
               <Heading as="h1" fontSize="3xl" fontWeight="extrabold" letterSpacing="tight" color="#191c1d" mb="2" fontFamily="'Plus Jakarta Sans', sans-serif">
                 {/* Empty text placeholder for future flexibility */}

@@ -76,7 +76,7 @@ type Recommendation = {
 
 // ✅ NUEVO: MicroIntervención (IHUI 2.0)
 type MicroIntervention = {
-  topic_nucleo?: string | null;
+  topic_nucleo?: string[] | null;
   subhabilidad?: string | null;
   microobjetivo?: string | null;
   senal_observable?: string | null;
@@ -119,6 +119,24 @@ function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
 
 const SHOW_WHATSAPP_BUTTONS = false;
 
+function formatTopics(topics?: string[] | string | null, max = 3): string {
+  if (!topics) return "—";
+
+  const list = Array.isArray(topics)
+    ? topics.map((x) => String(x).trim()).filter(Boolean)
+    : String(topics)
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+  if (list.length === 0) return "—";
+
+  const first = list.slice(0, max);
+  const extra = list.length - first.length;
+
+  return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
+}
+
 function normalizeSteps(raw: any): string[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((x) => String(x)).filter(Boolean);
@@ -158,7 +176,7 @@ export function MicroInterventionCard({
             {mi.microobjetivo?.trim() ? mi.microobjetivo : `Microintervención ${idx + 1}`}
           </Text>
           <Text fontSize="xs" color="#434654" mt="1">
-            {(mi.topic_nucleo || '—')}{mi.subhabilidad ? ` · ${mi.subhabilidad}` : ''}
+            {formatTopics(mi.topic_nucleo)}{mi.subhabilidad ? ` · ${mi.subhabilidad}` : ''}
           </Text>
         </Box>
       </Flex>
