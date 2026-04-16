@@ -2,13 +2,6 @@ import { useEffect, useState } from "react";
 import {
   Badge,
   Box,
-  Button,
-  Drawer,
-  DrawerBody,
-  DrawerCloseButton,
-  DrawerContent,
-  DrawerHeader,
-  DrawerOverlay,
   Flex,
   HStack,
   IconButton,
@@ -16,10 +9,10 @@ import {
   Text,
   VStack,
   Avatar,
-  useDisclosure,
 } from "@chakra-ui/react";
-import { HamburgerIcon, ChevronLeftIcon } from "@chakra-ui/icons";
+import { ChevronLeftIcon } from "@chakra-ui/icons";
 import { Link as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { School, Bot, Users, LayoutGrid, Database, LogOut } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/apiClient";
 
@@ -48,7 +41,6 @@ export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState<number>(0);
-  const { isOpen, onOpen, onClose } = useDisclosure();
 
   async function loadPendingCount() {
     if (me?.role !== "platform_admin") {
@@ -158,54 +150,63 @@ export default function AppShell() {
     );
   };
 
-  const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
-    <VStack
-      align={mobile ? "stretch" : "center"}
-      spacing={mobile ? 4 : 8}
-      display={mobile ? "flex" : "contents"}
-    >
+  const NavLinks = () => (
+    <VStack align="center" spacing={8} display="contents">
       {me?.role === "platform_admin" && (
         <>
-          <NavItem
-            to="/schools"
-            label="Schools"
-            onNavigate={mobile ? onClose : undefined}
-          />
-
-          <NavItem
-            to="/playbook-pendientes"
-            label="Pendientes de Playbook"
-            showBadge
-            onNavigate={mobile ? onClose : undefined}
-          />
+          <NavItem to="/schools" label="Schools" />
+          <NavItem to="/playbook-pendientes" label="Pendientes de Playbook" showBadge />
         </>
       )}
-
       {canSee(me?.role, ["platform_admin", "school_admin", "teacher"]) && (
-        <NavItem
-          to="/students"
-          label="Students"
-          onNavigate={mobile ? onClose : undefined}
-        />
+        <NavItem to="/students" label="Students" />
       )}
-
       {canSee(me?.role, ["platform_admin", "school_admin", "teacher"]) && (
-        <NavItem
-          to="/admin/classes-board"
-          label="Classes Board"
-          onNavigate={mobile ? onClose : undefined}
-        />
+        <NavItem to="/admin/classes-board" label="Classes Board" />
       )}
-
       {canSee(me?.role, ["platform_admin", "school_admin"]) && (
-        <NavItem
-          to="/admin/bulk-students"
-          label="Bulk Students"
-          onNavigate={mobile ? onClose : undefined}
-        />
+        <NavItem to="/admin/bulk-students" label="Bulk Students" />
       )}
     </VStack>
   );
+
+  const BottomNavItem = ({ to, icon, label, showBadge, roleAllowed }: any) => {
+    if (!canSee(me?.role, roleAllowed)) return null;
+    const active = isActivePath(location.pathname, to);
+
+    return (
+      <VStack
+        as={RouterLink}
+        to={to}
+        spacing={1}
+        color={active ? "#003597" : "#737686"}
+        _hover={{ textDecoration: "none" }}
+        position="relative"
+        flex="1"
+        py={2}
+        align="center"
+        justify="center"
+      >
+        <Box position="relative">
+          {icon}
+          {showBadge && pendingCount > 0 && (
+            <Badge 
+              bg="#ba1a1a" color="white" 
+              position="absolute" top="-4px" right="-12px" 
+              borderRadius="full" fontSize="9px" 
+              px={1.5} minW="16px" textAlign="center"
+              border="2px solid #ffffff"
+            >
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </Badge>
+          )}
+        </Box>
+        <Text fontSize="10px" fontWeight={active ? "bold" : "semibold"} fontFamily="'Manrope', sans-serif" textAlign="center" lineHeight="shorter">
+          {label}
+        </Text>
+      </VStack>
+    );
+  };
 
   return (
     <Box minH="100vh" bg="#f8f9fa" fontFamily="'Manrope', sans-serif">
@@ -273,66 +274,44 @@ export default function AppShell() {
           </HStack>
         </HStack>
 
-        {/* Mobile menu trigger */}
+        {/* Mobile Sign out */}
         <IconButton
-          aria-label="Open menu"
-          icon={<HamburgerIcon />}
-          onClick={onOpen}
+          aria-label="Sign out"
+          icon={<LogOut size={20} />}
+          onClick={signOut}
           display={{ base: "inline-flex", md: "none" }}
           variant="ghost"
-          color="#191c1d"
-          _hover={{ bg: "#f3f4f5" }}
+          color="#434654"
+          _hover={{ bg: "#f3f4f5", color: "#003597" }}
         />
       </Flex>
 
-      {/* Mobile Menu Drawer */}
-      <Drawer isOpen={isOpen} placement="right" onClose={onClose}>
-        <DrawerOverlay />
-        <DrawerContent bg="#ffffff">
-          <DrawerCloseButton color="#191c1d" />
-          <DrawerHeader color="#003597" fontFamily="'Plus Jakarta Sans', sans-serif" fontWeight="extrabold">
-            IHUI AI
-          </DrawerHeader>
-
-          <DrawerBody>
-            <VStack align="stretch" spacing={8}>
-              <Box p={4} bg="#f3f4f5" borderRadius="xl">
-                <HStack mb={2}>
-                  <Avatar size="sm" name={me?.email || "User"} />
-                  <Box>
-                    <Text fontWeight="bold" fontSize="sm" color="#191c1d">
-                      {me?.email}
-                    </Text>
-                    <Text fontSize="xs" color="#737686" textTransform="capitalize">
-                      {me?.role?.replace('_', ' ')}
-                    </Text>
-                  </Box>
-                </HStack>
-              </Box>
-
-              <NavLinks mobile />
-
-              <Button
-                variant="outline"
-                borderColor="#c3c5d7"
-                color="#434654"
-                mt={8}
-                onClick={() => {
-                  onClose();
-                  signOut();
-                }}
-                _hover={{ bg: "#f3f4f5", color: "#003597" }}
-              >
-                Sign out
-              </Button>
-            </VStack>
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
-
-      <Box p={{ base: 4, md: 8 }}>
+      <Box p={{ base: 4, md: 8 }} pb={{ base: 24, md: 8 }}>
         <Outlet />
       </Box>
+
+      {/* Mobile Bottom Nav */}
+      <Flex
+        display={{ base: "flex", md: "none" }}
+        position="fixed"
+        bottom="0"
+        left="0"
+        right="0"
+        bg="#ffffff"
+        borderTopWidth="1px"
+        borderColor="rgba(195, 197, 215, 0.4)"
+        pb="env(safe-area-inset-bottom, 0px)"
+        justify="space-between"
+        align="center"
+        zIndex="100"
+        boxShadow="0px -4px 16px rgba(25, 28, 29, 0.04)"
+      >
+        <BottomNavItem to="/schools" icon={<School size={20} />} label="Schools" roleAllowed={["platform_admin"]} />
+        <BottomNavItem to="/playbook-pendientes" icon={<Bot size={20} />} label="Playbook" showBadge roleAllowed={["platform_admin"]} />
+        <BottomNavItem to="/students" icon={<Users size={20} />} label="Students" roleAllowed={["platform_admin", "school_admin", "teacher"]} />
+        <BottomNavItem to="/admin/classes-board" icon={<LayoutGrid size={20} />} label="Board" roleAllowed={["platform_admin", "school_admin", "teacher"]} />
+        <BottomNavItem to="/admin/bulk-students" icon={<Database size={20} />} label="Bulk" roleAllowed={["platform_admin", "school_admin"]} />
+      </Flex>
     </Box>
   );
 }

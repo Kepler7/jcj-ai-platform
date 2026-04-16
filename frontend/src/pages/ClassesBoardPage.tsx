@@ -543,8 +543,25 @@ export default function ClassesBoardPage() {
 
             {/* platform_admin: muestra escuela activa y botón cambiar */}
             {isPlatformAdmin && schoolId && (
-              <HStack spacing={4}>
-                <Badge bg="#e8edff" color="#003597" borderRadius="full" px={4} py={1.5} textTransform="none" fontSize="sm" fontFamily="'Manrope', sans-serif">
+              <Flex 
+                direction={{ base: "column", sm: "row" }} 
+                align={{ base: "flex-start", sm: "center" }} 
+                gap={3}
+                w={{ base: "100%", md: "auto" }}
+              >
+                <Badge 
+                  bg="#e8edff" 
+                  color="#003597" 
+                  borderRadius="2xl" 
+                  px={4} 
+                  py={1.5} 
+                  textTransform="none" 
+                  fontSize="sm" 
+                  fontFamily="'Manrope', sans-serif"
+                  whiteSpace="normal"
+                  wordBreak="break-word"
+                  textAlign="left"
+                >
                   School: {schoolName || schoolId}
                 </Badge>
                 <Button
@@ -555,6 +572,7 @@ export default function ClassesBoardPage() {
                   borderColor="rgba(195, 197, 215, 0.4)"
                   _hover={{ bg: "#f3f4f5" }}
                   fontFamily="'Manrope', sans-serif"
+                  alignSelf={{ base: "flex-start", sm: "auto" }}
                   onClick={() => {
                     clearSchoolId();
                     setSchoolName("");
@@ -570,7 +588,7 @@ export default function ClassesBoardPage() {
                 >
                   Cambiar escuela
                 </Button>
-              </HStack>
+              </Flex>
             )}
           </HStack>
         </Box>
