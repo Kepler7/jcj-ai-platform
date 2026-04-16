@@ -181,12 +181,12 @@ export function MicroInterventionCard({
         </Box>
       </Flex>
 
-      {mi.senal_observable && (
+      {/*mi.senal_observable && (
         <Box mt="4">
           <Text fontSize="xs" fontWeight="bold" color="#191c1d">Señal observable:</Text>
           <Text fontSize="sm" color="#434654" mt="1">{mi.senal_observable}</Text>
         </Box>
-      )}
+      )*/}
 
       {mi.hipotesis_funcional && (
         <Box mt="3">
@@ -274,6 +274,9 @@ export default function ReportsPage() {
   const [showPrimaryWarning, setShowPrimaryWarning] = useState(false);
 
   const [sendingWaByGuardianId, setSendingWaByGuardianId] = useState<Record<string, boolean>>({});
+
+  const [expandedSignalsByReportId, setExpandedSignalsByReportId] = useState<Record<string, boolean>>({});
+  const [expandedNotesByReportId, setExpandedNotesByReportId] = useState<Record<string, boolean>>({});
 
   async function sendWhatsappPreview(aiReportId: string, guardianId: string) {
     setSendingWaByGuardianId((p) => ({ ...p, [guardianId]: true }));
@@ -653,6 +656,30 @@ export default function ReportsPage() {
       aiReport.teacher_version?.summary?.includes("validación humana") ||
       aiReport.parent_version?.summary?.includes("validación humana")
     );
+
+  const selectedReport =
+    reports.find((r) => r.id === selectedReportId) ?? null;
+
+  const detectedSignalsFromTeacherReport = (() => {
+    if (!selectedReport?.signals_observed) return [];
+
+    const raw = selectedReport.signals_observed;
+
+    // Si detecta separadores → split
+    if (/[|•;\n]+/.test(raw)) {
+      return raw
+        .split(/[|•;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    // Si no → dejarlo como un solo elemento
+    return [raw.trim()];
+  })();
+
+  function isLongText(value?: string | null, limit = 120) {
+    return !!value && value.trim().length > limit;
+  }
 
   return (
     <Box>
@@ -1048,11 +1075,77 @@ export default function ReportsPage() {
                           <Text fontWeight="bold" fontSize="sm" color="#191c1d">{reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                           <Text fontSize="xs" color="#737686" mt="1">{reportDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
                         </Td>
-                        <Td px="6" py="5" verticalAlign="top" maxW="2xs">
-                          <Text fontSize="sm" color="#434654" noOfLines={2}>{r.signals_observed || '-'}</Text>
+                        <Td px="6" py="5" verticalAlign="top" maxW="sm">
+                          <Box>
+                            <Text
+                              fontSize="sm"
+                              color="#434654"
+                              noOfLines={expandedSignalsByReportId[r.id] ? undefined : 2}
+                              whiteSpace={expandedSignalsByReportId[r.id] ? "pre-wrap" : "normal"}
+                              wordBreak="break-word"
+                            >
+                              {r.signals_observed || '-'}
+                            </Text>
+
+                            {isLongText(r.signals_observed) && (
+                              <Button
+                                mt="2"
+                                size="xs"
+                                variant="ghost"
+                                color="#003597"
+                                fontWeight="bold"
+                                rightIcon={
+                                  expandedSignalsByReportId[r.id]
+                                    ? <ChevronUp size={14} />
+                                    : <ChevronDown size={14} />
+                                }
+                                onClick={() =>
+                                  setExpandedSignalsByReportId((prev) => ({
+                                    ...prev,
+                                    [r.id]: !prev[r.id],
+                                  }))
+                                }
+                              >
+                                {expandedSignalsByReportId[r.id] ? 'Ver menos' : 'Ver más'}
+                              </Button>
+                            )}
+                          </Box>
                         </Td>
-                        <Td px="6" py="5" verticalAlign="top" maxW="2xs">
-                          <Text fontSize="sm" color="#434654" noOfLines={2}>{r.notes || 'N/A'}</Text>
+                        <Td px="6" py="5" verticalAlign="top" maxW="sm">
+                          <Box>
+                            <Text
+                              fontSize="sm"
+                              color="#434654"
+                              noOfLines={expandedNotesByReportId[r.id] ? undefined : 2}
+                              whiteSpace={expandedNotesByReportId[r.id] ? "pre-wrap" : "normal"}
+                              wordBreak="break-word"
+                            >
+                              {r.notes || 'N/A'}
+                            </Text>
+
+                            {isLongText(r.notes) && (
+                              <Button
+                                mt="2"
+                                size="xs"
+                                variant="ghost"
+                                color="#003597"
+                                fontWeight="bold"
+                                rightIcon={
+                                  expandedNotesByReportId[r.id]
+                                    ? <ChevronUp size={14} />
+                                    : <ChevronDown size={14} />
+                                }
+                                onClick={() =>
+                                  setExpandedNotesByReportId((prev) => ({
+                                    ...prev,
+                                    [r.id]: !prev[r.id],
+                                  }))
+                                }
+                              >
+                                {expandedNotesByReportId[r.id] ? 'Ver menos' : 'Ver más'}
+                              </Button>
+                            )}
+                          </Box>
                         </Td>
                         <Td px="6" py="5" verticalAlign="top">
                           <Text fontSize="xs" fontFamily="'Plus Jakarta Sans', monospace" color="#737686">{r.id.substring(0, 10)}...</Text>
@@ -1171,12 +1264,30 @@ export default function ReportsPage() {
                     <Activity size={16} color="#0c50d6" />
                     <Text fontSize="sm" fontWeight="bold" color="#191c1d">Señales detectadas</Text>
                   </Flex>
+
                   <Flex flexWrap="wrap" gap="2">
-                    {aiReport.teacher_version.signals_detected?.map((s, idx) => (
-                      <Badge key={idx} bg="#e7e8e9" color="#434654" px="3" py="1.5" borderRadius="full" fontSize="xs" fontWeight="medium" textTransform="none">
-                        {s}
-                      </Badge>
-                    ))}
+                    {detectedSignalsFromTeacherReport.length > 0 ? (
+                      detectedSignalsFromTeacherReport.map((s, idx) => (
+                        <Badge
+                          key={idx}
+                          bg="#e7e8e9"
+                          color="#434654"
+                          px="3"
+                          py="1.5"
+                          borderRadius="full"
+                          fontSize="xs"
+                          fontWeight="medium"
+                          textTransform="none"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          maxW="100%"
+                        >
+                          {s}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Text fontSize="sm" color="#737686">Sin señales registradas.</Text>
+                    )}
                   </Flex>
                 </Box>
 
@@ -1255,12 +1366,30 @@ export default function ReportsPage() {
                     <Activity size={16} color="#7d4ce7" />
                     <Text fontSize="sm" fontWeight="bold" color="#191c1d">Señales detectadas</Text>
                   </Flex>
+
                   <Flex flexWrap="wrap" gap="2">
-                    {aiReport.parent_version.signals_detected?.map((s, idx) => (
-                      <Badge key={idx} bg="#e7e8e9" color="#434654" px="3" py="1.5" borderRadius="full" fontSize="xs" fontWeight="medium" textTransform="none">
-                        {s}
-                      </Badge>
-                    ))}
+                    {detectedSignalsFromTeacherReport.length > 0 ? (
+                      detectedSignalsFromTeacherReport.map((s, idx) => (
+                        <Badge
+                          key={idx}
+                          bg="#e7e8e9"
+                          color="#434654"
+                          px="3"
+                          py="1.5"
+                          borderRadius="full"
+                          fontSize="xs"
+                          fontWeight="medium"
+                          textTransform="none"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          maxW="full"
+                        >
+                          {s}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Text fontSize="sm" color="#737686">Sin señales registradas.</Text>
+                    )}
                   </Flex>
                 </Box>
 
