@@ -17,6 +17,7 @@ from app.modules.ai_feedback.schemas import (
 )
 from app.modules.ai_feedback.service import create_ai_prediction_feedback
 from app.rag.chroma_client import ChromaPlaybookStore
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
@@ -89,7 +90,7 @@ def _to_preview(pb: Optional[dict]) -> Optional[PlaybookPreviewOut]:
 
     return PlaybookPreviewOut(
         id=str(pb.get("id") or ""),
-        topic_nucleo=(pb.get("topic_nucleo") or None),
+        topic_nucleo=normalize_topic_nucleo(pb.get("topic_nucleo")) or None,
         subhabilidad=(pb.get("subhabilidad") or None),
         senal_observable=(pb.get("senal_observable") or None),
         age_min=pb.get("age_min"),

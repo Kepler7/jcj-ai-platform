@@ -22,6 +22,8 @@ try:
 except Exception:
     SupportMeta = None  # type: ignore
 
+from app.ai.utils.normalization import normalize_topic_nucleo
+
 
 # =========================
 # Constants
@@ -171,7 +173,7 @@ def _pb_to_search_text(doc: str) -> str:
 
     pbj = _try_parse_playbook_json(doc)
     if pbj:
-        topic = (pbj.get("topic_nucleo") or "").strip()
+        topic = normalize_topic_nucleo(pbj.get("topic_nucleo"))
         sub = (pbj.get("subskill") or pbj.get("subhabilidad") or "").strip()
         sig = (
             pbj.get("signal_observable") or pbj.get("senal_observable") or ""
@@ -209,7 +211,7 @@ def _pb_debug_info(pb_doc: str) -> Dict[str, Any]:
     if pbj:
         return {
             "id": (pbj.get("id") or ""),
-            "topic_nucleo": (pbj.get("topic_nucleo") or ""),
+            "topic_nucleo": normalize_topic_nucleo(pbj.get("topic_nucleo")),
             "subhabilidad": (pbj.get("subskill") or pbj.get("subhabilidad") or ""),
             "signal_observable": (
                 pbj.get("signal_observable") or pbj.get("senal_observable") or ""
@@ -222,7 +224,7 @@ def _pb_debug_info(pb_doc: str) -> Dict[str, Any]:
     pb_text = _pb_to_search_text(pb_doc)
     return {
         "id": "",
-        "topic_nucleo": _line_value(pb_text, "TOPIC_NUCLEO"),
+        "topic_nucleo": normalize_topic_nucleo(_line_value(pb_text, "TOPIC_NUCLEO")),
         "subhabilidad": _line_value(pb_text, "SUBHABILIDAD"),
         "signal_observable": _extract_block(pb_text, "SEÑAL_OBSERVABLE"),
         "source": "text",
@@ -254,7 +256,7 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
     # 1) JSON
     pbj = _try_parse_playbook_json(text)
     if pbj:
-        topic = (pbj.get("topic_nucleo") or "").strip()
+        topic = normalize_topic_nucleo(pbj.get("topic_nucleo"))
         sub = (pbj.get("subskill") or pbj.get("subhabilidad") or "").strip()
         sig = (
             pbj.get("signal_observable") or pbj.get("senal_observable") or ""
@@ -326,7 +328,7 @@ def parse_playbook_doc_v2(doc: str) -> Optional[Dict[str, Any]]:
     out2: Dict[str, Any] = {
         "id": "",
         "base_row": "",
-        "topic_nucleo": _line_value(text, "TOPIC_NUCLEO"),
+        "topic_nucleo": normalize_topic_nucleo(_line_value(text, "TOPIC_NUCLEO")),
         "subhabilidad": _line_value(text, "SUBHABILIDAD"),
         "senal_observable": _extract_block(text, "SEÑAL_OBSERVABLE"),
         "hipotesis_funcional": _extract_block(text, "HIPOTESIS_FUNCIONAL"),
@@ -436,6 +438,7 @@ def retrieve_playbooks(
                 pb["age_max"] = md.get("edad_max")
 
         if pb:
+            pb["topic_nucleo"] = normalize_topic_nucleo(pb.get("topic_nucleo"))
             out.append(json.dumps(pb, ensure_ascii=False))
         else:
             out.append(s)
@@ -756,7 +759,7 @@ def generate_support(
             return (x or "").strip()
 
         mi = {
-            "topic_nucleo": _s(pb.get("topic_nucleo")),
+            "topic_nucleo": normalize_topic_nucleo(pb.get("topic_nucleo")),
             "subhabilidad": _s(pb.get("subhabilidad")),
             "senal_observable": _s(pb.get("senal_observable")),
             "hipotesis_funcional": _s(pb.get("hipotesis_funcional")),
@@ -773,7 +776,7 @@ def generate_support(
             "age_max": pb.get("age_max"),
         }
 
-        if len(mi["topic_nucleo"]) < 3:
+        if len(normalize_topic_nucleo(mi.get("topic_nucleo"))) < 1:
             return None
         if len(mi["subhabilidad"]) < 2:
             return None
@@ -839,7 +842,7 @@ def generate_support(
         for it in items or []:
             key = (
                 (
-                    (it.get("topic_nucleo") or "")
+                    " ".join(normalize_topic_nucleo(it.get("topic_nucleo")))
                     + "|"
                     + (it.get("microobjetivo") or "")
                     + "|"
@@ -933,7 +936,7 @@ def generate_support(
                     "coverage": cov,
                     "evidence": ev,
                     "id": info.get("id"),
-                    "topic_nucleo": info.get("topic_nucleo"),
+                    "topic_nucleo": normalize_topic_nucleo(info.get("topic_nucleo")),
                     "subhabilidad": info.get("subhabilidad"),
                     "signal_observable": _clip(
                         (info.get("signal_observable") or ""), 120

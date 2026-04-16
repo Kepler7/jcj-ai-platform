@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 import pandas as pd
 
@@ -102,7 +103,7 @@ def dedupe_keep_order(items: List[str]) -> List[str]:
 
 def make_hash_id(obj: Dict[str, Any]) -> str:
     stable = {
-        "topic_nucleo": obj.get("topic_nucleo"),
+        "topic_nucleo": normalize_topic_nucleo(obj.get("topic_nucleo")),
         "subskill": obj.get("subskill"),
         "signal_observable": obj.get("signal_observable"),
         "age_min": obj.get("age_min"),
@@ -253,7 +254,7 @@ def normalize_csv(input_source: str, output_jsonl: Path) -> None:
         for idx, row in df.iterrows():
             errors: List[str] = []
 
-            topic_nucleo = _s(row.get(col_map["topic_nucleo"]))
+            topic_nucleo = normalize_topic_nucleo(row.get(col_map["topic_nucleo"]))
             subskill = _s(row.get(col_map["subskill"]))
             signal_observable = _s(row.get(col_map["signal_observable"]))
             functional_hypothesis = _s(row.get(col_map["functional_hypothesis"]))

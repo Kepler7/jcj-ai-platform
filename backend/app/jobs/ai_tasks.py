@@ -16,6 +16,7 @@ from app.modules.ai_jobs.models import AIJob, JobStatus
 from app.modules.ai_fallback_events.models import AIFallbackEvent
 from app.modules.ai_reports.service import generate_ai_report
 from app.modules.reports.models import StudentReport
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 
 def create_fallback_event(
@@ -26,7 +27,7 @@ def create_fallback_event(
     report_id: UUID,
     ai_report_id: Optional[UUID],
     reason: str,
-    topic_nucleo: Optional[str] = None,
+    topic_nucleo: Optional[List[str]] = None,
     context: Optional[List[str]] = None,  # 👈 ahora lista
     query_text: Optional[str] = None,
     model_output_summary: Optional[str] = None,
@@ -38,7 +39,7 @@ def create_fallback_event(
         student_id=student_id,
         report_id=report_id,
         ai_report_id=ai_report_id,
-        topic_nucleo=topic_nucleo,
+        topic_nucleo=normalize_topic_nucleo(topic_nucleo),
         context=context,  # JSON / ARRAY
         reason=reason,
         query_text=query_text,
@@ -106,7 +107,7 @@ def generate_ai_report_task(job_id: str) -> None:
             fallback_reason: Optional[str] = None
             ai_report_id: Optional[UUID] = None
 
-            topic_nucleo: Optional[str] = None
+            topic_nucleo: Optional[List[str]] = None
             context_value: Any = None  # puede ser list[str]
             query_text: Optional[str] = None
             model_output_summary: Optional[str] = None
@@ -122,7 +123,7 @@ def generate_ai_report_task(job_id: str) -> None:
                     except Exception:
                         ai_report_id = None
 
-                topic_nucleo = result.get("topic_nucleo")
+                topic_nucleo = normalize_topic_nucleo(result.get("topic_nucleo"))
                 context_value = result.get("contexts") or result.get("context_primary")
                 query_text = result.get("query_text")
                 model_output_summary = result.get("model_output_summary")

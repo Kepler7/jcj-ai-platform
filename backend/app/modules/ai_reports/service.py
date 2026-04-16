@@ -11,6 +11,7 @@ from app.modules.ai_reports.models import AIReport
 
 # from app.ai.orchestrator import generate_support
 from app.ai.generate_support_v2 import generate_support_v2
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 
 def generate_ai_report(
@@ -178,7 +179,7 @@ def generate_ai_report(
             report_id=report.id,
             ai_report_id=ai_report.id,
             reason=fallback_reason or "no_match",
-            topic_nucleo=meta.get("topic_nucleo"),
+            topic_nucleo=normalize_topic_nucleo(meta.get("topic_nucleo")),
             context=contexts_used,
             query_text=query_text_full,
             model_output_summary=model_output_full,

@@ -14,7 +14,7 @@ class AIFallbackOut(BaseModel):
     report_id: UUID
     ai_report_id: Optional[UUID] = None
 
-    topic_nucleo: Optional[str] = None
+    topic_nucleo: Optional[List[str]] = None
     reason: str
 
     query_text: Optional[str] = None

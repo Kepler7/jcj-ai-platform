@@ -23,6 +23,7 @@ from app.ai.orchestrator import (
     check_guardrails,
     extract_json_object_lenient,
 )
+from app.ai.utils.normalization import normalize_topic_nucleo
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
@@ -33,6 +34,23 @@ CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "jcj_playbooks_v1")
 # ----------------------------
 CONFIRMED_THRESHOLD = 0.85
 PENDING_THRESHOLD = 0.60
+
+
+def _coerce_topic_nucleo_in_support(data: dict) -> dict:
+    for version_key in ("teacher_version", "parent_version"):
+        version = data.get(version_key) or {}
+        micros = version.get("microintervenciones") or []
+
+        if not isinstance(micros, list):
+            continue
+
+        for micro in micros:
+            if not isinstance(micro, dict):
+                continue
+
+            micro["topic_nucleo"] = normalize_topic_nucleo(micro.get("topic_nucleo"))
+
+    return data
 
 
 # ----------------------------
@@ -83,7 +101,9 @@ def generate_support_v2(
                 "signals_detected": ["string"],
                 "microintervenciones": [
                     {
-                        "topic_nucleo": "string",
+                        "topic_nucleo": [
+                            "string (1..10 elementos, cada uno corto y claro)"
+                        ],
                         "subhabilidad": "string",
                         "senal_observable": "string",
                         "hipotesis_funcional": "string",
@@ -101,7 +121,9 @@ def generate_support_v2(
                 "signals_detected": ["string"],
                 "microintervenciones": [
                     {
-                        "topic_nucleo": "string",
+                        "topic_nucleo": [
+                            "string (1..10 elementos, cada uno corto y claro)"
+                        ],
                         "subhabilidad": "string",
                         "senal_observable": "string",
                         "hipotesis_funcional": "string",
@@ -200,6 +222,7 @@ Esquema esperado:
             if not ok:
                 raise ValueError(f"Guardrails failed. Banned terms found: {hits}")
 
+            data = _coerce_topic_nucleo_in_support(data)
             return AIGeneratedSupport.model_validate(data)
 
         except Exception:
@@ -365,13 +388,15 @@ def _dedupe_playbooks(playbooks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     seen = set()
 
     for pb in playbooks:
-        key = (pb.get("id") or "") or (
+        topic_key = "|".join(normalize_topic_nucleo(pb.get("topic_nucleo")))
+
+        key = (pb.get("id") or "").strip() or (
             (
-                (pb.get("topic_nucleo") or "")
+                topic_key
                 + "|"
-                + (pb.get("subhabilidad") or "")
+                + str(pb.get("subhabilidad") or "").strip()
                 + "|"
-                + (pb.get("senal_observable") or "")
+                + str(pb.get("senal_observable") or "").strip()
             )
             .strip()
             .lower()
@@ -397,13 +422,15 @@ def local_rerank_playbooks(
     report_tokens = set(_normalize_tokens(report_text))
 
     for pb in playbooks:
+        topic_text = " ".join(normalize_topic_nucleo(pb.get("topic_nucleo")))
+
         candidate_text = " ".join(
             [
-                pb.get("topic_nucleo", ""),
-                pb.get("subhabilidad", ""),
-                pb.get("senal_observable", ""),
-                pb.get("microobjetivo", ""),
-                pb.get("hipotesis_funcional", ""),
+                topic_text,
+                str(pb.get("subhabilidad", "") or ""),
+                str(pb.get("senal_observable", "") or ""),
+                str(pb.get("microobjetivo", "") or ""),
+                str(pb.get("hipotesis_funcional", "") or ""),
             ]
         )
 
@@ -467,7 +494,9 @@ def llm_rerank_playbooks(
             {
                 "index": i,
                 "id": pb.get("id"),
-                "topic_nucleo": pb.get("topic_nucleo"),
+                "topic_nucleo": ", ".join(
+                    normalize_topic_nucleo(pb.get("topic_nucleo"))
+                ),
                 "subhabilidad": pb.get("subhabilidad"),
                 "senal_observable": pb.get("senal_observable"),
                 "microobjetivo": pb.get("microobjetivo"),
@@ -791,7 +820,7 @@ def _pb_to_micro(pb: Dict[str, Any]) -> MicroIntervention:
         steps = [steps]
 
     return MicroIntervention(
-        topic_nucleo=(pb.get("topic_nucleo") or "").strip(),
+        topic_nucleo=normalize_topic_nucleo(pb.get("topic_nucleo")),
         subhabilidad=(pb.get("subhabilidad") or pb.get("subskill") or "").strip(),
         senal_observable=(
             pb.get("senal_observable") or pb.get("signal_observable") or ""
