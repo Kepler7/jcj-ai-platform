@@ -240,6 +240,7 @@ export default function ReportsPage() {
   const cardBg = useColorModeValue("#ffffff", "gray.800");
   const pageBg = useColorModeValue("#f8f9fa", "gray.900");
   const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const inputFocusBg = useColorModeValue("#ffffff", "gray.800");
   const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
   const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
   const textLabel = useColorModeValue("#434654", "gray.400");
@@ -776,7 +777,9 @@ export default function ReportsPage() {
                     borderRadius="xl"
                     py="6"
                     fontSize="sm"
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                   />
                 </GridItem>
 
@@ -791,7 +794,9 @@ export default function ReportsPage() {
                     borderRadius="xl"
                     py="6"
                     fontSize="sm"
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                   />
                 </GridItem>
 
@@ -805,7 +810,8 @@ export default function ReportsPage() {
                     borderRadius="xl"
                     h="12"
                     fontSize="sm"
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                    color={textColor}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                   >
                     <option value="madre">Madre</option>
                     <option value="padre">Padre</option>
@@ -829,7 +835,9 @@ export default function ReportsPage() {
                     fontSize="sm"
                     resize="none"
                     rows={2}
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                   />
                 </GridItem>
 
@@ -1010,7 +1018,9 @@ export default function ReportsPage() {
                   fontSize="sm"
                   rows={3}
                   resize="none"
-                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                  color={textColor}
+                  _placeholder={{ color: textMuted }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                 />
               </Box>
               <Box>
@@ -1027,7 +1037,9 @@ export default function ReportsPage() {
                   fontSize="sm"
                   rows={2}
                   resize="none"
-                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#ffffff" }}
+                  color={textColor}
+                  _placeholder={{ color: textMuted }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                 />
               </Box>
               <Flex justify="flex-end">
