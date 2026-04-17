@@ -11,7 +11,9 @@ import {
   Text,
   useToast,
   VStack,
+  useColorModeValue,
 } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 import {
   DndContext,
   DragOverlay,
@@ -108,8 +110,23 @@ function DraggableStudentCard(props: {
 }
 
 export default function ClassesBoardPage() {
+  const { t } = useTranslation();
   const toast = useToast();
   const { me } = useAuth();
+  
+  const panelBg = useColorModeValue("#ffffff", "gray.800");
+  const headingColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textColor = useColorModeValue("#434654", "gray.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryHover = useColorModeValue("#0049ca", "blue.400");
+  const inputBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
+  const inputBorder = useColorModeValue("rgba(195, 197, 215, 0.15)", "whiteAlpha.100");
+  const inputFocusBorder = useColorModeValue("rgba(0, 53, 151, 0.3)", "blue.300");
+  const badgeBg = useColorModeValue("#e8edff", "whiteAlpha.200");
+  const btnOutlineBorder = useColorModeValue("rgba(195, 197, 215, 0.4)", "whiteAlpha.300");
+  const btnOutlineHover = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const scrollbarThumb = useColorModeValue("rgba(0, 53, 151, 0.15)", "whiteAlpha.300");
+  const scrollbarThumbHover = useColorModeValue("rgba(0, 53, 151, 0.3)", "whiteAlpha.400");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -141,7 +158,7 @@ export default function ClassesBoardPage() {
   // 1) Al entrar, lee schoolId de localStorage (por si cambió en otra tab)
   useEffect(() => {
     setSchoolIdState(getSchoolId());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [me?.role]);
 
   // 2) Si platform_admin y no hay schoolId => cargar lista de escuelas para selector
@@ -179,8 +196,8 @@ export default function ClassesBoardPage() {
         setSchools([]);
         toast({
           status: "error",
-          title: "No pude cargar escuelas",
-          description: e?.message || "Revisa el endpoint /v1/schools y permisos.",
+          title: t("classes_board_page.toast.error_loading_schools_title"),
+          description: e?.message || t("classes_board_page.toast.error_loading_schools_desc"),
         });
       } finally {
         setLoadingSchools(false);
@@ -222,9 +239,8 @@ export default function ClassesBoardPage() {
           if (isSchoolScoped) {
             toast({
               status: "error",
-              title: "Falta school_id",
-              description:
-                "No encontré school_id en localStorage. Para school_admin/teacher debe venir en login o en /me.",
+              title: t("classes_board_page.toast.missing_school_id_title"),
+              description: t("classes_board_page.toast.missing_school_id_teacher_desc"),
             });
             setClasses([]);
             return;
@@ -233,8 +249,8 @@ export default function ClassesBoardPage() {
           // otros roles
           toast({
             status: "error",
-            title: "Falta school_id",
-            description: "No se puede cargar el tablero sin school_id.",
+            title: t("classes_board_page.toast.missing_school_id_title"),
+            description: t("classes_board_page.toast.missing_school_id_desc"),
           });
           setClasses([]);
           return;
@@ -244,7 +260,7 @@ export default function ClassesBoardPage() {
       } catch (e: any) {
         toast({
           status: "error",
-          title: "Error cargando tablero",
+          title: t("classes_board_page.toast.error_loading_board_title"),
           description: e?.message || "Error",
         });
       } finally {
@@ -262,8 +278,8 @@ export default function ClassesBoardPage() {
         if (isPlatformAdmin) return; // no-op, aún no hay escuela elegida
         toast({
           status: "error",
-          title: "Falta school_id",
-          description: "No encontré school_id para refrescar.",
+          title: t("classes_board_page.toast.missing_school_id_title"),
+          description: t("classes_board_page.toast.missing_refresh_id_desc"),
         });
         return;
       }
@@ -272,7 +288,7 @@ export default function ClassesBoardPage() {
     } catch (e: any) {
       toast({
         status: "error",
-        title: "Error refrescando",
+        title: t("classes_board_page.toast.error_refreshing_title"),
         description: e?.message || "Error",
       });
     } finally {
@@ -368,8 +384,8 @@ export default function ClassesBoardPage() {
     if (mode === "add" && targetHas) {
       toast({
         status: "info",
-        title: "Ya está inscrito",
-        description: "Este alumno ya pertenece a esa clase.",
+        title: t("classes_board_page.toast.enrolled_title"),
+        description: t("classes_board_page.toast.enrolled_desc"),
       });
       return;
     }
@@ -386,17 +402,17 @@ export default function ClassesBoardPage() {
 
       toast({
         status: "success",
-        title: mode === "move" ? "Alumno movido" : "Alumno inscrito",
+        title: mode === "move" ? t("classes_board_page.toast.moved_title") : t("classes_board_page.toast.enrolled_success_title"),
         description:
           mode === "move"
-            ? "Se actualizó la inscripción."
-            : "Se agregó a una nueva clase sin salirse de la anterior.",
+            ? t("classes_board_page.toast.moved_desc")
+            : t("classes_board_page.toast.enrolled_success_desc"),
       });
     } catch (e: any) {
       rollback();
       toast({
         status: "error",
-        title: "No se pudo actualizar",
+        title: t("classes_board_page.toast.update_error_title"),
         description: e?.body?.detail || e?.message || "Error",
       });
     }
@@ -406,36 +422,33 @@ export default function ClassesBoardPage() {
   if (!loading && isPlatformAdmin && !schoolId) {
     return (
       <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }}>
-        <VStack align="stretch" spacing={6} maxW="520px" bg="#ffffff" p={8} borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+        <VStack align="stretch" spacing={6} maxW="520px" bg={panelBg} p={8} borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
           <Box>
-            <Heading size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>School Manager</Heading>
-            <Text color="#434654" fontFamily="'Manrope', sans-serif">
-              Eres <b>platform_admin</b>. Selecciona una escuela para empezar a gestionar las clases.
-            </Text>
+            <Heading size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color={headingColor} mb={2}>{t("classes_board_page.manager")}</Heading>
+            <Text color={textColor} fontFamily="'Manrope', sans-serif" dangerouslySetInnerHTML={{ __html: t("classes_board_page.manager_desc") }} />
           </Box>
 
           {loadingSchools ? (
-            <HStack spacing={3} p={4} bg="#f3f4f5" borderRadius="xl">
-              <Spinner color="#003597" />
-              <Text fontFamily="'Manrope', sans-serif">Cargando escuelas…</Text>
+            <HStack spacing={3} p={4} bg={btnOutlineHover} borderRadius="xl">
+              <Spinner color={primaryColor} />
+              <Text fontFamily="'Manrope', sans-serif">{t("classes_board_page.loading_schools")}</Text>
             </HStack>
           ) : schools.length === 0 ? (
-            <Text color="red.500" fontFamily="'Manrope', sans-serif">
-              No hay escuelas para seleccionar. Revisa permisos o el endpoint <b>/v1/schools</b>.
-            </Text>
+            <Text color="red.500" fontFamily="'Manrope', sans-serif" dangerouslySetInnerHTML={{ __html: t("classes_board_page.no_schools") }} />
           ) : (
             <VStack align="stretch" spacing={6}>
               <Select
-                placeholder="Elige una escuela…"
+                placeholder={t("classes_board_page.choose")}
                 value={selectedSchool}
                 onChange={(e) => setSelectedSchool(e.target.value)}
                 size="lg"
-                bg="#f8f9fa"
-                border="1px solid rgba(195, 197, 215, 0.15)"
+                bg={inputBg}
+                border="1px solid"
+                borderColor={inputBorder}
                 borderRadius="xl"
-                _focus={{ bg: "#ffffff", borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
+                _focus={{ bg: panelBg, borderColor: inputFocusBorder, boxShadow: `0 0 0 1px ${inputFocusBorder}` }}
                 fontFamily="'Manrope', sans-serif"
-                color="#191c1d"
+                color={headingColor}
               >
                 {schools.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -446,10 +459,10 @@ export default function ClassesBoardPage() {
 
               <Button
                 size="lg"
-                bg="#003597"
+                bg={primaryColor}
                 color="#ffffff"
                 borderRadius="full"
-                _hover={{ bg: "#0049ca", transform: "translateY(-1px)", boxShadow: "0px 8px 16px rgba(0, 53, 151, 0.2)" }}
+                _hover={{ bg: primaryHover, transform: "translateY(-1px)", boxShadow: "0px 8px 16px rgba(0, 53, 151, 0.2)" }}
                 transition="all 0.2s"
                 isDisabled={!selectedSchool}
                 onClick={() => {
@@ -461,14 +474,14 @@ export default function ClassesBoardPage() {
                   }
                   toast({
                     status: "success",
-                    title: "Escuela seleccionada",
-                    description: "Cargando tablero…",
+                    title: t("classes_board_page.toast.school_selected_title"),
+                    description: t("classes_board_page.toast.school_selected_desc"),
                   });
                 }}
                 fontFamily="'Manrope', sans-serif"
                 fontWeight="bold"
               >
-                Ingresar al Board
+                {t("classes_board_page.enter_board")}
               </Button>
             </VStack>
           )}
@@ -483,7 +496,7 @@ export default function ClassesBoardPage() {
       <Flex minH="70vh" align="center" justify="center">
         <HStack spacing={3}>
           <Spinner />
-          <Text>Cargando tablero…</Text>
+          <Text>{t("classes_board_page.loading_board")}</Text>
         </HStack>
       </Flex>
     );
@@ -499,16 +512,15 @@ export default function ClassesBoardPage() {
                 as="h1"
                 fontSize={{ base: "3xl", md: "4xl" }}
                 fontWeight="extrabold"
-                color="#191c1d"
+                color={headingColor}
                 fontFamily="'Plus Jakarta Sans', sans-serif"
                 letterSpacing="tight"
                 mb={2}
               >
-                Classes Board
+                {t("classes_board_page.title")}
               </Heading>
-              <Text color="#434654" fontFamily="'Manrope', sans-serif">
-                Arrastra alumnos entre columnas. Modo <Text as="span" fontWeight="bold" color="#003597">Agregar</Text> inscribe sin quitar;
-                modo <Text as="span" fontWeight="bold" color="#003597">Mover</Text> cambia de clase.
+              <Text color={textColor} fontFamily="'Manrope', sans-serif">
+                {t("classes_board_page.subtitle_1")} <Text as="span" fontWeight="bold" color={primaryColor}>{t("classes_board_page.add_mode")}</Text> {t("classes_board_page.subtitle_2")} <Text as="span" fontWeight="bold" color={primaryColor}>{t("classes_board_page.move_mode")}</Text> {t("classes_board_page.subtitle_3")}
               </Text>
               <Flex 
                 mt={5} 
@@ -533,10 +545,10 @@ export default function ClassesBoardPage() {
                   fontSize="xs"
                   letterSpacing="wide"
                 >
-                  Próximamente
+                  {t("classes_board_page.soon")}
                 </Badge>
                 <Text color="gray.100" fontFamily="'Manrope', sans-serif" fontSize="sm" fontWeight="medium">
-                  Estamos diseñando actividades grupales y planes de trabajo personalizados para este grupo. Muy pronto podrás acceder a ellos.
+                  {t("classes_board_page.soon_desc")}
                 </Text>
               </Flex>
             </Box>
@@ -550,8 +562,8 @@ export default function ClassesBoardPage() {
                 w={{ base: "100%", md: "auto" }}
               >
                 <Badge 
-                  bg="#e8edff" 
-                  color="#003597" 
+                  bg={badgeBg} 
+                  color={primaryColor} 
                   borderRadius="2xl" 
                   px={4} 
                   py={1.5} 
@@ -562,15 +574,15 @@ export default function ClassesBoardPage() {
                   wordBreak="break-word"
                   textAlign="left"
                 >
-                  School: {schoolName || schoolId}
+                  {t("classes_board_page.school_label")} {schoolName || schoolId}
                 </Badge>
                 <Button
                   size="sm"
                   variant="outline"
                   borderRadius="full"
-                  color="#434654"
-                  borderColor="rgba(195, 197, 215, 0.4)"
-                  _hover={{ bg: "#f3f4f5" }}
+                  color={textColor}
+                  borderColor={btnOutlineBorder}
+                  _hover={{ bg: btnOutlineHover }}
                   fontFamily="'Manrope', sans-serif"
                   alignSelf={{ base: "flex-start", sm: "auto" }}
                   onClick={() => {
@@ -581,12 +593,12 @@ export default function ClassesBoardPage() {
                     setSchools([]);
                     toast({
                       status: "info",
-                      title: "Selecciona otra escuela",
-                      description: "Elige una escuela para cargar el tablero.",
+                      title: t("classes_board_page.toast.select_other_title"),
+                      description: t("classes_board_page.toast.select_other_desc"),
                     });
                   }}
                 >
-                  Cambiar escuela
+                  {t("classes_board_page.change_school")}
                 </Button>
               </Flex>
             )}
@@ -620,8 +632,8 @@ export default function ClassesBoardPage() {
               css={{
                 "&::-webkit-scrollbar": { height: "8px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
-                "&::-webkit-scrollbar-thumb": { background: "rgba(0, 53, 151, 0.15)", borderRadius: "10px" },
-                "&::-webkit-scrollbar-thumb:hover": { background: "rgba(0, 53, 151, 0.3)" }
+                "&::-webkit-scrollbar-thumb": { background: scrollbarThumb, borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: scrollbarThumbHover }
               }}
             >
               {filteredClasses.map((c) => (

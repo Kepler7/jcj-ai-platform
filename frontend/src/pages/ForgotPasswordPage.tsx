@@ -10,7 +10,9 @@ import {
   InputGroup,
   InputLeftElement,
   Image,
+  useColorModeValue,
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router-dom';
 import { Mail, ArrowLeft } from 'lucide-react';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -18,10 +20,26 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 console.log('API_BASE:', API_BASE);
 
 export default function ForgotPasswordPage() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const outerBg = useColorModeValue("#f8f9fa", "gray.900");
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const labelColor = useColorModeValue("#434654", "gray.400");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const placeholderColor = useColorModeValue("#737686", "whiteAlpha.500");
+  const iconColor = useColorModeValue("#c3c5d7", "whiteAlpha.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const linkColor = useColorModeValue("#0c50d6", "blue.300");
+  const errorText = useColorModeValue("#ba1a1a", "red.300");
+  const errorBg = useColorModeValue("#ffdad6", "red.900");
+  const successText = useColorModeValue("#006142", "green.300");
+  const successBg = useColorModeValue("#e8f5e9", "green.900");
+  const footerText = useColorModeValue("#737686", "whiteAlpha.600");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,12 +58,12 @@ export default function ForgotPasswordPage() {
       // pero si hay error real (500, etc.) lo mostramos.
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail ?? 'Request failed');
+        throw new Error(data?.detail ?? t('forgot_password.request_failed'));
       }
 
-      setStatusMsg('If the email exists, you will receive instructions.');
+      setStatusMsg(t('forgot_password.success_msg'));
     } catch (err: any) {
-      setError(err?.message ?? 'Request failed');
+      setError(err?.message ?? t('forgot_password.request_failed'));
     } finally {
       setLoading(false);
     }
@@ -61,17 +79,18 @@ export default function ForgotPasswordPage() {
       justifyContent="center"
       px="6"
       pb="12"
-      bg="#f8f9fa"
-      color="#191c1d"
+      bg={outerBg}
+      color={textColor}
       overflow="hidden"
       fontFamily="'Manrope', sans-serif"
+      transition="background-color 0.2s"
     >
       {/* Abstract Background Elements */}
       <Box position="absolute" top="-10%" right="-10%" w={{ base: "300px", md: "500px" }} h={{ base: "300px", md: "500px" }} borderRadius="full" bg="rgba(0,53,151,0.05)" filter="blur(120px)" />
       <Box position="absolute" bottom="-10%" left="-10%" w={{ base: "250px", md: "400px" }} h={{ base: "250px", md: "400px" }} borderRadius="full" bg="rgba(0,71,47,0.05)" filter="blur(100px)" />
 
       <Box w="full" maxW="480px" zIndex="10">
-        <Box bg="#ffffff" borderRadius="2rem" boxShadow="0px 24px 48px rgba(25,28,29,0.06)" overflow="hidden">
+        <Box bg={cardBg} borderRadius="2rem" boxShadow="0px 24px 48px rgba(25,28,29,0.06)" overflow="hidden">
           <Box p={{ base: 10, md: 14 }}>
             <Flex direction="column" align="center" mb="6">
               <Image
@@ -82,36 +101,36 @@ export default function ForgotPasswordPage() {
                 objectFit="contain"
                 src="/ihui_logo.png"
               />
-              <Heading as="h1" fontSize="2xl" fontWeight="extrabold" letterSpacing="tight" color="#191c1d" mb="2" fontFamily="'Plus Jakarta Sans', sans-serif">
-                Recover your password
+              <Heading as="h1" fontSize="2xl" fontWeight="extrabold" letterSpacing="tight" color={textColor} mb="2" fontFamily="'Plus Jakarta Sans', sans-serif">
+                {t('forgot_password.title')}
               </Heading>
-              <Text fontSize="sm" color="#434654" textAlign="center" px="4">
-                Enter your email address and we'll send you a link to reset your password.
+              <Text fontSize="sm" color={labelColor} textAlign="center" px="4">
+                {t('forgot_password.desc')}
               </Text>
             </Flex>
 
             <form onSubmit={onSubmit}>
               <Flex direction="column" gap="5">
                 <Box>
-                  <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color="#434654" ml="1" mb="2">
+                  <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color={labelColor} ml="1" mb="2">
                     Email Address
                   </Text>
                   <InputGroup size="lg" className="group">
-                    <InputLeftElement pointerEvents="none" color="#c3c5d7" _groupFocusWithin={{ color: "#003597" }}>
+                    <InputLeftElement pointerEvents="none" color={iconColor} _groupFocusWithin={{ color: primaryColor }}>
                       <Mail size={20} />
                     </InputLeftElement>
                     <Input
-                      placeholder="name@company.com"
+                      placeholder={t('login.email_placeholder')}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       autoComplete="email"
                       type="email"
-                      bg="#f3f4f5"
+                      bg={inputBg}
                       border="none"
                       borderRadius="xl"
-                      color="#191c1d"
-                      _placeholder={{ color: "#737686" }}
-                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#f8f9fa", outline: "none" }}
+                      color={textColor}
+                      _placeholder={{ color: placeholderColor }}
+                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: outerBg, outline: "none" }}
                       fontSize="sm"
                       fontWeight="medium"
                       px="4"
@@ -122,12 +141,12 @@ export default function ForgotPasswordPage() {
                 </Box>
 
                 {statusMsg && (
-                  <Text color="#006142" bg="#e8f5e9" p="3" borderRadius="xl" fontSize="sm" textAlign="center" fontWeight="bold">
+                  <Text color={successText} bg={successBg} p="3" borderRadius="xl" fontSize="sm" textAlign="center" fontWeight="bold">
                     {statusMsg}
                   </Text>
                 )}
                 {error && (
-                  <Text color="#ba1a1a" bg="#ffdad6" p="3" borderRadius="xl" fontSize="sm" textAlign="center" fontWeight="bold">
+                  <Text color={errorText} bg={errorBg} p="3" borderRadius="xl" fontSize="sm" textAlign="center" fontWeight="bold">
                     {error}
                   </Text>
                 )}
@@ -153,8 +172,8 @@ export default function ForgotPasswordPage() {
                 </Box>
 
                 <Flex justify="center" align="center" mt="4">
-                  <Link as={RouterLink} to="/login" fontSize="sm" fontWeight="bold" color="#0c50d6" _hover={{ color: "#003597" }} display="flex" alignItems="center" gap="2">
-                    <ArrowLeft size={16} /> Back to login
+                  <Link as={RouterLink} to="/login" fontSize="sm" fontWeight="bold" color={linkColor} _hover={{ color: primaryColor }} display="flex" alignItems="center" gap="2">
+                    <ArrowLeft size={16} /> {t('forgot_password.back_to_login')}
                   </Link>
                 </Flex>
               </Flex>
@@ -171,15 +190,15 @@ export default function ForgotPasswordPage() {
           align="center"
           maxW="100%"
           mx="auto"
-          color="#737686"
+          color={footerText}
           fontSize="sm"
           gap={{ base: 4, md: 0 }}
         >
-          <Text order={{ base: 2, md: 1 }}>© 2026 IHUI Architect. -Aprende asi Enseña asi-</Text>
+          <Text order={{ base: 2, md: 1 }}>{t('login.footer')}</Text>
           <Flex gap="8" order={{ base: 1, md: 2 }}>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Privacy Policy</Link>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Terms of Service</Link>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Security</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.privacy')}</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.terms')}</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.security')}</Link>
           </Flex>
         </Flex>
       </Box>

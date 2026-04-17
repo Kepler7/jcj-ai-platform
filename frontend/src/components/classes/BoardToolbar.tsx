@@ -6,6 +6,7 @@ import {
   InputGroup,
   InputLeftElement,
   Text,
+  useColorModeValue,
 } from "@chakra-ui/react";
 import { Search } from "lucide-react";
 
@@ -26,9 +27,22 @@ export default function BoardToolbar({
   onRefresh,
   isRefreshing,
 }: Props) {
+  const panelBg = useColorModeValue("#ffffff", "gray.800");
+  const inputBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
+  const inputBorder = useColorModeValue("rgba(195, 197, 215, 0.15)", "whiteAlpha.100");
+  const inputHover = useColorModeValue("#f3f4f5", "whiteAlpha.200");
+  const inputFocusBorder = useColorModeValue("rgba(0, 53, 151, 0.3)", "blue.300");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.600");
+  const modeContainerBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const btnActiveBg = useColorModeValue("#ffffff", "gray.600");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const hoverActiveBtn = useColorModeValue("#ffffff", "gray.500");
+  const hoverInactiveBtn = useColorModeValue("rgba(195, 197, 215, 0.2)", "whiteAlpha.200");
+
   return (
     <Box
-      bg="#ffffff"
+      bg={panelBg}
       borderRadius="2rem"
       p={6}
       boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)"
@@ -43,25 +57,26 @@ export default function BoardToolbar({
               value={search}
               onChange={(e) => onSearch(e.target.value)}
               placeholder="Buscar alumno…"
-              bg="#f8f9fa"
-              border="1px solid rgba(195, 197, 215, 0.15)"
+              bg={inputBg}
+              border="1px solid"
+              borderColor={inputBorder}
               borderRadius="xl"
-              _focus={{ bg: "#ffffff", borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
-              _hover={{ bg: "#f3f4f5" }}
+              _focus={{ bg: panelBg, borderColor: inputFocusBorder, boxShadow: `0 0 0 1px ${inputFocusBorder}` }}
+              _hover={{ bg: inputHover }}
               fontFamily="'Manrope', sans-serif"
-              color="#191c1d"
+              color={textColor}
             />
           </InputGroup>
         </HStack>
 
         <HStack spacing={{ base: 4, md: 6 }} wrap="wrap">
           <HStack spacing={3}>
-            <Text fontSize="sm" color="#434654" fontFamily="'Manrope', sans-serif">
+            <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
               Modo:
             </Text>
 
             <HStack
-              bg="#f3f4f5"
+              bg={modeContainerBg}
               borderRadius="full"
               p={1.5}
             >
@@ -69,10 +84,10 @@ export default function BoardToolbar({
                 size="sm"
                 borderRadius="full"
                 variant={mode === "add" ? "solid" : "ghost"}
-                bg={mode === "add" ? "#ffffff" : "transparent"}
-                color={mode === "add" ? "#003597" : "#737686"}
+                bg={mode === "add" ? btnActiveBg : "transparent"}
+                color={mode === "add" ? primaryColor : textMuted}
                 boxShadow={mode === "add" ? "0px 2px 8px rgba(25, 28, 29, 0.06)" : "none"}
-                _hover={{ bg: mode === "add" ? "#ffffff" : "rgba(195, 197, 215, 0.2)" }}
+                _hover={{ bg: mode === "add" ? hoverActiveBtn : hoverInactiveBtn }}
                 onClick={() => onMode("add")}
                 px={4}
                 fontFamily="'Manrope', sans-serif"
@@ -83,10 +98,10 @@ export default function BoardToolbar({
                 size="sm"
                 borderRadius="full"
                 variant={mode === "move" ? "solid" : "ghost"}
-                bg={mode === "move" ? "#ffffff" : "transparent"}
-                color={mode === "move" ? "#003597" : "#737686"}
+                bg={mode === "move" ? btnActiveBg : "transparent"}
+                color={mode === "move" ? primaryColor : textMuted}
                 boxShadow={mode === "move" ? "0px 2px 8px rgba(25, 28, 29, 0.06)" : "none"}
-                _hover={{ bg: mode === "move" ? "#ffffff" : "rgba(195, 197, 215, 0.2)" }}
+                _hover={{ bg: mode === "move" ? hoverActiveBtn : hoverInactiveBtn }}
                 onClick={() => onMode("move")}
                 px={4}
                 fontFamily="'Manrope', sans-serif"
@@ -102,9 +117,9 @@ export default function BoardToolbar({
             borderRadius="full"
             onClick={onRefresh}
             isLoading={isRefreshing}
-            color="#003597"
-            borderColor="rgba(0, 53, 151, 0.3)"
-            _hover={{ bg: "#e8edff" }}
+            color={primaryColor}
+            borderColor={inputFocusBorder}
+            _hover={{ bg: useColorModeValue("#e8edff", "whiteAlpha.200") }}
             fontFamily="'Manrope', sans-serif"
             px={6}
           >

@@ -10,13 +10,16 @@ import {
   InputGroup,
   InputLeftElement,
   InputRightElement,
-  Image
+  Image,
+  useColorModeValue
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const { signIn, refreshMe } = useAuth();
   const navigate = useNavigate();
 
@@ -25,6 +28,18 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const outerBg = useColorModeValue("#f8f9fa", "gray.900");
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const labelColor = useColorModeValue("#434654", "gray.400");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const placeholderColor = useColorModeValue("#737686", "whiteAlpha.500");
+  const iconColor = useColorModeValue("#c3c5d7", "whiteAlpha.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const linkColor = useColorModeValue("#0c50d6", "blue.300");
+  const errorText = useColorModeValue("#ba1a1a", "red.300");
+  const footerText = useColorModeValue("#737686", "whiteAlpha.600");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +50,7 @@ export default function LoginPage() {
       await refreshMe(t);
       navigate('/', { replace: true });
     } catch (err: any) {
-      setError(err?.message ?? 'Login failed');
+      setError(err?.message ?? t('login.login_failed'));
     } finally {
       setLoading(false);
     }
@@ -51,10 +66,11 @@ export default function LoginPage() {
       justifyContent="center"
       px="6"
       pb="12"
-      bg="#f8f9fa"
-      color="#191c1d"
+      bg={outerBg}
+      color={textColor}
       overflow="hidden"
       fontFamily="'Manrope', sans-serif"
+      transition="background-color 0.2s"
     >
       {/* Abstract Background Elements */}
       <Box position="absolute" top="-10%" right="-10%" w={{ base: "300px", md: "500px" }} h={{ base: "300px", md: "500px" }} borderRadius="full" bg="rgba(0,53,151,0.05)" filter="blur(120px)" />
@@ -62,7 +78,7 @@ export default function LoginPage() {
 
       <Box w="full" maxW="480px" zIndex="10">
         {/* Login Card */}
-        <Box bg="#ffffff" borderRadius="2rem" boxShadow="0px 24px 48px rgba(25,28,29,0.06)" overflow="hidden">
+        <Box bg={cardBg} borderRadius="2rem" boxShadow="0px 24px 48px rgba(25,28,29,0.06)" overflow="hidden">
           <Box p={{ base: 10, md: 14 }}>
             {/* Brand Anchor */}
             <Flex direction="column" align="center" mb="4">
@@ -74,7 +90,7 @@ export default function LoginPage() {
                 objectFit="contain"
                 src="/ihui_logo.png"
               />
-              <Heading as="h1" fontSize="3xl" fontWeight="extrabold" letterSpacing="tight" color="#191c1d" mb="2" fontFamily="'Plus Jakarta Sans', sans-serif">
+              <Heading as="h1" fontSize="3xl" fontWeight="extrabold" letterSpacing="tight" color={textColor} mb="2" fontFamily="'Plus Jakarta Sans', sans-serif">
                 {/* Empty text placeholder for future flexibility */}
               </Heading>
             </Flex>
@@ -84,24 +100,24 @@ export default function LoginPage() {
               <Flex direction="column" gap="6">
 
                 <Box>
-                  <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color="#434654" ml="1" mb="2">
-                    Email Address
+                  <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color={labelColor} ml="1" mb="2">
+                    {t('login.email_label')}
                   </Text>
                   <InputGroup size="lg" className="group">
-                    <InputLeftElement pointerEvents="none" color="#c3c5d7" _groupFocusWithin={{ color: "#003597" }}>
+                    <InputLeftElement pointerEvents="none" color={iconColor} _groupFocusWithin={{ color: primaryColor }}>
                       <Mail size={20} />
                     </InputLeftElement>
                     <Input
-                      placeholder="name@company.com"
+                      placeholder={t('login.email_placeholder')}
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      bg="#f3f4f5"
+                      bg={inputBg}
                       border="none"
                       borderRadius="xl"
-                      color="#191c1d"
-                      _placeholder={{ color: "#737686" }}
-                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#f8f9fa", outline: "none" }}
+                      color={textColor}
+                      _placeholder={{ color: placeholderColor }}
+                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: outerBg, outline: "none" }}
                       fontSize="sm"
                       fontWeight="medium"
                       px="4"
@@ -114,28 +130,28 @@ export default function LoginPage() {
 
                 <Box>
                   <Flex justify="space-between" align="center" px="1" mb="2">
-                    <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color="#434654">
+                    <Text as="label" display="block" fontSize="sm" fontWeight="semibold" color={labelColor}>
                       Password
                     </Text>
-                    <Link as={RouterLink} to="/forgot-password" fontSize="xs" fontWeight="bold" color="#0c50d6" _hover={{ color: "#003597" }}>
-                      Forgot password?
+                    <Link as={RouterLink} to="/forgot-password" fontSize="xs" fontWeight="bold" color={linkColor} _hover={{ color: primaryColor }}>
+                      {t('login.forgot_password')}
                     </Link>
                   </Flex>
                   <InputGroup size="lg" className="group">
-                    <InputLeftElement pointerEvents="none" color="#c3c5d7" _groupFocusWithin={{ color: "#003597" }}>
+                    <InputLeftElement pointerEvents="none" color={iconColor} _groupFocusWithin={{ color: primaryColor }}>
                       <Lock size={20} />
                     </InputLeftElement>
                     <Input
-                      placeholder="••••••••"
+                      placeholder={t('login.password_placeholder')}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      bg="#f3f4f5"
+                      bg={inputBg}
                       border="none"
                       borderRadius="xl"
-                      color="#191c1d"
-                      _placeholder={{ color: "#737686" }}
-                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: "#f8f9fa", outline: "none" }}
+                      color={textColor}
+                      _placeholder={{ color: placeholderColor }}
+                      _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: outerBg, outline: "none" }}
                       fontSize="sm"
                       fontWeight="medium"
                       px="4"
@@ -144,14 +160,14 @@ export default function LoginPage() {
                       py="1"
                       autoComplete="current-password"
                     />
-                    <InputRightElement width="3rem" color="#c3c5d7" _hover={{ color: "#191c1d" }} cursor="pointer" onClick={() => setShowPassword(!showPassword)}>
+                    <InputRightElement width="3rem" color={iconColor} _hover={{ color: textColor }} cursor="pointer" onClick={() => setShowPassword(!showPassword)}>
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </InputRightElement>
                   </InputGroup>
                 </Box>
 
                 {error && (
-                  <Text color="#ba1a1a" fontSize="sm" mt="2" textAlign="center">
+                  <Text color={errorText} fontSize="sm" mt="2" textAlign="center" fontWeight="bold">
                     {error}
                   </Text>
                 )}
@@ -191,15 +207,15 @@ export default function LoginPage() {
           align="center"
           maxW="100%"
           mx="auto"
-          color="#737686"
+          color={footerText}
           fontSize="sm"
           gap={{ base: 4, md: 0 }}
         >
-          <Text order={{ base: 2, md: 1 }}>© 2026 IHUI Architect. -Aprende asi Enseña asi-</Text>
+          <Text order={{ base: 2, md: 1 }}>{t('login.footer')}</Text>
           <Flex gap="8" order={{ base: 1, md: 2 }}>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Privacy Policy</Link>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Terms of Service</Link>
-            <Link href="#" _hover={{ color: "#003597" }} transition="colors 0.2s">Security</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.privacy')}</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.terms')}</Link>
+            <Link href="#" _hover={{ color: primaryColor }} transition="colors 0.2s">{t('login.security')}</Link>
           </Flex>
         </Flex>
       </Box>

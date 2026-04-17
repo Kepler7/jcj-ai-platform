@@ -22,7 +22,9 @@ import {
   Grid,
   GridItem,
   Button,
+  useColorModeValue,
 } from "@chakra-ui/react";
+import { useTranslation } from 'react-i18next';
 import { CheckCircleIcon } from "@chakra-ui/icons";
 
 import {
@@ -41,6 +43,7 @@ function getSchoolId(): string {
 }
 
 export default function BulkStudentsPage() {
+  const { t } = useTranslation();
   const toast = useToast();
 
   const role = getRole();
@@ -55,6 +58,20 @@ export default function BulkStudentsPage() {
 
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingApply, setLoadingApply] = useState(false);
+
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const pageBg = useColorModeValue("#f8f9fa", "gray.900");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
+  const textLabel = useColorModeValue("#434654", "gray.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryBg = useColorModeValue("#e8edff", "blue.900");
+  const successText = useColorModeValue("#1b5e20", "green.300");
+  const successBg = useColorModeValue("#e8f5e9", "green.900");
+  const errorText = useColorModeValue("#c62828", "red.300");
+  const errorBg = useColorModeValue("#ffebee", "red.900");
+  const borderColor = useColorModeValue("rgba(195, 197, 215, 0.4)", "whiteAlpha.200");
 
   const effectiveSchoolId = isPlatformAdmin ? (schoolId || undefined) : (mySchoolId || undefined);
 
@@ -80,7 +97,7 @@ export default function BulkStudentsPage() {
 
   async function onPreview() {
     if (!file) {
-      toast({ status: "warning", title: "Selecciona un CSV primero." });
+      toast({ status: "warning", title: t('bulk_page.toast.select_csv') });
       return;
     }
 
@@ -94,14 +111,14 @@ export default function BulkStudentsPage() {
       if (data.invalid_rows > 0) {
         toast({
           status: "warning",
-          title: "Preview listo con errores",
-          description: `Filas inválidas: ${data.invalid_rows}`,
+          title: t('bulk_page.toast.preview_errors'),
+          description: t('bulk_page.toast.invalid_rows').replace('{{count}}', String(data.invalid_rows)),
         });
       } else {
-        toast({ status: "success", title: "Preview OK (sin errores)" });
+        toast({ status: "success", title: t('bulk_page.toast.preview_ok') });
       }
     } catch (e: any) {
-      const msg = e?.body?.detail ?? e?.message ?? "Error al generar preview";
+      const msg = e?.body?.detail ?? e?.message ?? t('bulk_page.toast.preview_error');
       toast({ status: "error", title: "Error", description: String(msg) });
       setPreview(null);
     } finally {
@@ -116,9 +133,9 @@ export default function BulkStudentsPage() {
     try {
       const data = await bulkStudentsApply({ file, schoolId: effectiveSchoolId });
       setApplyResult(data);
-      toast({ status: "success", title: "Importación completada" });
+      toast({ status: "success", title: t('bulk_page.toast.import_ok') });
     } catch (e: any) {
-      const msg = e?.body?.detail ?? e?.message ?? "Error al aplicar importación";
+      const msg = e?.body?.detail ?? e?.message ?? t('bulk_page.toast.import_error');
       toast({ status: "error", title: "Error", description: String(msg) });
     } finally {
       setLoadingApply(false);
@@ -126,27 +143,26 @@ export default function BulkStudentsPage() {
   }
 
   return (
-    <Box p={{ base: 4, md: 8 }} bg="#f8f9fa" minH="100vh" maxW="100%" overflowX="hidden">
+    <Box p={{ base: 4, md: 8 }} bg={pageBg} minH="100vh" maxW="100%" overflowX="hidden">
       <Flex justify="space-between" align="flex-start" mb={{ base: 6, md: 8 }} gap={4} direction={{ base: "column", md: "row" }} maxW="1200px" mx="auto">
         <Box>
-          <Heading size="2xl" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>
-            Bulk Students
+          <Heading size="2xl" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={2}>
+            {t('bulk_page.header.title')}
           </Heading>
-          <Text fontFamily="'Manrope', sans-serif" color="#434654">
-            Efficiently manage institutional data. Import multiple student records via CSV <br />
-            and synchronize your database in seconds.
+          <Text fontFamily="'Manrope', sans-serif" color={textLabel}>
+            <span dangerouslySetInnerHTML={{ __html: t('bulk_page.header.desc') }} />
           </Text>
         </Box>
         <Button
           w={{ base: "full", md: "auto" }}
           variant="outline"
           borderRadius="xl"
-          borderColor="rgba(195, 197, 215, 0.4)"
-          bg="#ffffff"
-          color="#003597"
+          borderColor={borderColor}
+          bg={cardBg}
+          color={primaryColor}
           fontFamily="'Manrope', sans-serif"
           fontWeight="bold"
-          _hover={{ bg: "#f3f4f5" }}
+          _hover={{ bg: inputBg }}
           onClick={downloadTemplate}
         >
           Descargar template CSV
@@ -155,29 +171,29 @@ export default function BulkStudentsPage() {
 
       <Grid templateColumns={{ base: "1fr", lg: "300px 1fr" }} gap={{ base: 6, md: 8 }} maxW="1200px" mx="auto">
         <GridItem>
-          <Box bg="#f4f6fb" p={6} borderRadius="2rem" mb={6}>
-            <Box bg="#00472f" w="48px" h="48px" borderRadius="xl" mb={4} display="flex" alignItems="center" justifyContent="center">
+          <Box bg={cardBg} border="1px solid" borderColor={borderColor} p={6} borderRadius="2rem" mb={6}>
+            <Box bg={primaryBg} w="48px" h="48px" borderRadius="xl" mb={4} display="flex" alignItems="center" justifyContent="center">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="white" />
-                <path d="M10.5 7.5L12 4.5L13.5 7.5L16.5 9L13.5 10.5L12 13.5L10.5 10.5L7.5 9L10.5 7.5Z" fill="#81d8ae" />
-                <path d="M15 15L16 13L17 15L19 16L17 17L16 19L15 17L13 16L15 15Z" fill="#81d8ae" />
-                <path d="M7.5 16.5L8.25 14.75L10 14L8.25 13.25L7.5 11.5L6.75 13.25L5 14L6.75 14.75L7.5 16.5Z" fill="#81d8ae" />
+                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="white" fillOpacity="0.2" />
+                <path d="M10.5 7.5L12 4.5L13.5 7.5L16.5 9L13.5 10.5L12 13.5L10.5 10.5L7.5 9L10.5 7.5Z" fill="currentColor" color={primaryColor} />
+                <path d="M15 15L16 13L17 15L19 16L17 17L16 19L15 17L13 16L15 15Z" fill="currentColor" color={primaryColor} />
+                <path d="M7.5 16.5L8.25 14.75L10 14L8.25 13.25L7.5 11.5L6.75 13.25L5 14L6.75 14.75L7.5 16.5Z" fill="currentColor" color={primaryColor} />
               </svg>
             </Box>
-            <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={3}>
-              Fluid Architecture
+            <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={3}>
+              {t('bulk_page.fluid_arch.title')}
             </Heading>
-            <Text fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm" mb={4}>
-              Our intelligent engine validates data types, name formats, and institutional IDs automatically before ingestion.
+            <Text fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm" mb={4}>
+              {t('bulk_page.fluid_arch.desc')}
             </Text>
             <VStack align="start" spacing={3}>
               <HStack spacing={2}>
-                <CheckCircleIcon color="#003597" w={4} h={4} />
-                <Text fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">Max size: 10MB per file</Text>
+                <CheckCircleIcon color={primaryColor} w={4} h={4} />
+                <Text fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">{t('bulk_page.fluid_arch.max_size')}</Text>
               </HStack>
               <HStack spacing={2}>
-                <CheckCircleIcon color="#003597" w={4} h={4} />
-                <Text fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">Format: UTF-8 Encoded CSV</Text>
+                <CheckCircleIcon color={primaryColor} w={4} h={4} />
+                <Text fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">{t('bulk_page.fluid_arch.format')}</Text>
               </HStack>
             </VStack>
           </Box>
@@ -200,50 +216,53 @@ export default function BulkStudentsPage() {
 
         <GridItem minW="0">
 
-          <Box mb={6} bg="#ffffff" borderRadius="2rem" boxShadow="0 20px 40px rgba(0,0,0,0.03)" p={{ base: 6, md: 8 }}>
-            <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={8}>
+          <Box mb={6} bg={cardBg} borderRadius="2rem" boxShadow="0 20px 40px rgba(0,0,0,0.03)" p={{ base: 6, md: 8 }}>
+            <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={8}>
               Subir archivo
             </Heading>
 
             <VStack align="stretch" spacing={6}>
               {isPlatformAdmin && (
-                <Box bg="#fcfcfc" p={5} borderRadius="xl" border="1px solid rgba(195, 197, 215, 0.2)">
-                  <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={2}>
+                <Box bg={inputBg} p={5} borderRadius="xl" border="1px solid" borderColor={borderColor}>
+                  <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={2}>
                     School ID (Solo Admin)
                   </Text>
                   <Input
                     value={schoolId}
                     onChange={(e) => setSchoolId(e.target.value)}
-                    placeholder="UUID de la escuela (opcional si viene en el CSV)"
-                    bg="#ffffff"
+                    placeholder={t('bulk_page.upload.admin_placeholder')}
+                    bg={cardBg}
+                    color={textColor}
                     fontFamily="'Manrope', sans-serif"
                     borderRadius="xl"
-                    border="1px solid rgba(195, 197, 215, 0.3)"
-                    _focus={{ borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
+                    border="1px solid"
+                    borderColor={borderColor}
+                    _focus={{ borderColor: primaryColor, boxShadow: `0 0 0 1px ${primaryColor}` }}
                   />
-                  <Text fontSize="xs" color="#737686" fontFamily="'Manrope', sans-serif" mt={2}>
-                    Si no lo pones aquí, el CSV debe traer columna <b>school_id</b>.
+                  <Text fontSize="xs" color={textMuted} fontFamily="'Manrope', sans-serif" mt={2}>
+                    <span dangerouslySetInnerHTML={{ __html: t('bulk_page.upload.admin_help') }} />
                   </Text>
                 </Box>
               )}
 
               <Box>
-                <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={3}>
+                <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={3}>
                   Archivo CSV
                 </Text>
 
                 <Box
-                  bg="#f8f9fa"
+                  bg={inputBg}
                   borderRadius="2rem"
-                  border="2px dashed rgba(195, 197, 215, 0.6)"
+                  border="2px dashed"
+                  borderColor={borderColor}
                   p={10}
                   textAlign="center"
                   position="relative"
                   transition="all 0.2s"
-                  _hover={{ bg: "#f3f4f5", borderColor: "#0c50d6" }}
+                  _hover={{ bg: pageBg, borderColor: primaryColor }}
                 >
                   <Box
-                    bg="#ffffff"
+                    bg={cardBg}
                     w="48px"
                     h="48px"
                     borderRadius="full"
@@ -254,17 +273,17 @@ export default function BulkStudentsPage() {
                     mb={4}
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill="#0c50d6" />
-                      <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M12 18V12M12 12L9 15M12 12L15 15" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill="currentColor" color={primaryColor} />
+                      <path d="M14 2V8H20" stroke="currentColor" color={cardBg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M12 18V12M12 12L9 15M12 12L15 15" stroke="currentColor" color={cardBg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </Box>
 
-                  <Heading size="sm" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={1}>
-                    Drop your file here or browse
+                  <Heading size="sm" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={1}>
+                    {t('bulk_page.upload.drop')}
                   </Heading>
-                  <Text fontFamily="'Manrope', sans-serif" color="#737686" fontSize="sm" mb={6}>
-                    Select a CSV file to begin the preview process
+                  <Text fontFamily="'Manrope', sans-serif" color={textMuted} fontSize="sm" mb={6}>
+                    {t('bulk_page.upload.select')}
                   </Text>
 
                   <Input
@@ -281,7 +300,7 @@ export default function BulkStudentsPage() {
                   />
 
                   {file && (
-                    <Badge bg="#e8edff" color="#0c50d6" px={4} py={2} borderRadius="full" fontFamily="'Manrope', sans-serif" textTransform="none">
+                    <Badge bg={primaryBg} color={primaryColor} px={4} py={2} borderRadius="full" fontFamily="'Manrope', sans-serif" textTransform="none">
                       {file.name}
                     </Badge>
                   )}
@@ -292,40 +311,40 @@ export default function BulkStudentsPage() {
                 <Button
                   onClick={onPreview}
                   isLoading={loadingPreview}
-                  bg="#003597"
-                  color="#ffffff"
+                  bg={primaryColor}
+                  color="white"
                   borderRadius="full"
                   px={8}
                   fontFamily="'Manrope', sans-serif"
-                  _hover={{ bg: "#0049ca", boxShadow: "0px 4px 8px rgba(0, 53, 151, 0.2)" }}
+                  _hover={{ filter: "brightness(0.9)" }}
                   isDisabled={!file}
                 >
-                  Preview
+                  {t('bulk_page.upload.preview_btn')}
                 </Button>
 
                 <Button
                   onClick={onApply}
                   isLoading={loadingApply}
-                  bg="#edeeef"
-                  color="#737686"
+                  bg={inputBg}
+                  color={textColor}
                   borderRadius="full"
                   px={8}
                   fontFamily="'Manrope', sans-serif"
-                  _hover={{ bg: "#e1e3e4" }}
+                  _hover={{ filter: "brightness(0.95)" }}
                   isDisabled={!canApply}
                 >
-                  Apply Changes
+                  {t('bulk_page.upload.apply_btn')}
                 </Button>
               </HStack>
 
               {!preview && (
-                <Alert status="info" borderRadius="xl" bg="#eef2ff" color="#191c1d" mt={4} border="1px solid rgba(0, 73, 202, 0.1)">
-                  <AlertIcon color="#0049ca" />
+                <Alert status="info" borderRadius="xl" bg={primaryBg} color={primaryColor} mt={4} border="1px solid" borderColor={borderColor}>
+                  <AlertIcon color={primaryColor} />
                   <Box>
                     <Text fontFamily="'Plus Jakarta Sans', sans-serif" fontWeight="bold" fontSize="sm" mb={1}>
                       Sube un CSV y presiona Preview.
                     </Text>
-                    <Text fontFamily="'Manrope', sans-serif" fontSize="xs" color="#434656">
+                    <Text fontFamily="'Manrope', sans-serif" fontSize="xs" color={textMuted}>
                       Solo podrás hacer Apply si no hay errores detectados en la validación inicial del archivo.
                     </Text>
                   </Box>
@@ -335,21 +354,21 @@ export default function BulkStudentsPage() {
           </Box>
 
           {preview && (
-            <Box mb={6} bg="#ffffff" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" p={6}>
+            <Box mb={6} bg={cardBg} borderRadius="2rem" border="1px solid" borderColor={borderColor} p={6}>
               <Box mb={4}>
                 <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
-                  <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+                  <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
                     Preview de Datos
                   </Heading>
                   <HStack spacing={2} wrap="wrap">
-                    <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                      Total: {preview.total_rows}
+                    <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                      {t('bulk_page.preview_data.total')} {preview.total_rows}
                     </Badge>
-                    <Badge variant="subtle" bg="#e8f5e9" color="#2e7d32" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                      Válidas: {preview.valid_rows}
+                    <Badge variant="subtle" bg={successBg} color={successText} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                      {t('bulk_page.preview_data.valid')} {preview.valid_rows}
                     </Badge>
-                    <Badge variant="subtle" bg={preview.invalid_rows > 0 ? "#ffebee" : "#e8f5e9"} color={preview.invalid_rows > 0 ? "#c62828" : "#2e7d32"} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                      Inválidas: {preview.invalid_rows}
+                    <Badge variant="subtle" bg={preview.invalid_rows > 0 ? errorBg : successBg} color={preview.invalid_rows > 0 ? errorText : successText} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                      {t('bulk_page.preview_data.invalid')} {preview.invalid_rows}
                     </Badge>
                   </HStack>
                 </Flex>
@@ -358,74 +377,74 @@ export default function BulkStudentsPage() {
               <Box>
                 {preview.will_create_classes?.length > 0 && (
                   <Box mb={6}>
-                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d" mb={3}>
+                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor} mb={3}>
                       Se crearán estas clases (si aplicas):
                     </Text>
                     <Flex wrap="wrap" gap={2}>
                       {preview.will_create_classes.map((c) => (
-                        <Tag key={c} bg="#f3f4f5" color="#003597" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" fontWeight="bold">
+                        <Tag key={c} bg={inputBg} color={primaryColor} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" fontWeight="bold">
                           {c}
                         </Tag>
                       ))}
                     </Flex>
-                    <Divider borderColor="rgba(195, 197, 215, 0.3)" mt={6} />
+                    <Divider borderColor={borderColor} mt={6} />
                   </Box>
                 )}
 
                 {preview.invalid_rows > 0 && (
                   <Box mb={6}>
-                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#c62828" mb={3}>
-                      ⚠️ Errores (primeros {Math.min(50, preview.errors.length)}):
+                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={errorText} mb={3}>
+                      {t('bulk_page.preview_data.errors')} (primeros {Math.min(50, preview.errors.length)}):
                     </Text>
-                    <Box overflowX="auto" bg="#ffebee" borderRadius="xl" border="1px solid rgba(198, 40, 40, 0.2)">
+                    <Box overflowX="auto" bg={errorBg} borderRadius="xl" border="1px solid" borderColor="red.200">
                       <Table size="sm" variant="simple">
                         <Thead>
                           <Tr>
-                            <Th color="#c62828" fontFamily="'Manrope', sans-serif">Row</Th>
-                            <Th color="#c62828" fontFamily="'Manrope', sans-serif">Field</Th>
-                            <Th color="#c62828" fontFamily="'Manrope', sans-serif">Message</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Row</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Field</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Message</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
                           {preview.errors.slice(0, 50).map((err, idx) => (
-                            <Tr key={idx} _hover={{ bg: "rgba(198, 40, 40, 0.05)" }}>
-                              <Td color="#434654" fontFamily="'Manrope', sans-serif">{err.row}</Td>
-                              <Td color="#434654" fontFamily="'Manrope', sans-serif">{err.field || "-"}</Td>
-                              <Td color="#434654" fontFamily="'Manrope', sans-serif">{err.message}</Td>
+                            <Tr key={idx} _hover={{ bg: "whiteAlpha.100" }}>
+                              <Td color={textColor} fontFamily="'Manrope', sans-serif">{err.row}</Td>
+                              <Td color={textColor} fontFamily="'Manrope', sans-serif">{err.field || "-"}</Td>
+                              <Td color={textColor} fontFamily="'Manrope', sans-serif">{err.message}</Td>
                             </Tr>
                           ))}
                         </Tbody>
                       </Table>
                     </Box>
-                    <Divider borderColor="rgba(195, 197, 215, 0.3)" mt={6} />
+                    <Divider borderColor={borderColor} mt={6} />
                   </Box>
                 )}
 
-                <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d" mb={3}>
-                  Muestra (primeras {preview.sample.length} filas parseadas):
+                <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor} mb={3}>
+                  {t('bulk_page.preview_data.sample')} {preview.sample.length} filas parseadas):
                 </Text>
 
-                <Box overflowX="auto" borderRadius="xl" border="1px solid rgba(195, 197, 215, 0.3)">
+                <Box overflowX="auto" borderRadius="xl" border="1px solid" borderColor={borderColor}>
                   <Table size="sm" variant="simple">
-                    <Thead bg="#f8f9fa">
+                    <Thead bg={inputBg}>
                       <Tr>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">full_name</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>age</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>group</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686">classes</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>notes</Th>
-                        <Th fontFamily="'Manrope', sans-serif" color="#737686" display={{ base: "none", md: "table-cell" }}>school_id</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted}>full_name</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted} display={{ base: "none", md: "table-cell" }}>age</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted} display={{ base: "none", md: "table-cell" }}>group</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted}>classes</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted} display={{ base: "none", md: "table-cell" }}>notes</Th>
+                        <Th fontFamily="'Manrope', sans-serif" color={textMuted} display={{ base: "none", md: "table-cell" }}>school_id</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
                       {preview.sample.map((r, idx) => (
-                        <Tr key={idx} _hover={{ bg: "#f3f4f5" }}>
-                          <Td fontFamily="'Manrope', sans-serif" color="#191c1d">{r.full_name}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.age ?? "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.group ?? "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654">{Array.isArray(r.classes) ? r.classes.join(" | ") : "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.notes ?? "-"}</Td>
-                          <Td fontFamily="'Manrope', sans-serif" color="#434654" display={{ base: "none", md: "table-cell" }}>{r.school_id}</Td>
+                        <Tr key={idx} _hover={{ bg: inputBg }}>
+                          <Td fontFamily="'Manrope', sans-serif" color={textColor}>{r.full_name}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color={textLabel} display={{ base: "none", md: "table-cell" }}>{r.age ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color={textLabel} display={{ base: "none", md: "table-cell" }}>{r.group ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color={textLabel}>{Array.isArray(r.classes) ? r.classes.join(" | ") : "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color={textLabel} display={{ base: "none", md: "table-cell" }}>{r.notes ?? "-"}</Td>
+                          <Td fontFamily="'Manrope', sans-serif" color={textLabel} display={{ base: "none", md: "table-cell" }}>{r.school_id}</Td>
                         </Tr>
                       ))}
                     </Tbody>
@@ -436,24 +455,24 @@ export default function BulkStudentsPage() {
           )}
 
           {applyResult && (
-            <Box bg="#e8f5e9" borderRadius="2rem" border="1px solid rgba(46, 125, 50, 0.2)" p={6}>
+            <Box bg={successBg} borderRadius="2rem" border="1px solid" borderColor="green.200" p={6}>
               <Box mb={4}>
-                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#1b5e20">
+                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={successText}>
                   Resultado de Importación
                 </Heading>
               </Box>
               <HStack spacing={3} wrap="wrap">
-                <Badge variant="subtle" bg="#c8e6c9" color="#1b5e20" borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
-                  Estudiantes creados: {applyResult.created_students}
+                <Badge variant="subtle" bg="green.100" color="green.800" borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
+                  {t('bulk_page.result.students')} {applyResult.created_students}
                 </Badge>
-                <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
-                  Clases creadas: {applyResult.created_classes}
+                <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
+                  {t('bulk_page.result.classes')} {applyResult.created_classes}
                 </Badge>
-                <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
-                  Links creados: {applyResult.created_student_class_links}
+                <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
+                  {t('bulk_page.result.links')} {applyResult.created_student_class_links}
                 </Badge>
-                <Badge variant="subtle" bg={applyResult.skipped_rows > 0 ? "#ffebee" : "#f8f9fa"} color={applyResult.skipped_rows > 0 ? "#c62828" : "#737686"} borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
-                  Skipped: {applyResult.skipped_rows}
+                <Badge variant="subtle" bg={applyResult.skipped_rows > 0 ? errorBg : inputBg} color={applyResult.skipped_rows > 0 ? errorText : textMuted} borderRadius="full" px={4} py={2} fontFamily="'Manrope', sans-serif" textTransform="none" fontSize="sm">
+                  {t('bulk_page.result.skipped')} {applyResult.skipped_rows}
                 </Badge>
               </HStack>
             </Box>
