@@ -28,7 +28,9 @@ import {
   Select,
   Checkbox,
   Flex,
+  useColorModeValue,
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import {
   ChevronDown,
   ChevronUp,
@@ -163,19 +165,25 @@ export function MicroInterventionCard({
   idx: number;
   accentColor: string;
 }) {
+  const { t } = useTranslation();
   const steps = normalizeSteps(mi.estrategias_paso_a_paso);
 
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
+  const textLabel = useColorModeValue("#434654", "gray.400");
+
   return (
-    <Box bg="#ffffff" p="5" borderRadius="2xl" border="1px dashed" borderColor={`${accentColor}40`}>
+    <Box bg={cardBg} p="5" borderRadius="2xl" border="1px dashed" borderColor={`${accentColor}40`}>
       <Flex gap="4" align="flex-start">
         <Flex w="10" h="10" borderRadius="full" bg={`${accentColor}10`} color={accentColor} align="center" justify="center" fontWeight="black" flexShrink={0}>
           {idx + 1}
         </Flex>
         <Box>
-          <Text fontWeight="bold" fontSize="sm" color="#191c1d">
+          <Text fontWeight="bold" fontSize="sm" color={textColor}>
             {mi.microobjetivo?.trim() ? mi.microobjetivo : `Microintervención ${idx + 1}`}
           </Text>
-          <Text fontSize="xs" color="#434654" mt="1">
+          <Text fontSize="xs" color={textLabel} mt="1">
             {formatTopics(mi.topic_nucleo)}{mi.subhabilidad ? ` · ${mi.subhabilidad}` : ''}
           </Text>
         </Box>
@@ -183,24 +191,24 @@ export function MicroInterventionCard({
 
       {/*mi.senal_observable && (
         <Box mt="4">
-          <Text fontSize="xs" fontWeight="bold" color="#191c1d">Señal observable:</Text>
-          <Text fontSize="sm" color="#434654" mt="1">{mi.senal_observable}</Text>
+          <Text fontSize="xs" fontWeight="bold" color={textColor}>{t('reports_page.mi.observable')}</Text>
+          <Text fontSize="sm" color={textLabel} mt="1">{mi.senal_observable}</Text>
         </Box>
       )*/}
 
       {mi.hipotesis_funcional && (
         <Box mt="3">
-          <Text fontSize="xs" fontWeight="bold" color="#191c1d">Hipótesis funcional:</Text>
-          <Text fontSize="sm" color="#434654" mt="1">{mi.hipotesis_funcional}</Text>
+          <Text fontSize="xs" fontWeight="bold" color={textColor}>{t('reports_page.mi.hypothesis')}</Text>
+          <Text fontSize="sm" color={textLabel} mt="1">{mi.hipotesis_funcional}</Text>
         </Box>
       )}
 
       {steps.length > 0 && (
         <Box mt="3">
-          <Text fontSize="xs" fontWeight="bold" color="#191c1d" mb="1">Estrategias paso a paso:</Text>
+          <Text fontSize="xs" fontWeight="bold" color={textColor} mb="1">{t('reports_page.mi.steps')}</Text>
           <Stack spacing="1">
             {steps.map((st, i) => (
-              <Text key={i} fontSize="sm" color="#434654">• {st}</Text>
+              <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>
             ))}
           </Stack>
         </Box>
@@ -210,15 +218,15 @@ export function MicroInterventionCard({
         <Box mt="4" pt="4" borderTop="1px dashed" borderColor="#e1e3e4">
           {mi.indicador_de_avance && (
             <Box mb={mi.escalamiento ? "3" : "0"}>
-              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color="#737686" mb="1">Indicador de avance</Text>
-              <Text fontSize="xs" color="#434654">{mi.indicador_de_avance}</Text>
+              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color={textMuted} mb="1">{t('reports_page.mi.indicator')}</Text>
+              <Text fontSize="xs" color={textLabel}>{mi.indicador_de_avance}</Text>
             </Box>
           )}
 
           {mi.escalamiento && (
             <Box>
-              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color={accentColor} mb="1">Escalamiento</Text>
-              <Text fontSize="10px" color="#434654" fontStyle="italic">{mi.escalamiento}</Text>
+              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color={accentColor} mb="1">{t('reports_page.mi.escalation')}</Text>
+              <Text fontSize="10px" color={textLabel} fontStyle="italic">{mi.escalamiento}</Text>
             </Box>
           )}
         </Box>
@@ -228,6 +236,17 @@ export function MicroInterventionCard({
 }
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const pageBg = useColorModeValue("#f8f9fa", "gray.900");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
+  const textLabel = useColorModeValue("#434654", "gray.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryBg = useColorModeValue("#e8edff", "blue.900");
+  const badgeBg = useColorModeValue("#e1e3e4", "whiteAlpha.200");
+
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
 
@@ -442,7 +461,7 @@ export default function ReportsPage() {
       });
 
       toast({
-        title: 'Reporte creado',
+        title: t('reports_page.create_success'),
         status: 'success',
         duration: 1500,
         isClosable: true,
@@ -545,8 +564,8 @@ export default function ReportsPage() {
 
       if (!done) {
         toast({
-          title: 'La IA sigue trabajando…',
-          description: `Estado: ${lastStatus}. Intenta “Recargar” en unos segundos.`,
+          title: t('reports_page.ai_working'),
+          description: t('reports_page.ai_status').replace('{{status}}', lastStatus),
           status: 'info',
           duration: 2500,
           isClosable: true,
@@ -555,7 +574,7 @@ export default function ReportsPage() {
       }
 
       toast({
-        title: 'Apoyo generado',
+        title: t('reports_page.ai_generated'),
         status: 'success',
         duration: 1600,
         isClosable: true,
@@ -686,24 +705,24 @@ export default function ReportsPage() {
       {/* Header */}
       <Box mb="8">
         <HStack spacing="2" mb="2">
-          <Text fontSize="sm" fontWeight="medium" color="#737686" cursor="pointer" _hover={{ color: "#003597" }}>Students</Text>
-          <ChevronRight size={14} color="#737686" />
-          <Text fontSize="sm" fontWeight="medium" color="#434654">Student Report</Text>
+          <Text fontSize="sm" fontWeight="medium" color={textMuted} cursor="pointer" _hover={{ color: "#003597" }}>Students</Text>
+          <ChevronRight size={14} color={textMuted} />
+          <Text fontSize="sm" fontWeight="medium" color={textLabel}>Student Report</Text>
         </HStack>
         <Flex align="flex-end" justify="space-between">
           <Box>
-            <Heading as="h1" fontSize={{ base: "3xl", md: "4xl" }} fontWeight="extrabold" color="#191c1d" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight">
+            <Heading as="h1" fontSize={{ base: "3xl", md: "4xl" }} fontWeight="extrabold" color={textColor} fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight">
               {title}
             </Heading>
-            <Text color="#434654" mt="1" fontFamily="'Manrope', monospace" fontSize="sm">
+            <Text color={textLabel} mt="1" fontFamily="'Manrope', monospace" fontSize="sm">
               ID: {studentId}
             </Text>
           </Box>
           <Button
             leftIcon={<Download size={18} />}
-            bg="#ffffff"
+            bg={cardBg}
             border="1px solid rgba(195, 197, 215, 0.3)"
-            color="#191c1d"
+            color={textColor}
             borderRadius="xl"
             px="6"
             py="6"
@@ -726,16 +745,16 @@ export default function ReportsPage() {
       )}
 
       {/* Tutores Section (Bento Card) */}
-      <Box bg="#ffffff" borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" mb="8">
+      <Box bg={cardBg} borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" mb="8">
         <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap="12">
           {/* Form Side */}
           <GridItem>
             <Stack spacing="6">
               <Flex align="center" gap="3">
-                <Flex align="center" justify="center" w="10" h="10" bg="#e8edff" color="#003597" borderRadius="lg">
+                <Flex align="center" justify="center" w="10" h="10" bg={primaryBg} color={primaryColor} borderRadius="lg">
                   <UserPlus size={20} />
                 </Flex>
-                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Agregar tutor</Heading>
+                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.add_guardian_title')}</Heading>
               </Flex>
 
               {guardianError && (
@@ -747,12 +766,12 @@ export default function ReportsPage() {
 
               <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
                 <GridItem colSpan={{ base: 1, md: 2 }}>
-                  <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">Nombre</Text>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.name')}</Text>
                   <Input
-                    placeholder="Full name"
+                    placeholder={t('reports_page.guardian_name_placeholder')}
                     value={gFullName}
                     onChange={(e) => setGFullName(e.target.value)}
-                    bg="#f3f4f5"
+                    bg={inputBg}
                     border="none"
                     borderRadius="xl"
                     py="6"
@@ -762,12 +781,12 @@ export default function ReportsPage() {
                 </GridItem>
 
                 <GridItem>
-                  <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">WhatsApp</Text>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.whatsapp')}</Text>
                   <Input
-                    placeholder="+52 ..."
+                    placeholder={t('reports_page.guardian_phone_placeholder')}
                     value={gPhone}
                     onChange={(e) => setGPhone(e.target.value)}
-                    bg="#f3f4f5"
+                    bg={inputBg}
                     border="none"
                     borderRadius="xl"
                     py="6"
@@ -777,11 +796,11 @@ export default function ReportsPage() {
                 </GridItem>
 
                 <GridItem>
-                  <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">Parent Type</Text>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.parent_type')}</Text>
                   <Select
                     value={gRelationship}
                     onChange={(e) => setGRelationship(e.target.value)}
-                    bg="#f3f4f5"
+                    bg={inputBg}
                     border="none"
                     borderRadius="xl"
                     h="12"
@@ -798,12 +817,12 @@ export default function ReportsPage() {
                 </GridItem>
 
                 <GridItem colSpan={{ base: 1, md: 2 }}>
-                  <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">Notas (Opcional)</Text>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.notes_optional')}</Text>
                   <Textarea
-                    placeholder="Información extra..."
+                    placeholder={t('reports_page.guardian_notes_placeholder')}
                     value={gNotes}
                     onChange={(e) => setGNotes(e.target.value)}
-                    bg="#f3f4f5"
+                    bg={inputBg}
                     border="none"
                     borderRadius="xl"
                     py="3"
@@ -827,22 +846,22 @@ export default function ReportsPage() {
                       setGIsPrimary(next);
                     }}
                       colorScheme="blue" borderColor="#c3c5d7">
-                      <Text fontSize="sm" fontWeight="medium" color="#434654">Principal</Text>
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>Principal</Text>
                     </Checkbox>
 
                     <Checkbox isChecked={gReceiveWhatsapp} onChange={(e) => setGReceiveWhatsapp(e.target.checked)} colorScheme="blue" borderColor="#c3c5d7">
-                      <Text fontSize="sm" fontWeight="medium" color="#434654">Recibir WhatsApp</Text>
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.receive_wa')}</Text>
                     </Checkbox>
 
                     <Checkbox isChecked={gConsent} onChange={(e) => setGConsent(e.target.checked)} colorScheme="blue" borderColor="#c3c5d7">
-                      <Text fontSize="sm" fontWeight="medium" color="#434654">Consentimiento</Text>
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.consent')}</Text>
                     </Checkbox>
                   </Flex>
 
                   {showPrimaryWarning && gIsPrimary && (
                     <Alert status="warning" borderRadius="md" mt="4">
                       <AlertIcon />
-                      <Text fontSize="sm">Ya existe un tutor marcado como <strong>Principal</strong>.</Text>
+                      <Text fontSize="sm">{t('reports_page.already_primary')} <strong>Principal</strong>.</Text>
                     </Alert>
                   )}
                 </GridItem>
@@ -870,25 +889,25 @@ export default function ReportsPage() {
 
           {/* List Side */}
           <GridItem>
-            <Box bg="#f8f9fa" borderRadius="3xl" p="6" h="full">
+            <Box bg={pageBg} borderRadius="3xl" p="6" h="full">
               <Flex align="center" justify="space-between" mb="6">
-                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Lista de tutores</Heading>
-                <Badge bg="#e1e3e4" color="#434654" px="3" py="1" borderRadius="full" fontSize="xs" fontWeight="bold">
+                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.guardian_list')}</Heading>
+                <Badge bg={badgeBg} color={textLabel} px="3" py="1" borderRadius="full" fontSize="xs" fontWeight="bold">
                   {guardians.filter(g => g.is_active).length} Activos
                 </Badge>
               </Flex>
 
               {guardiansLoading && (
                 <HStack>
-                  <Spinner size="sm" color="#003597" />
-                  <Text fontSize="sm" color="#434654">Cargando tutores…</Text>
+                  <Spinner size="sm" color={primaryColor} />
+                  <Text fontSize="sm" color={textLabel}>{t('reports_page.guardians_loading')}</Text>
                 </HStack>
               )}
 
               {guardiansError && <Text fontSize="sm" color="#ba1a1a">{guardiansError}</Text>}
 
               {!guardiansLoading && !guardiansError && guardians.length === 0 && (
-                <Text fontSize="sm" color="#737686">
+                <Text fontSize="sm" color={textMuted}>
                   Este alumno aún no tiene tutores registrados.
                 </Text>
               )}
@@ -901,25 +920,25 @@ export default function ReportsPage() {
                     const hasAiForSelected = selectedReportId ? !!aiExistsByReportId[selectedReportId] : false;
 
                     return (
-                      <Box key={g.id} bg="#ffffff" p="4" borderRadius="2xl" border="1px solid rgba(195,197,215,0.2)" transition="all 0.2s" _hover={{ borderColor: "#003597" }}>
+                      <Box key={g.id} bg={cardBg} p="4" borderRadius="2xl" border="1px solid rgba(195,197,215,0.2)" transition="all 0.2s" _hover={{ borderColor: "#003597" }}>
                         <Flex align="center" justify="space-between">
                           <Flex align="center" gap="4">
-                            <Flex w="12" h="12" borderRadius="full" bg="#e8edff" color="#003597" align="center" justify="center">
+                            <Flex w="12" h="12" borderRadius="full" bg={primaryBg} color={primaryColor} align="center" justify="center">
                               <Users size={20} />
                             </Flex>
                             <Box>
-                              <Text fontWeight="bold" color="#191c1d">{g.full_name}</Text>
-                              <Text fontSize="sm" color="#737686">{g.relationship ?? "Sin relación"} • {g.whatsapp_phone ?? "Sin WhatsApp"}</Text>
+                              <Text fontWeight="bold" color={textColor}>{g.full_name}</Text>
+                              <Text fontSize="sm" color={textMuted}>{g.relationship ?? "Sin relación"} • {g.whatsapp_phone ?? "Sin WhatsApp"}</Text>
                             </Box>
                           </Flex>
                           {g.is_primary && (
-                            <Badge bg="#e8edff" color="#003597" px="3" py="1" borderRadius="full" fontSize="10px" fontWeight="black" letterSpacing="widest">
+                            <Badge bg={primaryBg} color={primaryColor} px="3" py="1" borderRadius="full" fontSize="10px" fontWeight="black" letterSpacing="widest">
                               PRIMARIO
                             </Badge>
                           )}
                         </Flex>
                         {g.notes && (
-                          <Text mt="3" fontSize="sm" color="#434654" bg="#f8f9fa" p="3" borderRadius="xl">
+                          <Text mt="3" fontSize="sm" color={textLabel} bg={pageBg} p="3" borderRadius="xl">
                             {g.notes}
                           </Text>
                         )}
@@ -939,7 +958,7 @@ export default function ReportsPage() {
                               Enviar WhatsApp
                             </Button>
                             {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
-                              <Text fontSize="xs" color="#737686" mt="2">
+                              <Text fontSize="xs" color={textMuted} mt="2">
                                 {!hasSelectedReport ? "Selecciona un reporte." : !hasAiForSelected ? "Genera el apoyo AI primero." : sendState.reason}
                               </Text>
                             )}
@@ -960,7 +979,7 @@ export default function ReportsPage() {
         <GridItem>
           <Box bgGradient="linear(to-br, #003597, #0c50d6)" color="white" p="8" borderRadius="2xl" display="flex" flexDirection="column" justifyContent="space-between" h="full" boxShadow="0px 12px 24px rgba(0, 53, 151, 0.2)">
             <Box>
-              <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">Generar Nuevo Informe</Heading>
+              <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">{t('reports_page.create_new')}</Heading>
               <Text color="whiteAlpha.80" fontSize="sm" lineHeight="relaxed">
                 Nuestra IA analizará las señales detectadas para proporcionar estrategias de intervención personalizadas tanto para el aula como para el hogar.
               </Text>
@@ -969,21 +988,21 @@ export default function ReportsPage() {
               <Box p="4" bg="whiteAlpha.20" backdropFilter="blur(12px)" borderRadius="2xl">
                 <Sparkles size={30} />
               </Box>
-              <Text fontSize="xs" fontWeight="bold" lineHeight="tight">Powered by IHUI ai Insight Engine</Text>
+              <Text fontSize="xs" fontWeight="bold" lineHeight="tight">{t('reports_page.powered_by')}</Text>
             </Flex>
           </Box>
         </GridItem>
 
         <GridItem>
-          <Box bg="#ffffff" borderRadius="2rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" h="full">
+          <Box bg={cardBg} borderRadius="2rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" h="full">
             <Stack spacing="6">
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">Señales observables</Text>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">Señales observables</Text>
                 <Textarea
                   value={signalsObserved}
                   onChange={(e) => setSignalsObserved(e.target.value)}
-                  placeholder="Describe los comportamientos o señales detectadas..."
-                  bg="#f3f4f5"
+                  placeholder={t('reports_page.report_signals_placeholder')}
+                  bg={inputBg}
                   border="none"
                   borderRadius="2xl"
                   px="4"
@@ -995,12 +1014,12 @@ export default function ReportsPage() {
                 />
               </Box>
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color="#737686" textTransform="uppercase" letterSpacing="wider" mb="2">Notas (opcional)</Text>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">Notas (opcional)</Text>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Información adicional relevante..."
-                  bg="#f3f4f5"
+                  placeholder={t('reports_page.report_notes_placeholder')}
+                  bg={inputBg}
                   border="none"
                   borderRadius="2xl"
                   px="4"
@@ -1038,29 +1057,29 @@ export default function ReportsPage() {
       {/* Historial de Reportes */}
       <Box mb="12">
         <Flex align="center" justify="space-between" mb="6">
-          <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color="#191c1d">Historial de Informes</Heading>
+          <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color={textColor}>{t('reports_page.history')}</Heading>
           <HStack gap="2">
-            <Text fontSize="sm" fontWeight="medium" color="#737686">Filter by:</Text>
-            <Button variant="ghost" size="sm" color="#003597" fontWeight="bold" rightIcon={<ChevronDown size={14} />}>Date</Button>
-            <IconButton aria-label="Recargar" icon={<RefreshCw size={16} />} size="sm" variant="ghost" color="#737686" onClick={() => loadReports()} isLoading={loading} />
+            <Text fontSize="sm" fontWeight="medium" color={textMuted}>{t('reports_page.filter_by')}</Text>
+            <Button variant="ghost" size="sm" color={primaryColor} fontWeight="bold" rightIcon={<ChevronDown size={14} />}>Date</Button>
+            <IconButton aria-label={t('reports_page.reload')} icon={<RefreshCw size={16} />} size="sm" variant="ghost" color={textMuted} onClick={() => loadReports()} isLoading={loading} />
           </HStack>
         </Flex>
 
-        <Box bg="#ffffff" borderRadius="2rem" overflow="hidden" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+        <Box bg={cardBg} borderRadius="2rem" overflow="hidden" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
           {reports.length === 0 ? (
             <Box p="10" textAlign="center">
-              <Text color="#737686">Aún no hay informes para este alumno.</Text>
+              <Text color={textMuted}>{t('reports_page.no_reports')}</Text>
             </Box>
           ) : (
             <Box overflowX="auto" pb="2">
               <Table variant="unstyled" sx={{ "tbody tr": { transition: "background 0.2s" }, "tbody tr:hover": { bg: "rgba(243, 244, 245, 0.3)" } }}>
                 <Thead bg="rgba(243, 244, 245, 0.5)">
                   <Tr>
-                    <Th fontSize="10px" fontWeight="black" color="#737686" textTransform="uppercase" letterSpacing="widest" px="6" py="5">Created</Th>
-                    <Th fontSize="10px" fontWeight="black" color="#737686" textTransform="uppercase" letterSpacing="widest" px="6" py="5">Signals Observed</Th>
-                    <Th fontSize="10px" fontWeight="black" color="#737686" textTransform="uppercase" letterSpacing="widest" px="6" py="5">Notes</Th>
-                    <Th fontSize="10px" fontWeight="black" color="#737686" textTransform="uppercase" letterSpacing="widest" px="6" py="5">ID</Th>
-                    <Th fontSize="10px" fontWeight="black" color="#737686" textTransform="uppercase" letterSpacing="widest" px="6" py="5" textAlign="right">AI Actions</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Created</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Signals Observed</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Notes</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.id')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5" textAlign="right">AI Actions</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -1072,14 +1091,14 @@ export default function ReportsPage() {
                     return (
                       <Tr key={r.id} bg={isSelected ? "rgba(232, 237, 255, 0.5)" : "transparent"} borderBottom="1px solid rgba(195,197,215,0.1)">
                         <Td px="6" py="5" verticalAlign="top">
-                          <Text fontWeight="bold" fontSize="sm" color="#191c1d">{reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
-                          <Text fontSize="xs" color="#737686" mt="1">{reportDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
+                          <Text fontWeight="bold" fontSize="sm" color={textColor}>{reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                          <Text fontSize="xs" color={textMuted} mt="1">{reportDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
                         </Td>
                         <Td px="6" py="5" verticalAlign="top" maxW="sm">
                           <Box>
                             <Text
                               fontSize="sm"
-                              color="#434654"
+                              color={textLabel}
                               noOfLines={expandedSignalsByReportId[r.id] ? undefined : 2}
                               whiteSpace={expandedSignalsByReportId[r.id] ? "pre-wrap" : "normal"}
                               wordBreak="break-word"
@@ -1092,7 +1111,7 @@ export default function ReportsPage() {
                                 mt="2"
                                 size="xs"
                                 variant="ghost"
-                                color="#003597"
+                                color={primaryColor}
                                 fontWeight="bold"
                                 rightIcon={
                                   expandedSignalsByReportId[r.id]
@@ -1115,7 +1134,7 @@ export default function ReportsPage() {
                           <Box>
                             <Text
                               fontSize="sm"
-                              color="#434654"
+                              color={textLabel}
                               noOfLines={expandedNotesByReportId[r.id] ? undefined : 2}
                               whiteSpace={expandedNotesByReportId[r.id] ? "pre-wrap" : "normal"}
                               wordBreak="break-word"
@@ -1128,7 +1147,7 @@ export default function ReportsPage() {
                                 mt="2"
                                 size="xs"
                                 variant="ghost"
-                                color="#003597"
+                                color={primaryColor}
                                 fontWeight="bold"
                                 rightIcon={
                                   expandedNotesByReportId[r.id]
@@ -1148,7 +1167,7 @@ export default function ReportsPage() {
                           </Box>
                         </Td>
                         <Td px="6" py="5" verticalAlign="top">
-                          <Text fontSize="xs" fontFamily="'Plus Jakarta Sans', monospace" color="#737686">{r.id.substring(0, 10)}...</Text>
+                          <Text fontSize="xs" fontFamily="'Plus Jakarta Sans', monospace" color={textMuted}>{r.id.substring(0, 10)}...</Text>
                         </Td>
                         <Td px="6" py="5" verticalAlign="top" textAlign="right">
                           <Flex align="center" justify="flex-end" gap="2">
@@ -1168,11 +1187,11 @@ export default function ReportsPage() {
                             </Button>
                             {exists && (
                               <IconButton
-                                aria-label="Regenerar"
+                                aria-label={t('reports_page.regenerate')}
                                 icon={<RefreshCw size={16} />}
                                 size="sm"
                                 variant="ghost"
-                                color="#737686"
+                                color={textMuted}
                                 _hover={{ color: "#003597" }}
                                 onClick={() => {
                                   setSelectedReportId(r.id);
@@ -1196,12 +1215,12 @@ export default function ReportsPage() {
       {/* Apoyo generado por IA Section */}
       <Box animation="fade-in 0.7s">
         <Flex direction="column" align="center" textAlign="center" mb="8" gap="2">
-          <Flex align="center" gap="2" px="4" py="1.5" bg="#e8edff" color="#003597" borderRadius="full" fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="widest">
+          <Flex align="center" gap="2" px="4" py="1.5" bg={primaryBg} color={primaryColor} borderRadius="full" fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="widest">
             <Sparkles size={14} />
             IA Insight Active
           </Flex>
-          <Heading as="h2" size="xl" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color="#191c1d">Apoyo generado por IA</Heading>
-          <Text color="#434654" maxW="2xl">
+          <Heading as="h2" size="xl" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color={textColor}>{t('reports_page.ai_generated_support')}</Heading>
+          <Text color={textLabel} maxW="2xl">
             {!selectedReportId
               ? "Selecciona un reporte en la tabla superior para visualizar las estrategias diferenciadas basadas en el análisis de comportamiento."
               : "Estrategias diferenciadas basadas en el análisis del comportamiento reportado."}
@@ -1210,9 +1229,9 @@ export default function ReportsPage() {
 
         {selectedReportId && aiLoading && (
           <Flex justify="center" mb="8">
-            <Flex align="center" gap="3" bg="#f8f9fa" p="4" borderRadius="2xl" border="1px solid #e1e3e4">
-              <Spinner size="sm" color="#003597" />
-              <Text fontSize="sm" color="#434654" fontWeight="bold">Generando apoyo con IA...</Text>
+            <Flex align="center" gap="3" bg={pageBg} p="4" borderRadius="2xl" border="1px solid #e1e3e4">
+              <Spinner size="sm" color={primaryColor} />
+              <Text fontSize="sm" color={textLabel} fontWeight="bold">{t('reports_page.generating_ai')}</Text>
               {aiJobStatus && <Badge colorScheme="blue">{aiJobStatus}</Badge>}
             </Flex>
           </Flex>
@@ -1220,7 +1239,7 @@ export default function ReportsPage() {
 
         {selectedReportId && !aiLoading && !aiReport && (
           <Flex justify="center" mb="8">
-            <Text color="#737686">No hay AI report aún para este reporte.</Text>
+            <Text color={textMuted}>{t('reports_page.no_ai_report')}</Text>
           </Flex>
         )}
 
@@ -1228,41 +1247,41 @@ export default function ReportsPage() {
           <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="8">
 
             {/* Maestro Card */}
-            <Box bg="#ffffff" borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
               <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#0049ca"></Box>
               <Flex align="center" justify="space-between" mb="8">
                 <Flex align="center" gap="4">
-                  <Flex p="3" bg="#e8edff" color="#003597" borderRadius="2xl">
+                  <Flex p="3" bg={primaryBg} color={primaryColor} borderRadius="2xl">
                     <School size={24} />
                   </Flex>
-                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Versión Maestro</Heading>
+                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.teacher_version')}</Heading>
                 </Flex>
                 <VStack align="end" spacing="1">
-                  <Text fontSize="xs" fontWeight="bold" color="#737686">Intervención Académica</Text>
-                  {!aiReport.guardrails_passed && <Badge colorScheme="red" variant="subtle">Revisar Guardrails</Badge>}
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted}>{t('reports_page.academic_intervention')}</Text>
+                  {!aiReport.guardrails_passed && <Badge colorScheme="red" variant="subtle">{t('reports_page.check_guardrails')}</Badge>}
                 </VStack>
               </Flex>
 
               <Stack spacing="6">
-                <Box bg="#f3f4f5" borderRadius="2xl" p="5">
-                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#0049ca" mb="2">Resumen Ejecutivo</Text>
+                <Box bg={inputBg} borderRadius="2xl" p="5">
+                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#0049ca" mb="2">{t('reports_page.executive_summary')}</Text>
                   {isPending ? (
                     <Box mt="2">
-                      <Text fontWeight="bold" color="#ba1a1a" mb="2">⚠️ Validación en proceso</Text>
-                      <Text mb="4" fontSize="sm" color="#434654">{pendingMessage}</Text>
+                      <Text fontWeight="bold" color="#ba1a1a" mb="2">{t('reports_page.validation_process')}</Text>
+                      <Text mb="4" fontSize="sm" color={textLabel}>{pendingMessage}</Text>
                       <Button as="a" href={pendingWhatsappHref} target="_blank" bg="#006c4a" color="white" w="full" size="sm" borderRadius="xl" _hover={{ bg: "#005237" }}>
                         Contactar por WhatsApp
                       </Button>
                     </Box>
                   ) : (
-                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color="#191c1d">{aiReport.teacher_version.summary}</Text>
+                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color={textColor}>{aiReport.teacher_version.summary}</Text>
                   )}
                 </Box>
 
                 <Box>
                   <Flex align="center" gap="2" mb="3">
                     <Activity size={16} color="#0c50d6" />
-                    <Text fontSize="sm" fontWeight="bold" color="#191c1d">Señales detectadas</Text>
+                    <Text fontSize="sm" fontWeight="bold" color={textColor}>{t('reports_page.signals_detected')}</Text>
                   </Flex>
 
                   <Flex flexWrap="wrap" gap="2">
@@ -1271,7 +1290,7 @@ export default function ReportsPage() {
                         <Badge
                           key={idx}
                           bg="#e7e8e9"
-                          color="#434654"
+                          color={textLabel}
                           px="3"
                           py="1.5"
                           borderRadius="full"
@@ -1286,21 +1305,21 @@ export default function ReportsPage() {
                         </Badge>
                       ))
                     ) : (
-                      <Text fontSize="sm" color="#737686">Sin señales registradas.</Text>
+                      <Text fontSize="sm" color={textMuted}>{t('reports_page.no_signals')}</Text>
                     )}
                   </Flex>
                 </Box>
 
                 <Box border="1px solid rgba(195,197,215,0.2)" borderRadius="2xl" overflow="hidden">
-                  <Flex align="center" justify="space-between" p="4" bg="#f8f9fa" cursor="pointer" onClick={() => setExpandTeacher(!expandTeacher)} _hover={{ bg: "#f3f4f5" }} transition="colors">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandTeacher(!expandTeacher)} _hover={{ bg: "#f3f4f5" }} transition="colors">
                     <Flex align="center" gap="3">
                       <FileText size={18} color="#0049ca" />
-                      <Text fontWeight="bold" fontSize="sm" color="#191c1d">{teacherHasNew ? 'Microintervenciones en el aula' : 'Recomendaciones'}</Text>
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>{teacherHasNew ? 'Microintervenciones en el aula' : 'Recomendaciones'}</Text>
                     </Flex>
-                    {expandTeacher ? <ChevronUp size={20} color="#737686" /> : <ChevronDown size={20} color="#737686" />}
+                    {expandTeacher ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
                   </Flex>
                   <Collapse in={expandTeacher}>
-                    <Box p="5" bg="#ffffff">
+                    <Box p="5" bg={cardBg}>
                       {teacherHasNew && teacherMIs.map((mi, idx) => (
                         <Box key={idx} mb={idx === teacherMIs.length - 1 ? 0 : 4}>
                           <MicroInterventionCard mi={mi} idx={idx} accentColor="#0049ca" />
@@ -1310,15 +1329,15 @@ export default function ReportsPage() {
                       {!teacherHasNew && teacherLegacyRecs.map((rec, idx) => (
                         <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === teacherLegacyRecs.length - 1 ? 0 : 4}>
                           <Flex justify="space-between" mb="2">
-                            <Text fontWeight="bold" color="#191c1d">{rec.title}</Text>
-                            {rec.when_to_use && <Badge bg="#e8edff" color="#003597">{rec.when_to_use}</Badge>}
+                            <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
+                            {rec.when_to_use && <Badge bg={primaryBg} color={primaryColor}>{rec.when_to_use}</Badge>}
                           </Flex>
                           <Stack spacing="1">
-                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color="#434654">• {st}</Text>)}
+                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>)}
                           </Stack>
                         </Box>
                       ))}
-                      {!teacherHasNew && teacherLegacyRecs.length === 0 && <Text fontSize="sm" color="#737686">No hay recomendaciones disponibles.</Text>}
+                      {!teacherHasNew && teacherLegacyRecs.length === 0 && <Text fontSize="sm" color={textMuted}>{t('reports_page.no_recommendations')}</Text>}
                     </Box>
                   </Collapse>
                 </Box>
@@ -1333,38 +1352,38 @@ export default function ReportsPage() {
             </Box>
 
             {/* Familia Card */}
-            <Box bg="#ffffff" borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
               <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#7d4ce7"></Box>
               <Flex align="center" justify="space-between" mb="8">
                 <Flex align="center" gap="4">
                   <Flex p="3" bg="#e9ddff" color="#5516be" borderRadius="2xl">
                     <Home size={24} />
                   </Flex>
-                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Versión Familia</Heading>
+                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.family_version')}</Heading>
                 </Flex>
-                <Text fontSize="xs" fontWeight="bold" color="#737686">Apoyo en el Hogar</Text>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted}>{t('reports_page.home_support')}</Text>
               </Flex>
 
               <Stack spacing="6">
-                <Box bg="#f3f4f5" borderRadius="2xl" p="5">
-                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#7d4ce7" mb="2">Recomendaciones Prácticas</Text>
+                <Box bg={inputBg} borderRadius="2xl" p="5">
+                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#7d4ce7" mb="2">{t('reports_page.practical_rec')}</Text>
                   {isPending ? (
                     <Box mt="2">
-                      <Text fontWeight="bold" color="#ba1a1a" mb="2">⚠️ Validación en proceso</Text>
-                      <Text mb="4" fontSize="sm" color="#434654">{pendingMessage}</Text>
+                      <Text fontWeight="bold" color="#ba1a1a" mb="2">{t('reports_page.validation_process')}</Text>
+                      <Text mb="4" fontSize="sm" color={textLabel}>{pendingMessage}</Text>
                       <Button as="a" href={pendingWhatsappHref} target="_blank" bg="#006c4a" color="white" w="full" size="sm" borderRadius="xl" _hover={{ bg: "#005237" }}>
                         Contactar por WhatsApp
                       </Button>
                     </Box>
                   ) : (
-                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color="#191c1d">{aiReport.parent_version.summary}</Text>
+                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color={textColor}>{aiReport.parent_version.summary}</Text>
                   )}
                 </Box>
 
                 <Box>
                   <Flex align="center" gap="2" mb="3">
                     <Activity size={16} color="#7d4ce7" />
-                    <Text fontSize="sm" fontWeight="bold" color="#191c1d">Señales detectadas</Text>
+                    <Text fontSize="sm" fontWeight="bold" color={textColor}>{t('reports_page.signals_detected')}</Text>
                   </Flex>
 
                   <Flex flexWrap="wrap" gap="2">
@@ -1373,7 +1392,7 @@ export default function ReportsPage() {
                         <Badge
                           key={idx}
                           bg="#e7e8e9"
-                          color="#434654"
+                          color={textLabel}
                           px="3"
                           py="1.5"
                           borderRadius="full"
@@ -1388,21 +1407,21 @@ export default function ReportsPage() {
                         </Badge>
                       ))
                     ) : (
-                      <Text fontSize="sm" color="#737686">Sin señales registradas.</Text>
+                      <Text fontSize="sm" color={textMuted}>{t('reports_page.no_signals')}</Text>
                     )}
                   </Flex>
                 </Box>
 
                 <Box border="1px solid rgba(195,197,215,0.2)" borderRadius="2xl" overflow="hidden">
-                  <Flex align="center" justify="space-between" p="4" bg="#f8f9fa" cursor="pointer" onClick={() => setExpandParent(!expandParent)} _hover={{ bg: "#f3f4f5" }} transition="colors">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandParent(!expandParent)} _hover={{ bg: "#f3f4f5" }} transition="colors">
                     <Flex align="center" gap="3">
                       <FileText size={18} color="#7d4ce7" />
-                      <Text fontWeight="bold" fontSize="sm" color="#191c1d">{parentHasNew ? 'Dinámicas para el hogar' : 'Recomendaciones'}</Text>
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>{parentHasNew ? 'Dinámicas para el hogar' : 'Recomendaciones'}</Text>
                     </Flex>
-                    {expandParent ? <ChevronUp size={20} color="#737686" /> : <ChevronDown size={20} color="#737686" />}
+                    {expandParent ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
                   </Flex>
                   <Collapse in={expandParent}>
-                    <Box p="5" bg="#ffffff">
+                    <Box p="5" bg={cardBg}>
                       {parentHasNew && parentMIs.map((mi, idx) => (
                         <Box key={idx} mb={idx === parentMIs.length - 1 ? 0 : 4}>
                           <MicroInterventionCard mi={mi} idx={idx} accentColor="#7d4ce7" />
@@ -1412,15 +1431,15 @@ export default function ReportsPage() {
                       {!parentHasNew && parentLegacyRecs.map((rec, idx) => (
                         <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === parentLegacyRecs.length - 1 ? 0 : 4}>
                           <Flex justify="space-between" mb="2">
-                            <Text fontWeight="bold" color="#191c1d">{rec.title}</Text>
+                            <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
                             {rec.when_to_use && <Badge bg="#e9ddff" color="#5516be">{rec.when_to_use}</Badge>}
                           </Flex>
                           <Stack spacing="1">
-                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color="#434654">• {st}</Text>)}
+                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>)}
                           </Stack>
                         </Box>
                       ))}
-                      {!parentHasNew && parentLegacyRecs.length === 0 && <Text fontSize="sm" color="#737686">No hay recomendaciones disponibles.</Text>}
+                      {!parentHasNew && parentLegacyRecs.length === 0 && <Text fontSize="sm" color={textMuted}>{t('reports_page.no_recommendations')}</Text>}
                     </Box>
                   </Collapse>
                 </Box>

@@ -29,8 +29,10 @@ import {
   VStack,
   useDisclosure,
   useToast,
-  Input
+  Input,
+  useColorModeValue
 } from "@chakra-ui/react";
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/apiClient";
 import {
@@ -204,6 +206,15 @@ function formatTopics(topics?: string[] | string | null, max = 3) {
 }
 
 export default function PlaybookPendientesPage() {
+  const { t } = useTranslation();
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const pageBg = useColorModeValue("#f8f9fa", "gray.900");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
+  const textLabel = useColorModeValue("#434654", "gray.400");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+
   const navigate = useNavigate();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -414,7 +425,7 @@ export default function PlaybookPendientesPage() {
         body: JSON.stringify({
           prediction_id: predictionId,
           verdict: "correct",
-          note: "Aprobado desde UI de Pendientes de Playbook",
+          note: "Aprobado desde UI de {t('playbook_page.title')}",
         }),
       });
 
@@ -703,7 +714,7 @@ export default function PlaybookPendientesPage() {
 
       setRows(combined);
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo cargar Pendientes de Playbook");
+      setError(e?.message ?? "No se pudo cargar {t('playbook_page.title')}");
     } finally {
       setLoading(false);
     }
@@ -772,21 +783,21 @@ export default function PlaybookPendientesPage() {
   const detailStudentId = selected?.student_id || reportDetail?.student_id || "";
 
   return (
-    <Box px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 8 }} minH="100vh" bg="#f8f9fa" maxW="100%" overflowX="hidden">
+    <Box px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 8 }} minH="100vh" bg={pageBg} maxW="100%" overflowX="hidden">
       <HStack justify="space-between" align="flex-start" mb={8} wrap="wrap" gap={4}>
         <Box>
           <Heading
             as="h1"
             fontSize={{ base: "3xl", md: "4xl" }}
             fontWeight="extrabold"
-            color="#191c1d"
+            color={textColor}
             fontFamily="'Plus Jakarta Sans', sans-serif"
             letterSpacing="tight"
             mb={2}
           >
-            Pendientes de Playbook
+            {t('playbook_page.title')}
           </Heading>
-          <Text color="#434654" fontFamily="'Manrope', sans-serif">
+          <Text color={textLabel} fontFamily="'Manrope', sans-serif">
             Casos donde no se encontró estrategia JCJ o donde una sugerencia JCJ
             requiere validación humana.
           </Text>
@@ -797,16 +808,16 @@ export default function PlaybookPendientesPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             w="220px"
-            bg="#ffffff"
+            bg={cardBg}
             border="1px solid rgba(195, 197, 215, 0.15)"
             borderRadius="xl"
             _focus={{ borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
             fontFamily="'Manrope', sans-serif"
             size="md"
           >
-            <option value="pending">Pendientes</option>
-            <option value="resolved">Resueltos</option>
-            <option value="all">Todos</option>
+            <option value="pending">{t('playbook_page.status_pending')}</option>
+            <option value="resolved">{t('playbook_page.status_resolved')}</option>
+            <option value="all">{t('playbook_page.status_all')}</option>
           </Select>
 
           <Button
@@ -814,9 +825,9 @@ export default function PlaybookPendientesPage() {
             variant="outline"
             isLoading={loading}
             borderRadius="full"
-            color="#434654"
+            color={textLabel}
             borderColor="rgba(195, 197, 215, 0.4)"
-            bg="#ffffff"
+            bg={cardBg}
             _hover={{ bg: "#f3f4f5" }}
             fontFamily="'Manrope', sans-serif"
           >
@@ -838,7 +849,7 @@ export default function PlaybookPendientesPage() {
             Reprocesar playbooks
           </Button>
 
-          {isSyncing && <Spinner size="sm" color="#003597" />}
+          {isSyncing && <Spinner size="sm" color={primaryColor} />}
 
           {syncStatus && (
             <Badge
@@ -857,9 +868,9 @@ export default function PlaybookPendientesPage() {
         </HStack>
       </HStack>
 
-      <Box p={6} borderRadius="2rem" bg="#ffffff" mb={8} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+      <Box p={6} borderRadius="2rem" bg={cardBg} mb={8} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
         <VStack align="start" spacing={3}>
-          <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Última sincronización</Text>
+          <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('playbook_page.last_sync')}</Text>
 
           {syncError ? (
             <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828">
@@ -868,13 +879,13 @@ export default function PlaybookPendientesPage() {
             </Alert>
           ) : !latestSync ? (
             <HStack>
-              <Text fontFamily="'Manrope', sans-serif" color="#434654">Estado:</Text>
-              <Badge bg="#f3f4f5" color="#737686" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">N/A</Badge>
+              <Text fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.status_filter')}</Text>
+              <Badge bg={inputBg} color={textMuted} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">N/A</Badge>
             </HStack>
           ) : (
             <Stack spacing={2}>
               <HStack>
-                <Text fontWeight="medium" fontFamily="'Manrope', sans-serif" color="#191c1d">Estado:</Text>
+                <Text fontWeight="medium" fontFamily="'Manrope', sans-serif" color={textColor}>{t('playbook_page.status_filter')}</Text>
                 <Badge
                   bg={latestSync.status === "finished" ? "#e8edff" : latestSync.status === "failed" ? "#fce8e8" : "#f3f4f5"}
                   color={latestSync.status === "finished" ? "#003597" : latestSync.status === "failed" ? "#c52828" : "#434654"}
@@ -888,7 +899,7 @@ export default function PlaybookPendientesPage() {
                 </Badge>
               </HStack>
 
-              <Text fontSize="sm" color="#434654" fontFamily="'Manrope', sans-serif">
+              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
                 Fecha:{" "}
                 {latestSync.finished_at
                   ? new Date(latestSync.finished_at).toLocaleString()
@@ -897,7 +908,7 @@ export default function PlaybookPendientesPage() {
                     : "-"}
               </Text>
 
-              <Text fontSize="sm" color="#434654" fontFamily="'Manrope', sans-serif">
+              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
                 Playbooks cargados:{" "}
                 <Text as="span" fontWeight="bold">
                   {typeof (latestSync.result as any)?.loaded_count === "number"
@@ -906,7 +917,7 @@ export default function PlaybookPendientesPage() {
                 </Text>
               </Text>
 
-              <Text fontSize="sm" color="#434654" fontFamily="'Manrope', sans-serif">
+              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
                 Colección:{" "}
                 <Text as="span" fontWeight="bold">
                   {(latestSync.result as any)?.chroma_collection ?? "-"}
@@ -933,10 +944,10 @@ export default function PlaybookPendientesPage() {
         </Alert>
       )}
 
-      <Box bg="#ffffff" borderRadius="2rem" p={6} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+      <Box bg={cardBg} borderRadius="2rem" p={6} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
         <HStack justify="space-between" align="center" mb={6}>
-          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Lista</Heading>
-          <Badge bg="#e8edff" color="#003597" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>Lista</Heading>
+          <Badge bg="#e8edff" color={primaryColor} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
             {pendingCount} PENDIENTES
           </Badge>
         </HStack>
@@ -944,11 +955,11 @@ export default function PlaybookPendientesPage() {
         <Box>
           {loading ? (
             <HStack py={6} justify="center">
-              <Spinner color="#003597" />
-              <Text fontFamily="'Manrope', sans-serif" color="#434654">Cargando pendientes…</Text>
+              <Spinner color={primaryColor} />
+              <Text fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.loading')}</Text>
             </HStack>
           ) : rows.length === 0 ? (
-            <Text color="#737686" fontFamily="'Manrope', sans-serif" py={4}>No hay eventos para este filtro.</Text>
+            <Text color={textMuted} fontFamily="'Manrope', sans-serif" py={4}>{t('playbook_page.no_events')}</Text>
           ) : (
             <Box overflowX="auto">
               <Table variant="unstyled" sx={{
@@ -958,12 +969,12 @@ export default function PlaybookPendientesPage() {
               }}>
                 <Thead>
                   <Tr borderBottom="1px solid rgba(195, 197, 215, 0.15)">
-                    <Th display={{ base: "none", md: "table-cell" }}>Created</Th>
-                    <Th>Reason</Th>
-                    <Th display={{ base: "none", md: "table-cell" }}>Query</Th>
-                    <Th display={{ base: "none", md: "table-cell" }}>Summary</Th>
-                    <Th>Status</Th>
-                    <Th>Actions</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>{t('playbook_page.table.created')}</Th>
+                    <Th>{t('playbook_page.table.reason')}</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>{t('playbook_page.table.query')}</Th>
+                    <Th display={{ base: "none", md: "table-cell" }}>{t('playbook_page.table.summary')}</Th>
+                    <Th>{t('playbook_page.table.status')}</Th>
+                    <Th>{t('playbook_page.table.actions')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -972,7 +983,7 @@ export default function PlaybookPendientesPage() {
 
                     return (
                       <Tr key={row.id}>
-                        <Td display={{ base: "none", md: "table-cell" }} whiteSpace="nowrap" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#191c1d">
+                        <Td display={{ base: "none", md: "table-cell" }} whiteSpace="nowrap" fontFamily="'Manrope', sans-serif" fontSize="sm" color={textColor}>
                           {new Date(row.created_at).toLocaleString()}
                         </Td>
 
@@ -1000,30 +1011,30 @@ export default function PlaybookPendientesPage() {
 
                         <Td maxW="300px" display={{ base: "none", md: "table-cell" }}>
                           {row.query_text ? (
-                            <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#434654">
+                            <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color={textLabel}>
                               {truncate(row.query_text, 100)}
                             </Text>
                           ) : row.predicted_playbook_id ? (
-                            <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#434654">
+                            <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color={textLabel}>
                               Suggested playbook:{" "}
                               <Text as="span" fontWeight="bold">{truncate(row.predicted_playbook_id, 80)}</Text>
                             </Text>
                           ) : (
-                            <Text whiteSpace="normal" color="#737686">-</Text>
+                            <Text whiteSpace="normal" color={textMuted}>-</Text>
                           )}
                         </Td>
 
                         <Td maxW="300px" display={{ base: "none", md: "table-cell" }}>
-                          <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color="#434654">
+                          <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color={textLabel}>
                             {truncate(row.model_output_summary, 100)}
                           </Text>
                         </Td>
 
                         <Td>
                           {isResolved ? (
-                            <Badge bg="#e6f4ea" color="#137333" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">Resuelto</Badge>
+                            <Badge bg="#e6f4ea" color="#137333" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">{t('playbook_page.status_resolved')}</Badge>
                           ) : (
-                            <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">Pendiente</Badge>
+                            <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">{t('playbook_page.status_pending')}</Badge>
                           )}
                         </Td>
 
@@ -1034,7 +1045,7 @@ export default function PlaybookPendientesPage() {
                               variant="outline"
                               borderRadius="full"
                               borderColor="rgba(195, 197, 215, 0.4)"
-                              color="#434654"
+                              color={textLabel}
                               _hover={{ bg: "#f3f4f5" }}
                               fontFamily="'Manrope', sans-serif"
                               onClick={() => openDetail(row)}
@@ -1070,8 +1081,8 @@ export default function PlaybookPendientesPage() {
 
       <Modal isOpen={isOpen} onClose={closeDetail} size="6xl" scrollBehavior="inside">
         <ModalOverlay bg="rgba(25, 28, 29, 0.4)" backdropFilter="blur(4px)" />
-        <ModalContent borderRadius="2rem" bg="#ffffff" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.08)" overflow="hidden" pt={4}>
-          <ModalHeader pt={6} px={8} pb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">Detalle del pendiente</ModalHeader>
+        <ModalContent borderRadius="2rem" bg={cardBg} boxShadow="0px 24px 48px rgba(25, 28, 29, 0.08)" overflow="hidden" pt={4}>
+          <ModalHeader pt={6} px={8} pb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('playbook_page.detail_modal_title')}</ModalHeader>
           <ModalCloseButton mt={6} mr={6} borderRadius="full" />
 
           <ModalBody px={8}>
@@ -1083,28 +1094,28 @@ export default function PlaybookPendientesPage() {
             )}
 
             {!selected ? (
-              <Text color="#737686" fontFamily="'Manrope', sans-serif">Sin selección.</Text>
+              <Text color={textMuted} fontFamily="'Manrope', sans-serif">{t('playbook_page.no_selection')}</Text>
             ) : detailLoading ? (
               <HStack>
-                <Spinner size="sm" color="#003597" />
-                <Text fontFamily="'Manrope', sans-serif" color="#434654">Cargando detalle…</Text>
+                <Spinner size="sm" color={primaryColor} />
+                <Text fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.loading_detail')}</Text>
               </HStack>
             ) : (
               <VStack align="stretch" spacing={6}>
-                <HStack justify="space-between" align="start" p={{ base: 4, md: 6 }} bg="#f8f9fa" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" flexWrap="wrap" gap={4}>
+                <HStack justify="space-between" align="start" p={{ base: 4, md: 6 }} bg={pageBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" flexWrap="wrap" gap={4}>
                   <Box>
-                    <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
+                    <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
                       Estado
                     </Text>
                     {selectedIsResolved ? (
-                      <Badge bg="#e6f4ea" color="#137333" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>Resuelto</Badge>
+                      <Badge bg="#e6f4ea" color="#137333" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>{t('playbook_page.status_resolved')}</Badge>
                     ) : (
-                      <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>Pendiente</Badge>
+                      <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>{t('playbook_page.status_pending')}</Badge>
                     )}
-                    <Text fontSize="sm" color="#434654" mt={3} fontFamily="'Manrope', sans-serif">
+                    <Text fontSize="sm" color={textLabel} mt={3} fontFamily="'Manrope', sans-serif">
                       Reason: <Text as="span" fontWeight="bold">{selected.reason || "n/a"}</Text>
                     </Text>
-                    <Text fontSize="sm" color="#434654" mt={1} fontFamily="'Manrope', sans-serif">
+                    <Text fontSize="sm" color={textLabel} mt={1} fontFamily="'Manrope', sans-serif">
                       Tipo:{" "}
                       <Text as="span" fontWeight="bold">
                         {selected.row_type === "prediction_pending"
@@ -1118,7 +1129,7 @@ export default function PlaybookPendientesPage() {
                     <Badge
                       variant="subtle"
                       bg="#e8edff"
-                      color="#003597"
+                      color={primaryColor}
                       borderRadius="full"
                       px={3}
                       py={1.5}
@@ -1127,7 +1138,7 @@ export default function PlaybookPendientesPage() {
                     >
                       Topic: {formatTopics(selected.topic_nucleo)}
                     </Badge>
-                    <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={3} py={1.5} fontFamily="'Manrope', sans-serif" textTransform="none">
+                    <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={3} py={1.5} fontFamily="'Manrope', sans-serif" textTransform="none">
                       Signals: {formatSignals(selected.signals_detected)}
                     </Badge>
                   </HStack>
@@ -1137,11 +1148,11 @@ export default function PlaybookPendientesPage() {
 
                 {selected.query_text ? (
                   <Box>
-                    <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>
+                    <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={2}>
                       Query (completo)
                     </Text>
-                    <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg="#ffffff">
-                      <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                    <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={cardBg}>
+                      <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                         {selected.query_text}
                       </Text>
                     </Box>
@@ -1149,11 +1160,11 @@ export default function PlaybookPendientesPage() {
                 ) : null}
 
                 <Box>
-                  <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={2}>
+                  <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={2}>
                     Summary del modelo (completo)
                   </Text>
-                  <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg="#ffffff">
-                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                  <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={cardBg}>
+                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                       {selected.model_output_summary ?? "-"}
                     </Text>
                   </Box>
@@ -1162,7 +1173,7 @@ export default function PlaybookPendientesPage() {
                 <Divider />
 
                 <Box>
-                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
                     Reporte del maestro (StudentReport)
                   </Heading>
 
@@ -1176,15 +1187,15 @@ export default function PlaybookPendientesPage() {
                   ) : (
                     <Stack spacing={4}>
                       <Box>
-                        <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">Señales observables</Text>
-                        <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                        <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>{t('playbook_page.observable_signals')}</Text>
+                        <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                           {safeText(reportDetail.signals_observed) || "-"}
                         </Text>
                       </Box>
 
                       <Box>
-                        <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">Notas</Text>
-                        <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                        <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>{t('playbook_page.table.notes')}</Text>
+                        <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                           {reportDetail.notes ?? "-"}
                         </Text>
                       </Box>
@@ -1195,7 +1206,7 @@ export default function PlaybookPendientesPage() {
                 <Divider />
 
                 <Box>
-                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
                     Apoyo generado por IA
                   </Heading>
 
@@ -1210,28 +1221,28 @@ export default function PlaybookPendientesPage() {
                     <Stack spacing={6}>
                       <HStack justify="space-between" align="start" flexWrap="wrap">
                         <Box>
-                          <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
+                          <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
                             Modelo
                           </Text>
-                          <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">{aiDetail.model_name}</Text>
+                          <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>{aiDetail.model_name}</Text>
                         </Box>
 
                         <Box textAlign="right">
-                          <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
+                          <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
                             Creado
                           </Text>
-                          <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                          <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                             {new Date(aiDetail.created_at).toLocaleString()}
                           </Text>
                         </Box>
                       </HStack>
 
                       <Box>
-                        <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                        <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
                           Resumen (familia)
                         </Text>
-                        <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg="#f3f4f5">
-                          <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                        <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={inputBg}>
+                          <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                             {aiDetail.parent_version?.summary ?? "-"}
                           </Text>
                         </Box>
@@ -1239,13 +1250,13 @@ export default function PlaybookPendientesPage() {
 
                       {(aiDetail.parent_version?.signals_detected ?? []).length > 0 ? (
                         <Box>
-                          <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                          <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
                             Señales detectadas (familia)
                           </Text>
-                          <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg="#f3f4f5">
+                          <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={inputBg}>
                             <Stack spacing={2}>
                               {(aiDetail.parent_version?.signals_detected ?? []).map((s, idx) => (
-                                <Text key={idx} fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                                <Text key={idx} fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                   • {s}
                                 </Text>
                               ))}
@@ -1256,19 +1267,19 @@ export default function PlaybookPendientesPage() {
 
                       {(aiDetail.parent_version?.microintervenciones ?? []).length > 0 ? (
                         <Box>
-                          <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                          <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
                             Microintervenciones (familia)
                           </Text>
 
                           <Stack spacing={4}>
                             {(aiDetail.parent_version?.microintervenciones ?? []).map((mi, idx) => (
-                              <Box key={idx} bg="#f3f4f5" borderRadius="2rem" p={6}>
+                              <Box key={idx} bg={inputBg} borderRadius="2rem" p={6}>
                                 <HStack justify="space-between" align="start" flexWrap="wrap">
                                   <Box>
-                                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       {formatTopics(mi.topic_nucleo)} · {mi.subhabilidad}
                                     </Text>
-                                    <Text fontSize="sm" color="#434654" mt={1} fontFamily="'Manrope', sans-serif">
+                                    <Text fontSize="sm" color={textLabel} mt={1} fontFamily="'Manrope', sans-serif">
                                       Señal observable: {mi.senal_observable}
                                     </Text>
                                   </Box>
@@ -1287,30 +1298,30 @@ export default function PlaybookPendientesPage() {
 
                                 <Stack spacing={4}>
                                   <Box>
-                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       Hipótesis funcional
                                     </Text>
-                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.hipotesis_funcional}
                                     </Text>
                                   </Box>
 
                                   <Box>
-                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       Microobjetivo
                                     </Text>
-                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.microobjetivo}
                                     </Text>
                                   </Box>
 
                                   <Box>
-                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       Estrategias paso a paso
                                     </Text>
                                     <Stack spacing={1} mt={2}>
                                       {(mi.estrategias_paso_a_paso ?? []).map((st, i) => (
-                                        <Text key={i} fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                                        <Text key={i} fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                           • {st}
                                         </Text>
                                       ))}
@@ -1318,19 +1329,19 @@ export default function PlaybookPendientesPage() {
                                   </Box>
 
                                   <Box>
-                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       Indicador de avance
                                     </Text>
-                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.indicador_de_avance}
                                     </Text>
                                   </Box>
 
                                   <Box>
-                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                                    <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                                       Escalamiento
                                     </Text>
-                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color="#434654">
+                                    <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.escalamiento}
                                     </Text>
                                   </Box>
@@ -1354,18 +1365,18 @@ export default function PlaybookPendientesPage() {
                 <Divider borderColor="rgba(195, 197, 215, 0.15)" />
 
                 <Box>
-                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+                  <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
                     Revisión humana de sugerencia JCJ
                   </Heading>
 
                   {predictionLoading ? (
                     <HStack>
-                      <Spinner size="sm" color="#003597" />
-                      <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">Buscando sugerencia pendiente…</Text>
+                      <Spinner size="sm" color={primaryColor} />
+                      <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.loading_suggestion')}</Text>
                     </HStack>
                   ) : !pendingPrediction ? (
-                    <Alert status="info" borderRadius="xl" bg="#e8edff" color="#003597">
-                      <AlertIcon color="#003597" />
+                    <Alert status="info" borderRadius="xl" bg="#e8edff" color={primaryColor}>
+                      <AlertIcon color={primaryColor} />
                       <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
                         No hay una sugerencia de playbook pendiente para este
                         reporte.
@@ -1389,7 +1400,7 @@ export default function PlaybookPendientesPage() {
 
                       <HStack justify="space-between" align="start" flexWrap="wrap">
                         <Box>
-                          <Text fontSize="sm" color="#737686" fontFamily="'Manrope', sans-serif">
+                          <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
                             Sugerencia principal
                           </Text>
                         </Box>
@@ -1398,7 +1409,7 @@ export default function PlaybookPendientesPage() {
                           <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
                             Score: {pendingPrediction.confidence_score ?? "-"}
                           </Badge>
-                          <Badge variant="subtle" bg="#f3f4f5" color="#434654" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                          <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
                             Gap: {pendingPrediction.confidence_gap ?? "-"}
                           </Badge>
                         </VStack>
@@ -1410,10 +1421,10 @@ export default function PlaybookPendientesPage() {
                         </Box>
                       ) : (
                         <Box>
-                          <Text fontSize="sm" color="#737686" mb={1} fontFamily="'Manrope', sans-serif">
+                          <Text fontSize="sm" color={textMuted} mb={1} fontFamily="'Manrope', sans-serif">
                             Predicted playbook ID
                           </Text>
-                          <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">
+                          <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">
                             {pendingPrediction.predicted_playbook_id ?? "-"}
                           </Code>
                         </Box>
@@ -1421,13 +1432,13 @@ export default function PlaybookPendientesPage() {
 
                       {!!pendingPrediction.top_candidates_preview?.length && (
                         <Box mt={4}>
-                          <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                          <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
                             Candidatos sugeridos
                           </Text>
                           <Stack spacing={3}>
                             {pendingPrediction.top_candidates_preview.map((pb, idx) => (
                               <Box key={`${pb.id}-${idx}`}>
-                                <Text fontSize="sm" fontWeight="bold" mb={2} color="#003597" fontFamily="'Manrope', sans-serif">
+                                <Text fontSize="sm" fontWeight="bold" mb={2} color={primaryColor} fontFamily="'Manrope', sans-serif">
                                   Opción {idx + 1}
                                 </Text>
                                 {renderPlaybookPreview(pb)}
@@ -1440,13 +1451,13 @@ export default function PlaybookPendientesPage() {
                       {!pendingPrediction.top_candidates_preview?.length &&
                         !!pendingPrediction.top_candidates_json?.length ? (
                         <Box mt={4}>
-                          <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                          <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
                             Top candidates
                           </Text>
                           <Stack spacing={2}>
                             {pendingPrediction.top_candidates_json.map((id, idx) => (
-                              <Text key={`${id}-${idx}`} fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
-                                {idx + 1}. <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{id}</Code>
+                              <Text key={`${id}-${idx}`} fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
+                                {idx + 1}. <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{id}</Code>
                               </Text>
                             ))}
                           </Stack>
@@ -1454,44 +1465,44 @@ export default function PlaybookPendientesPage() {
                       ) : null}
                       {loadingPlaybookDetail ? (
                         <HStack mt={4}>
-                          <Spinner size="sm" color="#003597" />
-                          <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">Cargando detalle del playbook…</Text>
+                          <Spinner size="sm" color={primaryColor} />
+                          <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.loading_playbook')}</Text>
                         </HStack>
                       ) : selectedPlaybookDetail ? (
-                        <Box mt={6} bg="#ffffff" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" p={6}>
-                          <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d">
+                        <Box mt={6} bg={cardBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" p={6}>
+                          <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
                             Detalle del playbook seleccionado
                           </Heading>
 
                           <Box>
-                            <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color="#191c1d">
+                            <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                               {formatTopics(selectedPlaybookDetail.topic_nucleo)}
                             </Text>
 
-                            <Text mt={2} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Subhabilidad:</Text> {selectedPlaybookDetail.subhabilidad || "-"}
+                            <Text mt={2} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.subskill')}</Text> {selectedPlaybookDetail.subhabilidad || "-"}
                             </Text>
 
-                            <Text mt={2} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Señal observable:</Text> {selectedPlaybookDetail.senal_observable || "-"}
+                            <Text mt={2} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.observable_signal')}</Text> {selectedPlaybookDetail.senal_observable || "-"}
                             </Text>
 
-                            <Text mt={3} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Hipótesis funcional:</Text><br />
+                            <Text mt={3} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.hypothesis')}</Text><br />
                               {selectedPlaybookDetail.hipotesis_funcional || "-"}
                             </Text>
 
-                            <Text mt={3} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Microobjetivo:</Text><br />
+                            <Text mt={3} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.micro_objective')}</Text><br />
                               {selectedPlaybookDetail.microobjetivo || "-"}
                             </Text>
 
                             <Box mt={4}>
-                              <Text as="span" fontWeight="bold" color="#191c1d" fontSize="sm" fontFamily="'Manrope', sans-serif">Estrategias paso a paso:</Text>
+                              <Text as="span" fontWeight="bold" color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">{t('playbook_page.steps')}</Text>
                               <Stack mt={2} spacing={1}>
                                 {(selectedPlaybookDetail.estrategias_paso_a_paso || []).map(
                                   (s: string, i: number) => (
-                                    <Text key={i} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">• {s}</Text>
+                                    <Text key={i} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">• {s}</Text>
                                   )
                                 )}
                               </Stack>
@@ -1506,13 +1517,13 @@ export default function PlaybookPendientesPage() {
                               </Badge>
                             </HStack>
 
-                            <Text mt={4} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Indicador de avance:</Text><br />
+                            <Text mt={4} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.indicator')}</Text><br />
                               {selectedPlaybookDetail.indicador_de_avance || "-"}
                             </Text>
 
-                            <Text mt={3} fontFamily="'Manrope', sans-serif" color="#434654" fontSize="sm">
-                              <Text as="span" fontWeight="bold" color="#191c1d">Escalamiento:</Text><br />
+                            <Text mt={3} fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm">
+                              <Text as="span" fontWeight="bold" color={textColor}>{t('playbook_page.escalation')}</Text><br />
                               {selectedPlaybookDetail.escalamiento || "-"}
                             </Text>
                           </Box>
@@ -1523,9 +1534,9 @@ export default function PlaybookPendientesPage() {
                         <Button
                           variant="outline"
                           borderRadius="full"
-                          color="#434654"
+                          color={textLabel}
                           borderColor="rgba(195, 197, 215, 0.4)"
-                          bg="#ffffff"
+                          bg={cardBg}
                           _hover={{ bg: "#f3f4f5" }}
                           fontFamily="'Manrope', sans-serif"
                           size="md"
@@ -1536,8 +1547,8 @@ export default function PlaybookPendientesPage() {
                       </Box>
 
                       {showAlternativeSearch ? (
-                        <Box mt={4} p={6} bg="#f8f9fa" borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)">
-                          <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color="#191c1d" mb={4}>
+                        <Box mt={4} p={6} bg={pageBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)">
+                          <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={4}>
                             Buscar otro playbook
                           </Text>
 
@@ -1546,7 +1557,7 @@ export default function PlaybookPendientesPage() {
                               placeholder="Busca por topic, subhabilidad o señal observable"
                               value={playbookSearchQuery}
                               onChange={(e) => setPlaybookSearchQuery(e.target.value)}
-                              bg="#ffffff"
+                              bg={cardBg}
                               border="1px solid rgba(195, 197, 215, 0.3)"
                               borderRadius="xl"
                               _focus={{ borderColor: "rgba(0, 53, 151, 0.3)", boxShadow: "0 0 0 1px rgba(0, 53, 151, 0.3)" }}
@@ -1572,7 +1583,7 @@ export default function PlaybookPendientesPage() {
                               ))}
                             </Stack>
                           ) : playbookSearchQuery.trim().length >= 2 && !searchingPlaybooks ? (
-                            <Text fontSize="sm" color="#737686" mt={4} fontFamily="'Manrope', sans-serif">
+                            <Text fontSize="sm" color={textMuted} mt={4} fontFamily="'Manrope', sans-serif">
                               No se encontraron resultados.
                             </Text>
                           ) : null}
@@ -1618,7 +1629,7 @@ export default function PlaybookPendientesPage() {
                                     prediction_id: pendingPrediction.id,
                                     verdict: "incorrect",
                                     corrected_playbook_id: selectedPlaybookId,
-                                    note: "Corregido desde UI de Pendientes de Playbook",
+                                    note: "Corregido desde UI de {t('playbook_page.title')}",
                                   }),
                                 });
 
@@ -1680,34 +1691,34 @@ export default function PlaybookPendientesPage() {
                 <Divider borderColor="rgba(195, 197, 215, 0.15)" />
 
                 <Box mb={4}>
-                  <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color="#191c1d">
+                  <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
                     IDs (debug)
                   </Text>
                   <VStack align="stretch" spacing={2}>
-                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
-                      row_type: <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{selected.row_type}</Code>
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
+                      row_type: <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{selected.row_type}</Code>
                     </Text>
-                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
-                      report_id: <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{selected.report_id}</Code>
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
+                      report_id: <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{selected.report_id}</Code>
                     </Text>
-                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                       student_id:{" "}
-                      <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{detailStudentId || "-"}</Code>
+                      <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{detailStudentId || "-"}</Code>
                     </Text>
-                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                       ai_report_id:{" "}
-                      <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{selected.ai_report_id ?? "-"}</Code>
+                      <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{selected.ai_report_id ?? "-"}</Code>
                     </Text>
-                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                       school_id:{" "}
-                      <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">
+                      <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">
                         {selected.school_id || reportDetail?.school_id || "-"}
                       </Code>
                     </Text>
                     {selected.prediction_id ? (
-                      <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color="#434654">
+                      <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
                         prediction_id:{" "}
-                        <Code fontSize="xs" bg="#f3f4f5" color="#191c1d" p={1} borderRadius="md">{selected.prediction_id}</Code>
+                        <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">{selected.prediction_id}</Code>
                       </Text>
                     ) : null}
                   </VStack>
@@ -1716,15 +1727,15 @@ export default function PlaybookPendientesPage() {
             )}
           </ModalBody>
 
-          <ModalFooter borderTop="1px solid rgba(195, 197, 215, 0.15)" bg="#f8f9fa" mt={4} py={6} px={8} borderRadius="0 0 2rem 2rem">
+          <ModalFooter borderTop="1px solid rgba(195, 197, 215, 0.15)" bg={pageBg} mt={4} py={6} px={8} borderRadius="0 0 2rem 2rem">
             <HStack spacing={4} wrap="wrap">
               {detailStudentId && selected?.report_id ? (
                 <Button
                   variant="outline"
                   borderRadius="full"
-                  color="#434654"
+                  color={textLabel}
                   borderColor="rgba(195, 197, 215, 0.4)"
-                  bg="#ffffff"
+                  bg={cardBg}
                   _hover={{ bg: "#f3f4f5" }}
                   fontFamily="'Manrope', sans-serif"
                   onClick={() => {
@@ -1759,7 +1770,7 @@ export default function PlaybookPendientesPage() {
               <Button
                 variant="ghost"
                 borderRadius="full"
-                color="#737686"
+                color={textMuted}
                 _hover={{ bg: "rgba(195, 197, 215, 0.15)" }}
                 fontFamily="'Manrope', sans-serif"
                 onClick={closeDetail}
