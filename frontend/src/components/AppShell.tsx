@@ -314,6 +314,15 @@ export default function AppShell() {
 
         {/* Mobile Top Actions */}
         <HStack display={{ base: "flex", md: "none" }} spacing={1}>
+          <Menu>
+            <MenuButton as={Button} size="sm" variant="ghost" color={textMuted} fontWeight="bold" _hover={{ bg: useColorModeValue("blackAlpha.100", "whiteAlpha.100"), color: primaryColor }} p={2} borderRadius="md" transition="all 0.2s">
+              {i18n.language.toUpperCase().substring(0, 2)}
+            </MenuButton>
+            <MenuList minW="100px" bg={headerBg} borderColor={borderColor}>
+              <MenuItem onClick={() => i18n.changeLanguage('es')} fontWeight={i18n.language.startsWith('es') ? "bold" : "normal"} _hover={{ bg: useColorModeValue("blackAlpha.50", "whiteAlpha.100") }} bg={headerBg}>Español</MenuItem>
+              <MenuItem onClick={() => i18n.changeLanguage('en')} fontWeight={i18n.language.startsWith('en') ? "bold" : "normal"} _hover={{ bg: useColorModeValue("blackAlpha.50", "whiteAlpha.100") }} bg={headerBg}>English</MenuItem>
+            </MenuList>
+          </Menu>
           <IconButton
             aria-label="Alternar Modo Oscuro"
             icon={colorMode === 'light' ? <Moon size={20} /> : <Sun size={20} />}
