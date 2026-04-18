@@ -1,4 +1,5 @@
 import { Badge, Box, HStack, Text, VStack, useColorModeValue } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   student: {
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export default function StudentCard({ student, showHint }: Props) {
+  const { t } = useTranslation();
   const bg = useColorModeValue("#ffffff", "gray.700");
   const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
   const badgeBg = useColorModeValue("#e8edff", "whiteAlpha.200");
@@ -37,14 +39,14 @@ export default function StudentCard({ student, showHint }: Props) {
           </Text>
           {typeof student.age === "number" && (
             <Badge borderRadius="md" px={2} py={0.5} bg={badgeBg} color={badgeColor} fontSize="xs">
-              {student.age} años
+              {t("classes_board_page.student_card.age", { age: student.age })}
             </Badge>
           )}
         </HStack>
 
         {showHint && (
           <Text fontSize="xs" color={hintColor} fontFamily="'Manrope', sans-serif">
-            Arrastra para inscribir/mover
+            {t("classes_board_page.student_card.drag_hint")}
           </Text>
         )}
       </VStack>

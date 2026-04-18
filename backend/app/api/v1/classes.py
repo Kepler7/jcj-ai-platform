@@ -10,6 +10,7 @@ from app.auth.deps import get_current_user, require_role
 from app.auth.roles import Role
 
 from app.modules.users.models import User
+from app.modules.users.schemas import UserOut
 from app.modules.students.models import Student
 from app.modules.classes.models import Class, TeacherClass, StudentClass
 from app.modules.classes.schemas import (
@@ -160,6 +161,13 @@ def get_classes_by_school(
             raise HTTPException(status_code=403, detail="Forbidden")
 
     q = select(Class).where(Class.school_id == school_id).order_by(Class.name.asc())
+
+    if current_user.role == "teacher":
+        q = (
+            q.join(TeacherClass, TeacherClass.class_id == Class.id)
+            .where(TeacherClass.teacher_id == current_user.id)
+        )
+
     return list(db.execute(q).scalars().all())
 
 
@@ -219,6 +227,32 @@ def get_class_students(
 # ----------------------------
 # Asignación / Reasignación (Teachers)
 # ----------------------------
+
+
+@router.get(
+    "/{class_id}/teachers",
+    response_model=list[UserOut],
+    dependencies=[Depends(require_role(Role.platform_admin, Role.school_admin))],
+)
+def get_class_teachers(
+    class_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    c = _get_class_or_404(db, class_id)
+    _enforce_school_admin_scope(current_user, c.school_id)
+
+    q = (
+        select(User)
+        .join(TeacherClass, TeacherClass.teacher_id == User.id)
+        .where(
+            TeacherClass.class_id == class_id,
+            User.role == Role.teacher.value,
+            User.is_active == True,  # noqa: E712
+        )
+        .order_by(User.email.asc())
+    )
+    return list(db.execute(q).scalars().all())
 
 
 @router.post(

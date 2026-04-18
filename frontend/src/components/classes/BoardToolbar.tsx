@@ -9,6 +9,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   search: string;
@@ -27,6 +28,7 @@ export default function BoardToolbar({
   onRefresh,
   isRefreshing,
 }: Props) {
+  const { t } = useTranslation();
   const panelBg = useColorModeValue("#ffffff", "gray.800");
   const inputBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
   const inputBorder = useColorModeValue("rgba(195, 197, 215, 0.15)", "whiteAlpha.100");
@@ -56,7 +58,7 @@ export default function BoardToolbar({
             <Input
               value={search}
               onChange={(e) => onSearch(e.target.value)}
-              placeholder="Buscar alumno…"
+              placeholder={t("classes_board_page.toolbar.search_placeholder")}
               bg={inputBg}
               border="1px solid"
               borderColor={inputBorder}
@@ -72,7 +74,7 @@ export default function BoardToolbar({
         <HStack spacing={{ base: 4, md: 6 }} wrap="wrap">
           <HStack spacing={3}>
             <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
-              Modo:
+              {t("classes_board_page.toolbar.mode_label")}
             </Text>
 
             <HStack
@@ -92,7 +94,7 @@ export default function BoardToolbar({
                 px={4}
                 fontFamily="'Manrope', sans-serif"
               >
-                Agregar
+                {t("classes_board_page.toolbar.add")}
               </Button>
               <Button
                 size="sm"
@@ -106,7 +108,7 @@ export default function BoardToolbar({
                 px={4}
                 fontFamily="'Manrope', sans-serif"
               >
-                Mover
+                {t("classes_board_page.toolbar.move")}
               </Button>
             </HStack>
           </HStack>
@@ -123,7 +125,7 @@ export default function BoardToolbar({
             fontFamily="'Manrope', sans-serif"
             px={6}
           >
-            Refrescar
+            {t("classes_board_page.toolbar.refresh")}
           </Button>
         </HStack>
       </HStack>

@@ -3,10 +3,15 @@ import {
   Badge,
   Box,
   Button,
+  Divider,
   Flex,
+  FormControl,
+  FormLabel,
   Heading,
   HStack,
+  Input,
   Select,
+  SimpleGrid,
   Spinner,
   Text,
   useToast,
@@ -31,10 +36,18 @@ import ClassColumn from "../components/classes/ClassColumn";
 import StudentCard from "../components/classes/StudentCard";
 import {
   assignStudentToClass,
+  assignTeacherToClass,
+  createClass,
+  createTeacher,
+  fetchClassTeachers,
   fetchClassStudents,
+  fetchMyClasses,
   fetchSchoolClasses,
+  fetchSchoolTeachers,
+  unassignTeacherFromClass,
   unassignStudentFromClass,
   type StudentItem,
+  type TeacherItem,
 } from "../services/classesBoard";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../lib/apiClient";
@@ -62,6 +75,7 @@ function clearSchoolId() {
 type BoardClass = {
   id: string;
   name: string;
+  teachers: TeacherItem[];
   students: StudentItem[];
 };
 
@@ -69,6 +83,30 @@ type SchoolItem = {
   id: string;
   name: string;
 };
+
+type ApiErrorLike = {
+  message?: unknown;
+  body?: {
+    detail?: unknown;
+  };
+};
+
+type RawSchool = {
+  id?: unknown;
+  school_id?: unknown;
+  _id?: unknown;
+  name?: unknown;
+  school_name?: unknown;
+};
+
+function getErrorMessage(error: unknown, fallback = "Error") {
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as ApiErrorLike;
+    if (typeof maybeError.body?.detail === "string") return maybeError.body.detail;
+    if (typeof maybeError.message === "string") return maybeError.message;
+  }
+  return fallback;
+}
 
 // Helpers dnd
 function membershipId(studentId: string, fromClassId: string) {
@@ -109,6 +147,404 @@ function DraggableStudentCard(props: {
   );
 }
 
+function NewClassCard(props: {
+  canCreate: boolean;
+  title: string;
+  idleDescription: string;
+  formDescription: string;
+  inputPlaceholder: string;
+  submitLabel: string;
+  cancelLabel: string;
+  className: string;
+  isCreating: boolean;
+  isFormOpen: boolean;
+  onClassName: (value: string) => void;
+  onOpenForm: () => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const cardBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const borderColor = useColorModeValue("#e1e3e4", "whiteAlpha.200");
+  const iconBg = useColorModeValue("#dbe1ff", "whiteAlpha.200");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryHover = useColorModeValue("#0049ca", "blue.400");
+  const headingColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textColor = useColorModeValue("#737686", "whiteAlpha.500");
+  const inputBg = useColorModeValue("#ffffff", "whiteAlpha.100");
+  const inputBorder = useColorModeValue("rgba(195, 197, 215, 0.45)", "whiteAlpha.300");
+
+  if (!props.canCreate) return null;
+
+  return (
+    <Flex
+      minW="340px"
+      w="340px"
+      minH="600px"
+      borderRadius="2rem"
+      bg={cardBg}
+      border="1px solid"
+      borderColor={borderColor}
+      align="center"
+      justify="center"
+      px={8}
+      py={10}
+    >
+      {props.isFormOpen ? (
+        <VStack as="form" align="stretch" spacing={4} w="100%" onSubmit={(e) => {
+          e.preventDefault();
+          props.onSubmit();
+        }}>
+          <Box textAlign="center" mb={2}>
+            <Heading size="md" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+              {props.title}
+            </Heading>
+            <Text mt={2} color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {props.formDescription}
+            </Text>
+          </Box>
+          <Input
+            autoFocus
+            placeholder={props.inputPlaceholder}
+            value={props.className}
+            onChange={(e) => props.onClassName(e.target.value)}
+            bg={inputBg}
+            borderColor={inputBorder}
+            borderRadius="lg"
+            fontFamily="'Manrope', sans-serif"
+            isDisabled={props.isCreating}
+            _focus={{ borderColor: primaryColor, boxShadow: `0 0 0 1px ${primaryColor}` }}
+          />
+          <Button
+            type="submit"
+            bg={primaryColor}
+            color="#ffffff"
+            borderRadius="full"
+            fontFamily="'Manrope', sans-serif"
+            fontWeight="bold"
+            isLoading={props.isCreating}
+            isDisabled={!props.className.trim()}
+            _hover={{ bg: primaryHover }}
+          >
+            {props.submitLabel}
+          </Button>
+          <Button
+            variant="ghost"
+            borderRadius="full"
+            color={textColor}
+            fontFamily="'Manrope', sans-serif"
+            isDisabled={props.isCreating}
+            onClick={props.onCancel}
+          >
+            {props.cancelLabel}
+          </Button>
+        </VStack>
+      ) : (
+        <VStack spacing={4} textAlign="center">
+          <Flex
+            w="64px"
+            h="64px"
+            borderRadius="full"
+            bg={iconBg}
+            color={primaryColor}
+            align="center"
+            justify="center"
+            fontSize="34px"
+            lineHeight="1"
+          >
+            +
+          </Flex>
+          <Box>
+            <Heading size="md" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+              {props.title}
+            </Heading>
+            <Text mt={2} color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {props.idleDescription}
+            </Text>
+          </Box>
+          <Button
+            size="sm"
+            bg={primaryColor}
+            color="#ffffff"
+            borderRadius="full"
+            px={6}
+            fontFamily="'Manrope', sans-serif"
+            fontWeight="bold"
+            _hover={{ bg: primaryHover }}
+            onClick={props.onOpenForm}
+          >
+            {props.submitLabel}
+          </Button>
+        </VStack>
+      )}
+    </Flex>
+  );
+}
+
+function TeachersPanel(props: {
+  classes: BoardClass[];
+  teachers: TeacherItem[];
+  canManage: boolean;
+  creatingTeacher: boolean;
+  teacherActionLoading: boolean;
+  teacherEmail: string;
+  teacherPassword: string;
+  teacherCreateClassId: string;
+  selectedTeacherId: string;
+  selectedTeacherClassId: string;
+  onTeacherEmail: (value: string) => void;
+  onTeacherPassword: (value: string) => void;
+  onTeacherCreateClassId: (value: string) => void;
+  onSelectedTeacherId: (value: string) => void;
+  onSelectedTeacherClassId: (value: string) => void;
+  onCreateTeacher: () => void;
+  onAssignTeacher: () => void;
+  onReassignTeacher: () => void;
+  onUnassignTeacher: () => void;
+}) {
+  const { t } = useTranslation();
+  const panelBg = useColorModeValue("#ffffff", "gray.800");
+  const borderColor = useColorModeValue("rgba(195, 197, 215, 0.35)", "whiteAlpha.200");
+  const headingColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textColor = useColorModeValue("#737686", "whiteAlpha.500");
+  const labelColor = useColorModeValue("#434654", "gray.300");
+  const inputBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryHover = useColorModeValue("#0049ca", "blue.400");
+  const softBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const badgeBg = useColorModeValue("#e8edff", "whiteAlpha.200");
+
+  if (!props.canManage) return null;
+
+  const selectedTeacher = props.teachers.find((teacher) => teacher.id === props.selectedTeacherId);
+  const selectedTeacherClasses = props.classes.filter((klass) =>
+    klass.teachers.some((teacher) => teacher.id === props.selectedTeacherId)
+  );
+
+  return (
+    <Box
+      bg={panelBg}
+      border="1px solid"
+      borderColor={borderColor}
+      borderRadius="2rem"
+      p={{ base: 5, md: 6 }}
+      boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)"
+    >
+      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={4} direction={{ base: "column", md: "row" }} mb={6}>
+        <Box>
+          <Heading size="md" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+            {t("classes_board_page.teachers.title")}
+          </Heading>
+          <Text mt={1} color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+            {t("classes_board_page.teachers.desc")}
+          </Text>
+        </Box>
+        <Badge bg={badgeBg} color={primaryColor} borderRadius="full" px={3} py={1} textTransform="none">
+          {t("classes_board_page.teachers.count", { count: props.teachers.length })}
+        </Badge>
+      </Flex>
+
+      <SimpleGrid columns={{ base: 1, xl: 2 }} spacing={6}>
+        <VStack
+          as="form"
+          align="stretch"
+          spacing={4}
+          bg={softBg}
+          borderRadius="xl"
+          p={5}
+          onSubmit={(e) => {
+            e.preventDefault();
+            props.onCreateTeacher();
+          }}
+        >
+          <Box>
+            <Heading size="sm" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+              {t("classes_board_page.teachers.create_title")}
+            </Heading>
+            <Text mt={1} color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.create_desc")}
+            </Text>
+          </Box>
+
+          <FormControl>
+            <FormLabel color={labelColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.email_label")}
+            </FormLabel>
+            <Input
+              type="email"
+              value={props.teacherEmail}
+              onChange={(e) => props.onTeacherEmail(e.target.value)}
+              placeholder={t("classes_board_page.teachers.email_placeholder")}
+              bg={inputBg}
+              borderRadius="lg"
+              isDisabled={props.creatingTeacher}
+            />
+          </FormControl>
+
+          <FormControl>
+            <FormLabel color={labelColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.password_label")}
+            </FormLabel>
+            <Input
+              type="password"
+              value={props.teacherPassword}
+              onChange={(e) => props.onTeacherPassword(e.target.value)}
+              placeholder="Teacher123!"
+              bg={inputBg}
+              borderRadius="lg"
+              isDisabled={props.creatingTeacher}
+            />
+          </FormControl>
+
+          <FormControl>
+            <FormLabel color={labelColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.class_label")}
+            </FormLabel>
+            <Select
+              value={props.teacherCreateClassId}
+              onChange={(e) => props.onTeacherCreateClassId(e.target.value)}
+              placeholder={t("classes_board_page.teachers.select_class")}
+              bg={inputBg}
+              borderRadius="lg"
+              isDisabled={props.creatingTeacher || props.classes.length === 0}
+            >
+              {props.classes.map((klass) => (
+                <option key={klass.id} value={klass.id}>
+                  {klass.name}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Button
+            type="submit"
+            bg={primaryColor}
+            color="#ffffff"
+            borderRadius="full"
+            fontFamily="'Manrope', sans-serif"
+            fontWeight="bold"
+            isLoading={props.creatingTeacher}
+            isDisabled={!props.teacherEmail.trim() || !props.teacherPassword.trim() || !props.teacherCreateClassId}
+            _hover={{ bg: primaryHover }}
+          >
+            {t("classes_board_page.teachers.create_and_assign")}
+          </Button>
+        </VStack>
+
+        <VStack align="stretch" spacing={4} bg={softBg} borderRadius="xl" p={5}>
+          <Box>
+            <Heading size="sm" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+              {t("classes_board_page.teachers.assign_title")}
+            </Heading>
+            <Text mt={1} color={textColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.assign_desc")}
+            </Text>
+          </Box>
+
+          <FormControl>
+            <FormLabel color={labelColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.teacher_label")}
+            </FormLabel>
+            <Select
+              value={props.selectedTeacherId}
+              onChange={(e) => props.onSelectedTeacherId(e.target.value)}
+              placeholder={t("classes_board_page.teachers.select_teacher")}
+              bg={inputBg}
+              borderRadius="lg"
+              isDisabled={props.teacherActionLoading || props.teachers.length === 0}
+            >
+              {props.teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.email}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
+
+          {selectedTeacher && (
+            <Box bg={panelBg} borderRadius="lg" p={4}>
+              <Text color={headingColor} fontWeight="bold" fontSize="sm" fontFamily="'Manrope', sans-serif" wordBreak="break-word">
+                {selectedTeacher.email}
+              </Text>
+              <HStack mt={3} spacing={2} wrap="wrap">
+                {selectedTeacherClasses.length > 0 ? (
+                  selectedTeacherClasses.map((klass) => (
+                    <Badge key={klass.id} bg={badgeBg} color={primaryColor} borderRadius="full" px={3} py={1} textTransform="none">
+                      {klass.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <Text color={textColor} fontSize="sm" fontStyle="italic">
+                    {t("classes_board_page.teachers.no_assigned_classes")}
+                  </Text>
+                )}
+              </HStack>
+            </Box>
+          )}
+
+          <FormControl>
+            <FormLabel color={labelColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+              {t("classes_board_page.teachers.target_class_label")}
+            </FormLabel>
+            <Select
+              value={props.selectedTeacherClassId}
+              onChange={(e) => props.onSelectedTeacherClassId(e.target.value)}
+              placeholder={t("classes_board_page.teachers.select_class")}
+              bg={inputBg}
+              borderRadius="lg"
+              isDisabled={props.teacherActionLoading || props.classes.length === 0}
+            >
+              {props.classes.map((klass) => (
+                <option key={klass.id} value={klass.id}>
+                  {klass.name}
+                </option>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Divider borderColor={borderColor} />
+
+          <Flex gap={3} wrap="wrap">
+            <Button
+              bg={primaryColor}
+              color="#ffffff"
+              borderRadius="full"
+              fontFamily="'Manrope', sans-serif"
+              fontWeight="bold"
+              isLoading={props.teacherActionLoading}
+              isDisabled={!props.selectedTeacherId || !props.selectedTeacherClassId}
+              _hover={{ bg: primaryHover }}
+              onClick={props.onAssignTeacher}
+            >
+              {t("classes_board_page.teachers.assign")}
+            </Button>
+            <Button
+              variant="outline"
+              borderRadius="full"
+              borderColor={borderColor}
+              color={headingColor}
+              fontFamily="'Manrope', sans-serif"
+              isDisabled={!props.selectedTeacherId || !props.selectedTeacherClassId || props.teacherActionLoading}
+              onClick={props.onReassignTeacher}
+            >
+              {t("classes_board_page.teachers.reassign")}
+            </Button>
+            <Button
+              variant="ghost"
+              borderRadius="full"
+              color="red.500"
+              fontFamily="'Manrope', sans-serif"
+              isDisabled={!props.selectedTeacherId || !props.selectedTeacherClassId || props.teacherActionLoading}
+              onClick={props.onUnassignTeacher}
+            >
+              {t("classes_board_page.teachers.remove_from_class")}
+            </Button>
+          </Flex>
+        </VStack>
+      </SimpleGrid>
+    </Box>
+  );
+}
+
 export default function ClassesBoardPage() {
   const { t } = useTranslation();
   const toast = useToast();
@@ -134,6 +570,9 @@ export default function ClassesBoardPage() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [creatingClass, setCreatingClass] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [showNewClassForm, setShowNewClassForm] = useState(false);
 
   const [mode, setMode] = useState<"add" | "move">("add");
   const [search, setSearch] = useState("");
@@ -153,7 +592,17 @@ export default function ClassesBoardPage() {
 
   const isPlatformAdmin = me?.role === "platform_admin";
   const isSchoolScoped = me?.role === "school_admin" || me?.role === "teacher";
+  const canCreateClass = me?.role === "platform_admin" || me?.role === "school_admin";
+  const canManageTeachers = me?.role === "platform_admin" || me?.role === "school_admin";
   const [schoolName, setSchoolName] = useState<string>(getSchoolName());
+  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
+  const [creatingTeacher, setCreatingTeacher] = useState(false);
+  const [teacherActionLoading, setTeacherActionLoading] = useState(false);
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherPassword, setTeacherPassword] = useState("");
+  const [teacherCreateClassId, setTeacherCreateClassId] = useState("");
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [selectedTeacherClassId, setSelectedTeacherClassId] = useState("");
 
   // 1) Al entrar, lee schoolId de localStorage (por si cambió en otra tab)
   useEffect(() => {
@@ -172,32 +621,36 @@ export default function ClassesBoardPage() {
 
         // Ajusta este endpoint si el tuyo es distinto:
         // ejemplos comunes: /v1/schools, /api/v1/schools, etc.
-        const data = await api<any>("/v1/schools", { auth: true });
+        const data = await api<unknown>("/v1/schools", { auth: true });
 
         // Intento tolerante: acepta {items:[...]} o array directo
-        const list: SchoolItem[] = Array.isArray(data)
+        const dataWithItems = data as { items?: unknown };
+        const list = Array.isArray(data)
           ? data
-          : Array.isArray(data?.items)
-            ? data.items
+          : Array.isArray(dataWithItems?.items)
+            ? dataWithItems.items
             : [];
 
         // Normaliza campos si vienen diferentes
         const normalized = list
-          .map((s: any) => ({
-            id: String(s.id ?? s.school_id ?? s._id ?? ""),
-            name: String(s.name ?? s.school_name ?? "Escuela"),
-          }))
+          .map((raw) => {
+            const s = raw as RawSchool;
+            return {
+              id: String(s.id ?? s.school_id ?? s._id ?? ""),
+              name: String(s.name ?? s.school_name ?? t("classes_board_page.school_fallback")),
+            };
+          })
           .filter((s) => s.id);
 
         normalized.sort((a, b) => a.name.localeCompare(b.name, "es"));
 
         setSchools(normalized);
-      } catch (e: any) {
+      } catch (e: unknown) {
         setSchools([]);
         toast({
           status: "error",
           title: t("classes_board_page.toast.error_loading_schools_title"),
-          description: e?.message || t("classes_board_page.toast.error_loading_schools_desc"),
+          description: getErrorMessage(e, t("classes_board_page.toast.error_loading_schools_desc")),
         });
       } finally {
         setLoadingSchools(false);
@@ -207,17 +660,27 @@ export default function ClassesBoardPage() {
   }, [isPlatformAdmin, schoolId]);
 
   async function loadBoard(sid: string) {
-    const cls = await fetchSchoolClasses(sid);
+    const cls = me?.role === "teacher" ? await fetchMyClasses() : await fetchSchoolClasses(sid);
 
     const results = await Promise.all(
       cls.map(async (c) => {
-        const students = await fetchClassStudents(c.id);
-        return { id: c.id, name: c.name, students };
+        const [students, classTeachers] = await Promise.all([
+          fetchClassStudents(c.id),
+          canManageTeachers ? fetchClassTeachers(c.id) : Promise.resolve([]),
+        ]);
+        return { id: c.id, name: c.name, teachers: classTeachers, students };
       })
     );
 
     results.sort((a, b) => a.name.localeCompare(b.name, "es"));
     setClasses(results);
+
+    if (canManageTeachers) {
+      const schoolTeachers = await fetchSchoolTeachers(sid);
+      setTeachers(schoolTeachers.sort((a, b) => a.email.localeCompare(b.email, "es")));
+    } else {
+      setTeachers([]);
+    }
   }
 
   // 3) Cargar board cuando ya haya schoolId
@@ -257,11 +720,11 @@ export default function ClassesBoardPage() {
         }
 
         await loadBoard(sid);
-      } catch (e: any) {
+      } catch (e: unknown) {
         toast({
           status: "error",
           title: t("classes_board_page.toast.error_loading_board_title"),
-          description: e?.message || "Error",
+          description: getErrorMessage(e),
         });
       } finally {
         setLoading(false);
@@ -285,16 +748,227 @@ export default function ClassesBoardPage() {
       }
 
       await loadBoard(schoolId);
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         status: "error",
         title: t("classes_board_page.toast.error_refreshing_title"),
-        description: e?.message || "Error",
+        description: getErrorMessage(e),
       });
     } finally {
       setRefreshing(false);
     }
   }
+
+  async function handleCreateClass() {
+    const name = newClassName.trim();
+
+    if (!schoolId) {
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.missing_school_id_title"),
+        description: t("classes_board_page.toast.missing_refresh_id_desc"),
+      });
+      return;
+    }
+
+    if (!name) return;
+
+    try {
+      setCreatingClass(true);
+      const created = await createClass(schoolId, name);
+
+      setClasses((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: created.id,
+            name: created.name,
+            teachers: [],
+            students: [],
+          },
+        ];
+        return next.sort((a, b) => a.name.localeCompare(b.name, "es"));
+      });
+      setNewClassName("");
+      setShowNewClassForm(false);
+      setSearch("");
+
+      toast({
+        status: "success",
+        title: t("classes_board_page.toast.class_created_title"),
+        description: t("classes_board_page.toast.class_created_desc"),
+      });
+    } catch (e: unknown) {
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.class_create_error_title"),
+        description: getErrorMessage(e),
+      });
+    } finally {
+      setCreatingClass(false);
+    }
+  }
+
+  function updateClassTeachers(classId: string, updater: (current: TeacherItem[]) => TeacherItem[]) {
+    setClasses((prev) =>
+      prev.map((klass) =>
+        klass.id === classId
+          ? { ...klass, teachers: updater(klass.teachers) }
+          : klass
+      )
+    );
+  }
+
+  function getTeacherAssignedClasses(teacherId: string) {
+    return classes.filter((klass) =>
+      klass.teachers.some((teacher) => teacher.id === teacherId)
+    );
+  }
+
+  async function handleCreateTeacher() {
+    const email = teacherEmail.trim();
+    const password = teacherPassword.trim();
+
+    if (!schoolId || !email || !password || !teacherCreateClassId) return;
+
+    try {
+      setCreatingTeacher(true);
+      const teacher = await createTeacher({ schoolId, email, password });
+      await assignTeacherToClass(teacherCreateClassId, teacher.id);
+
+      setTeachers((prev) => {
+        const exists = prev.some((item) => item.id === teacher.id);
+        const next = exists ? prev : [...prev, teacher];
+        return next.sort((a, b) => a.email.localeCompare(b.email, "es"));
+      });
+      updateClassTeachers(teacherCreateClassId, (current) =>
+        current.some((item) => item.id === teacher.id) ? current : [...current, teacher]
+      );
+      setSelectedTeacherId(teacher.id);
+      setSelectedTeacherClassId(teacherCreateClassId);
+      setTeacherEmail("");
+      setTeacherPassword("");
+
+      toast({
+        status: "success",
+        title: t("classes_board_page.toast.teacher_created_title"),
+        description: t("classes_board_page.toast.teacher_created_desc"),
+      });
+    } catch (e: unknown) {
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.teacher_create_error_title"),
+        description: getErrorMessage(e),
+      });
+    } finally {
+      setCreatingTeacher(false);
+    }
+  }
+
+  async function handleAssignTeacher() {
+    const teacher = teachers.find((item) => item.id === selectedTeacherId);
+    if (!teacher || !selectedTeacherClassId) return;
+
+    try {
+      setTeacherActionLoading(true);
+      await assignTeacherToClass(selectedTeacherClassId, teacher.id);
+      updateClassTeachers(selectedTeacherClassId, (current) =>
+        current.some((item) => item.id === teacher.id) ? current : [...current, teacher]
+      );
+      toast({
+        status: "success",
+        title: t("classes_board_page.toast.teacher_assigned_title"),
+        description: t("classes_board_page.toast.teacher_assigned_desc"),
+      });
+    } catch (e: unknown) {
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.teacher_assign_error_title"),
+        description: getErrorMessage(e),
+      });
+    } finally {
+      setTeacherActionLoading(false);
+    }
+  }
+
+  async function handleReassignTeacher() {
+    const teacher = teachers.find((item) => item.id === selectedTeacherId);
+    if (!teacher || !selectedTeacherClassId) return;
+
+    const assignedClasses = getTeacherAssignedClasses(teacher.id);
+
+    try {
+      setTeacherActionLoading(true);
+      await Promise.all(
+        assignedClasses
+          .filter((klass) => klass.id !== selectedTeacherClassId)
+          .map((klass) => unassignTeacherFromClass(klass.id, teacher.id))
+      );
+      await assignTeacherToClass(selectedTeacherClassId, teacher.id);
+
+      setClasses((prev) =>
+        prev.map((klass) => {
+          const withoutTeacher = klass.teachers.filter((item) => item.id !== teacher.id);
+          if (klass.id === selectedTeacherClassId) {
+            return { ...klass, teachers: [...withoutTeacher, teacher] };
+          }
+          return { ...klass, teachers: withoutTeacher };
+        })
+      );
+
+      toast({
+        status: "success",
+        title: t("classes_board_page.toast.teacher_reassigned_title"),
+        description: t("classes_board_page.toast.teacher_reassigned_desc"),
+      });
+    } catch (e: unknown) {
+      await refresh();
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.teacher_reassign_error_title"),
+        description: getErrorMessage(e),
+      });
+    } finally {
+      setTeacherActionLoading(false);
+    }
+  }
+
+  async function handleUnassignTeacher() {
+    const teacher = teachers.find((item) => item.id === selectedTeacherId);
+    if (!teacher || !selectedTeacherClassId) return;
+
+    try {
+      setTeacherActionLoading(true);
+      await unassignTeacherFromClass(selectedTeacherClassId, teacher.id);
+      updateClassTeachers(selectedTeacherClassId, (current) =>
+        current.filter((item) => item.id !== teacher.id)
+      );
+      toast({
+        status: "success",
+        title: t("classes_board_page.toast.teacher_removed_title"),
+        description: t("classes_board_page.toast.teacher_removed_desc"),
+      });
+    } catch (e: unknown) {
+      toast({
+        status: "error",
+        title: t("classes_board_page.toast.teacher_remove_error_title"),
+        description: getErrorMessage(e),
+      });
+    } finally {
+      setTeacherActionLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!classes.length) return;
+
+    setTeacherCreateClassId((current) =>
+      current && classes.some((klass) => klass.id === current) ? current : classes[0].id
+    );
+    setSelectedTeacherClassId((current) =>
+      current && classes.some((klass) => klass.id === current) ? current : classes[0].id
+    );
+  }, [classes]);
 
   const filteredClasses = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -408,12 +1082,12 @@ export default function ClassesBoardPage() {
             ? t("classes_board_page.toast.moved_desc")
             : t("classes_board_page.toast.enrolled_success_desc"),
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       rollback();
       toast({
         status: "error",
         title: t("classes_board_page.toast.update_error_title"),
-        description: e?.body?.detail || e?.message || "Error",
+        description: getErrorMessage(e),
       });
     }
   }
@@ -614,6 +1288,28 @@ export default function ClassesBoardPage() {
           isRefreshing={refreshing}
         />
 
+        <TeachersPanel
+          classes={classes}
+          teachers={teachers}
+          canManage={canManageTeachers && Boolean(schoolId)}
+          creatingTeacher={creatingTeacher}
+          teacherActionLoading={teacherActionLoading}
+          teacherEmail={teacherEmail}
+          teacherPassword={teacherPassword}
+          teacherCreateClassId={teacherCreateClassId}
+          selectedTeacherId={selectedTeacherId}
+          selectedTeacherClassId={selectedTeacherClassId}
+          onTeacherEmail={setTeacherEmail}
+          onTeacherPassword={setTeacherPassword}
+          onTeacherCreateClassId={setTeacherCreateClassId}
+          onSelectedTeacherId={setSelectedTeacherId}
+          onSelectedTeacherClassId={setSelectedTeacherClassId}
+          onCreateTeacher={handleCreateTeacher}
+          onAssignTeacher={handleAssignTeacher}
+          onReassignTeacher={handleReassignTeacher}
+          onUnassignTeacher={handleUnassignTeacher}
+        />
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -642,6 +1338,7 @@ export default function ClassesBoardPage() {
                   classId={c.id}
                   name={c.name}
                   count={c.students.length}
+                  teachers={c.teachers.map((teacher) => teacher.email)}
                 >
                   {c.students.map((s) => (
                     <DraggableStudentCard
@@ -653,6 +1350,25 @@ export default function ClassesBoardPage() {
                   ))}
                 </ClassColumn>
               ))}
+              <NewClassCard
+                canCreate={canCreateClass && Boolean(schoolId)}
+                title={t("classes_board_page.new_class.title")}
+                idleDescription={t("classes_board_page.new_class.idle_desc")}
+                formDescription={t("classes_board_page.new_class.form_desc")}
+                inputPlaceholder={t("classes_board_page.new_class.placeholder")}
+                submitLabel={t("classes_board_page.new_class.submit")}
+                cancelLabel={t("classes_board_page.new_class.cancel")}
+                className={newClassName}
+                isCreating={creatingClass}
+                isFormOpen={showNewClassForm}
+                onClassName={setNewClassName}
+                onOpenForm={() => setShowNewClassForm(true)}
+                onCancel={() => {
+                  setShowNewClassForm(false);
+                  setNewClassName("");
+                }}
+                onSubmit={handleCreateClass}
+              />
             </Flex>
           </Box>
 

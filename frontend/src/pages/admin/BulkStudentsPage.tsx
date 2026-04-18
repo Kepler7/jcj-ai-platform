@@ -165,7 +165,7 @@ export default function BulkStudentsPage() {
           _hover={{ bg: inputBg }}
           onClick={downloadTemplate}
         >
-          Descargar template CSV
+          {t('bulk_page.header.download')}
         </Button>
       </Flex>
 
@@ -209,7 +209,7 @@ export default function BulkStudentsPage() {
             alignItems="flex-end"
           >
             <Text fontFamily="'Manrope', sans-serif" color="#ffffff" fontSize="sm" fontWeight="bold">
-              Enseña asi , Aprende asi...
+              {t('bulk_page.fluid_arch.banner')}
             </Text>
           </Box>
         </GridItem>
@@ -218,14 +218,14 @@ export default function BulkStudentsPage() {
 
           <Box mb={6} bg={cardBg} borderRadius="2rem" boxShadow="0 20px 40px rgba(0,0,0,0.03)" p={{ base: 6, md: 8 }}>
             <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={8}>
-              Subir archivo
+              {t('bulk_page.upload.title')}
             </Heading>
 
             <VStack align="stretch" spacing={6}>
               {isPlatformAdmin && (
                 <Box bg={inputBg} p={5} borderRadius="xl" border="1px solid" borderColor={borderColor}>
                   <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={2}>
-                    School ID (Solo Admin)
+                    {t('bulk_page.upload.admin_label')}
                   </Text>
                   <Input
                     value={schoolId}
@@ -247,7 +247,7 @@ export default function BulkStudentsPage() {
 
               <Box>
                 <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textLabel} fontSize="sm" textTransform="uppercase" letterSpacing="wider" mb={3}>
-                  Archivo CSV
+                  {t('bulk_page.upload.csv_label')}
                 </Text>
 
                 <Box
@@ -342,10 +342,10 @@ export default function BulkStudentsPage() {
                   <AlertIcon color={primaryColor} />
                   <Box>
                     <Text fontFamily="'Plus Jakarta Sans', sans-serif" fontWeight="bold" fontSize="sm" mb={1}>
-                      Sube un CSV y presiona Preview.
+                      {t('bulk_page.upload.info_title')}
                     </Text>
                     <Text fontFamily="'Manrope', sans-serif" fontSize="xs" color={textMuted}>
-                      Solo podrás hacer Apply si no hay errores detectados en la validación inicial del archivo.
+                      {t('bulk_page.upload.info_desc')}
                     </Text>
                   </Box>
                 </Alert>
@@ -358,7 +358,7 @@ export default function BulkStudentsPage() {
               <Box mb={4}>
                 <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
                   <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
-                    Preview de Datos
+                    {t('bulk_page.preview_data.title')}
                   </Heading>
                   <HStack spacing={2} wrap="wrap">
                     <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
@@ -378,7 +378,7 @@ export default function BulkStudentsPage() {
                 {preview.will_create_classes?.length > 0 && (
                   <Box mb={6}>
                     <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor} mb={3}>
-                      Se crearán estas clases (si aplicas):
+                      {t('bulk_page.preview_data.will_create')}
                     </Text>
                     <Flex wrap="wrap" gap={2}>
                       {preview.will_create_classes.map((c) => (
@@ -394,7 +394,7 @@ export default function BulkStudentsPage() {
                 {preview.invalid_rows > 0 && (
                   <Box mb={6}>
                     <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={errorText} mb={3}>
-                      {t('bulk_page.preview_data.errors')} (primeros {Math.min(50, preview.errors.length)}):
+                      {t('bulk_page.preview_data.errors')} ({t('bulk_page.preview_data.first')} {Math.min(50, preview.errors.length)}):
                     </Text>
                     <Box overflowX="auto" bg={errorBg} borderRadius="xl" border="1px solid" borderColor="red.200">
                       <Table size="sm" variant="simple">
@@ -421,7 +421,7 @@ export default function BulkStudentsPage() {
                 )}
 
                 <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor} mb={3}>
-                  {t('bulk_page.preview_data.sample')} {preview.sample.length} filas parseadas):
+                  {t('bulk_page.preview_data.sample')} {preview.sample.length} {t('bulk_page.preview_data.parsed_rows')}):
                 </Text>
 
                 <Box overflowX="auto" borderRadius="xl" border="1px solid" borderColor={borderColor}>
@@ -458,7 +458,7 @@ export default function BulkStudentsPage() {
             <Box bg={successBg} borderRadius="2rem" border="1px solid" borderColor="green.200" p={6}>
               <Box mb={4}>
                 <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={successText}>
-                  Resultado de Importación
+                  {t('bulk_page.result.title')}
                 </Heading>
               </Box>
               <HStack spacing={3} wrap="wrap">

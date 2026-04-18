@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Box,
   Button,
@@ -37,7 +37,10 @@ import {
   Search,
   ListFilter,
   Download,
-  FileText
+  FileText,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown
 } from 'lucide-react';
 
 type Class = {
@@ -67,6 +70,13 @@ type Student = {
   reports_count?: number;
 };
 
+type SortKey = 'reports' | 'full_name' | 'age' | 'class' | 'is_active';
+type SortDirection = 'asc' | 'desc';
+
+function getPrimaryClassName(student: Student) {
+  return student.classes?.[0]?.name ?? '';
+}
+
 export default function StudentsPage() {
   const { t } = useTranslation();
   const { me } = useAuth();
@@ -92,6 +102,8 @@ export default function StudentsPage() {
   const [age, setAge] = useState<number | ''>('');
   const [selectedClass, setSelectedClass] = useState('');
   const [notes, setNotes] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('full_name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const cardBg = useColorModeValue("#ffffff", "gray.800");
   const pageBg = useColorModeValue("#f8f9fa", "gray.900");
@@ -106,6 +118,96 @@ export default function StudentsPage() {
   const errorText = useColorModeValue("#ba1a1a", "red.300");
   const errorBg = useColorModeValue("#ffeceb", "red.900");
   const borderColor = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+
+  function toggleSort(nextKey: SortKey) {
+    if (nextKey === sortKey) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === 'reports' ? 'desc' : 'asc');
+  }
+
+  function SortIcon({ column }: { column: SortKey }) {
+    if (sortKey !== column) return <ArrowUpDown size={14} />;
+    return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  }
+
+  function SortableHeader({
+    column,
+    children,
+    display,
+    pl,
+    pr,
+  }: {
+    column: SortKey;
+    children: ReactNode;
+    display?: { base?: string; md?: string };
+    pl?: { base: number; md: number };
+    pr?: { base: number; md: number };
+  }) {
+    const isActive = sortKey === column;
+
+    return (
+      <Th
+        fontSize="xs"
+        fontWeight="bold"
+        color={isActive ? primaryColor : textMuted}
+        textTransform="uppercase"
+        letterSpacing="wider"
+        pl={pl}
+        pr={pr}
+        py="6"
+        display={display}
+        cursor="pointer"
+        userSelect="none"
+        onClick={() => toggleSort(column)}
+        aria-sort={isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+        _hover={{ color: primaryColor }}
+      >
+        <HStack spacing="2">
+          <Text as="span">{children}</Text>
+          <Box as="span" color={isActive ? primaryColor : textMuted} display="inline-flex">
+            <SortIcon column={column} />
+          </Box>
+        </HStack>
+      </Th>
+    );
+  }
+
+  const sortedStudents = useMemo(() => {
+    return [...students].sort((a, b) => {
+      let result = 0;
+
+      if (sortKey === 'reports') {
+        result = (a.reports_count ?? 0) - (b.reports_count ?? 0);
+      } else if (sortKey === 'age') {
+        result = (a.age ?? -1) - (b.age ?? -1);
+      } else if (sortKey === 'class') {
+        result = getPrimaryClassName(a).localeCompare(getPrimaryClassName(b), 'es', {
+          sensitivity: 'base',
+          numeric: true,
+        });
+      } else if (sortKey === 'is_active') {
+        result = Number(a.is_active) - Number(b.is_active);
+      } else {
+        result = a.full_name.localeCompare(b.full_name, 'es', {
+          sensitivity: 'base',
+          numeric: true,
+        });
+      }
+
+      if (result === 0) {
+        return a.full_name.localeCompare(b.full_name, 'es', {
+          sensitivity: 'base',
+          numeric: true,
+        });
+      }
+
+      return sortDirection === 'asc' ? result : -result;
+    });
+  }, [students, sortDirection, sortKey]);
 
   async function loadSchoolsIfNeeded() {
     if (!me || me.role !== 'platform_admin') return;
@@ -126,10 +228,12 @@ export default function StudentsPage() {
         return;
       }
 
-      const data = await api<Class[]>(
-        `/v1/classes/by-school/${encodeURIComponent(effectiveSchoolId)}`,
-        { auth: true }
-      );
+      const path =
+        me?.role === 'teacher'
+          ? '/v1/classes/me'
+          : `/v1/classes/by-school/${encodeURIComponent(effectiveSchoolId)}`;
+
+      const data = await api<Class[]>(path, { auth: true });
 
       const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
       setClasses(sorted);
@@ -149,10 +253,12 @@ export default function StudentsPage() {
         return;
       }
 
-      const data = await api<Student[]>(
-        `/v1/students?school_id=${encodeURIComponent(effectiveSchoolId)}`,
-        { auth: true }
-      );
+      const path =
+        me?.role === 'teacher'
+          ? '/v1/students/me'
+          : `/v1/students?school_id=${encodeURIComponent(effectiveSchoolId)}`;
+
+      const data = await api<Student[]>(path, { auth: true });
 
       setStudents(data);
     } catch (e: any) {
@@ -447,15 +553,25 @@ export default function StudentsPage() {
                   }}>
                     <Thead>
                       <Tr borderBottom="1px solid" borderColor={borderColor}>
-                        <Th fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" pl={{ base: 4, md: 8 }} py="6">{t("students_page.table.actions")}</Th>
-                        <Th fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" py="6">{t("students_page.table.full_name")}</Th>
-                        <Th fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" py="6" display={{ base: "none", md: "table-cell" }}>{t("students_page.table.age")}</Th>
-                        <Th fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" py="6" display={{ base: "none", md: "table-cell" }}>{t("students_page.table.classes")}</Th>
-                        <Th fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" pr={{ base: 4, md: 8 }} py="6" display={{ base: "none", md: "table-cell" }}>{t("students_page.table.status")}</Th>
+                        <SortableHeader column="reports" pl={{ base: 4, md: 8 }}>
+                          {t("students_page.table.actions")}
+                        </SortableHeader>
+                        <SortableHeader column="full_name">
+                          {t("students_page.table.full_name")}
+                        </SortableHeader>
+                        <SortableHeader column="age" display={{ base: "none", md: "table-cell" }}>
+                          {t("students_page.table.age")}
+                        </SortableHeader>
+                        <SortableHeader column="class" display={{ base: "none", md: "table-cell" }}>
+                          {t("students_page.table.classes")}
+                        </SortableHeader>
+                        <SortableHeader column="is_active" pr={{ base: 4, md: 8 }} display={{ base: "none", md: "table-cell" }}>
+                          {t("students_page.table.status")}
+                        </SortableHeader>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {students.map((student, idx) => {
+                      {sortedStudents.map((student, idx) => {
                         const colors = [
                           { bg: primaryBg, text: primaryColor },
                           { bg: highlightBg, text: highlightColor },

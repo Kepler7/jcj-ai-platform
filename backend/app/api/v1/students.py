@@ -19,7 +19,7 @@ from app.auth.deps import get_current_user, require_role
 from app.auth.roles import Role
 from app.modules.users.models import User
 
-from app.modules.classes.models import Class, StudentClass
+from app.modules.classes.models import Class, StudentClass, TeacherClass
 from app.modules.students.models import Student
 from app.modules.students.bulk_schemas import (
     BulkStudentsPreviewResponse,
@@ -129,6 +129,66 @@ def ensure_same_school(current_user: User, school_id: UUID):
         raise HTTPException(status_code=403, detail="Forbidden (different school)")
 
 
+def _students_with_reports_response(rows):
+    return [
+        StudentOutWithClasses(
+            id=s.id,
+            school_id=s.school_id,
+            full_name=s.full_name,
+            age=getattr(s, "age", None),
+            notes=getattr(s, "notes", None),
+            is_active=getattr(s, "is_active", None),
+            created_at=getattr(s, "created_at", None),
+            reports_count=int(reports_count or 0),
+            classes=[{"id": c.id, "name": c.name} for c in getattr(s, "classes", [])],
+        )
+        for s, reports_count in rows
+    ]
+
+
+def _students_with_reports_base_stmt():
+    reports_count_sq = (
+        select(func.count(StudentReport.id))
+        .where(StudentReport.student_id == Student.id)
+        .correlate(Student)
+        .scalar_subquery()
+    )
+
+    return (
+        select(
+            Student,
+            func.coalesce(reports_count_sq, 0).label("reports_count"),
+        )
+        .options(selectinload(Student.classes))
+        .order_by(Student.full_name.asc())
+    )
+
+
+def _teacher_assigned_student_ids(teacher_id: UUID):
+    return (
+        select(StudentClass.student_id)
+        .join(TeacherClass, TeacherClass.class_id == StudentClass.class_id)
+        .where(TeacherClass.teacher_id == teacher_id)
+        .distinct()
+    )
+
+
+def _ensure_teacher_assigned_to_student(
+    db: Session, teacher_id: UUID, student_id: UUID
+) -> None:
+    exists = db.execute(
+        select(StudentClass.id)
+        .join(TeacherClass, TeacherClass.class_id == StudentClass.class_id)
+        .where(
+            TeacherClass.teacher_id == teacher_id,
+            StudentClass.student_id == student_id,
+        )
+    ).scalar_one_or_none()
+
+    if not exists:
+        raise HTTPException(status_code=403, detail="Teacher is not assigned to this student")
+
+
 @router.post(
     "", response_model=StudentOutWithClasses, status_code=status.HTTP_201_CREATED
 )
@@ -188,39 +248,29 @@ def list_students_with_classes(
         if current_user.school_id != school_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    reports_count_sq = (
-        select(func.count(StudentReport.id))
-        .where(StudentReport.student_id == Student.id)
-        .correlate(Student)
-        .scalar_subquery()
-    )
+    stmt = _students_with_reports_base_stmt().where(Student.school_id == school_id)
 
-    stmt = (
-        select(
-            Student,
-            func.coalesce(reports_count_sq, 0).label("reports_count"),
-        )
-        .where(Student.school_id == school_id)
-        .options(selectinload(Student.classes))
-        .order_by(Student.full_name.asc())
-    )
+    if current_user.role == Role.teacher.value:
+        stmt = stmt.where(Student.id.in_(_teacher_assigned_student_ids(current_user.id)))
 
     rows = db.execute(stmt).all()
+    return _students_with_reports_response(rows)
 
-    return [
-        StudentOutWithClasses(
-            id=s.id,
-            school_id=s.school_id,
-            full_name=s.full_name,
-            age=getattr(s, "age", None),
-            notes=getattr(s, "notes", None),
-            is_active=getattr(s, "is_active", None),
-            created_at=getattr(s, "created_at", None),
-            reports_count=int(reports_count or 0),
-            classes=[{"id": c.id, "name": c.name} for c in getattr(s, "classes", [])],
-        )
-        for s, reports_count in rows
-    ]
+
+@router.get(
+    "/me",
+    response_model=list[StudentOutWithClasses],
+    dependencies=[Depends(require_role(Role.teacher))],
+)
+def list_my_students_with_classes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = _students_with_reports_base_stmt().where(
+        Student.id.in_(_teacher_assigned_student_ids(current_user.id))
+    )
+    rows = db.execute(stmt).all()
+    return _students_with_reports_response(rows)
 
 
 @router.get(
@@ -247,6 +297,9 @@ def get_student_with_classes(
     if current_user.role in ("school_admin", "teacher"):
         if current_user.school_id != s.school_id:
             raise HTTPException(status_code=403, detail="Forbidden")
+
+    if current_user.role == Role.teacher.value:
+        _ensure_teacher_assigned_to_student(db, current_user.id, student_id)
 
     return StudentOutWithClasses(
         id=s.id,
@@ -279,6 +332,9 @@ def update_student(
         raise HTTPException(status_code=404, detail="Student not found")
 
     ensure_same_school(current_user, UUID(str(student.school_id)))
+
+    if current_user.role == Role.teacher.value:
+        _ensure_teacher_assigned_to_student(db, current_user.id, student_id)
 
     data = payload.model_dump(exclude_unset=True)
 

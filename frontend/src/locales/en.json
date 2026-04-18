@@ -102,7 +102,52 @@
       "enter_board": "Enter Board",
       "loading_board": "Loading board…",
       "school_label": "School:",
+      "school_fallback": "School",
       "change_school": "Change school",
+      "toolbar": {
+        "search_placeholder": "Search student...",
+        "mode_label": "Mode:",
+        "add": "Add",
+        "move": "Move",
+        "refresh": "Refresh"
+      },
+      "new_class": {
+        "title": "New Class",
+        "idle_desc": "Create a new column to organize your students.",
+        "form_desc": "Enter a name to create the column.",
+        "placeholder": "Class name",
+        "submit": "Create Column",
+        "cancel": "Cancel"
+      },
+      "class_column": {
+        "drag_hint": "Drag students here"
+      },
+      "student_card": {
+        "age": "{{age}} years old",
+        "drag_hint": "Drag to enroll/move"
+      },
+      "teachers": {
+        "title": "Teachers",
+        "desc": "Create teachers and manage which class they belong to.",
+        "count": "{{count}} teachers",
+        "create_title": "Create teacher",
+        "create_desc": "When created, the teacher is assigned to an existing class.",
+        "email_label": "Email",
+        "email_placeholder": "teacher@jcj.dev",
+        "password_label": "Password",
+        "class_label": "Class",
+        "select_class": "Select a class",
+        "create_and_assign": "Create and assign",
+        "assign_title": "Assign or reassign",
+        "assign_desc": "Use reassign to move a teacher to a single class.",
+        "teacher_label": "Teacher",
+        "select_teacher": "Select a teacher",
+        "no_assigned_classes": "No assigned classes",
+        "target_class_label": "Target class",
+        "assign": "Assign",
+        "reassign": "Reassign",
+        "remove_from_class": "Remove from class"
+      },
       "toast": {
         "error_loading_schools_title": "Failed to load schools",
         "error_loading_schools_desc": "Verify endpoint /v1/schools and its permissions.",
@@ -122,7 +167,22 @@
         "school_selected_title": "School selected",
         "school_selected_desc": "Loading board…",
         "select_other_title": "Select another school",
-        "select_other_desc": "Choose a school to load its board."
+        "select_other_desc": "Choose a school to load its board.",
+        "class_created_title": "Class created",
+        "class_created_desc": "The new column is ready.",
+        "class_create_error_title": "Could not create class",
+        "teacher_created_title": "Teacher created",
+        "teacher_created_desc": "The teacher is now assigned to the class.",
+        "teacher_create_error_title": "Could not create teacher",
+        "teacher_assigned_title": "Teacher assigned",
+        "teacher_assigned_desc": "This teacher is now assigned to the class.",
+        "teacher_assign_error_title": "Could not assign teacher",
+        "teacher_reassigned_title": "Teacher reassigned",
+        "teacher_reassigned_desc": "The teacher now belongs to the selected class.",
+        "teacher_reassign_error_title": "Could not reassign teacher",
+        "teacher_removed_title": "Teacher removed",
+        "teacher_removed_desc": "The class assignment was removed.",
+        "teacher_remove_error_title": "Could not remove teacher"
       }
     },
     "reports_page": {
@@ -290,8 +350,10 @@
         "valid": "Valid:",
         "invalid": "Invalid:",
         "will_create": "These classes will be created (if you apply):",
-        "errors": "⚠️ Errors",
-        "sample": "Sample (first"
+        "errors": "Errors",
+        "first": "first",
+        "sample": "Sample (first",
+        "parsed_rows": "parsed rows"
       },
       "result": {
         "title": "Import Result",

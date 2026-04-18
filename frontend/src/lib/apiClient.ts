@@ -1,4 +1,4 @@
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 export class ApiError extends Error {
   status: number;

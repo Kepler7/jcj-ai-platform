@@ -102,7 +102,52 @@
       "enter_board": "Ingresar al Tablero",
       "loading_board": "Cargando tablero…",
       "school_label": "Escuela:",
+      "school_fallback": "Escuela",
       "change_school": "Cambiar escuela",
+      "toolbar": {
+        "search_placeholder": "Buscar alumno...",
+        "mode_label": "Modo:",
+        "add": "Agregar",
+        "move": "Mover",
+        "refresh": "Refrescar"
+      },
+      "new_class": {
+        "title": "Nueva Clase",
+        "idle_desc": "Crea una nueva columna para organizar tus alumnos.",
+        "form_desc": "Escribe el nombre para crear la columna.",
+        "placeholder": "Nombre de la clase",
+        "submit": "Crear Columna",
+        "cancel": "Cancelar"
+      },
+      "class_column": {
+        "drag_hint": "Arrastra alumnos aquí"
+      },
+      "student_card": {
+        "age": "{{age}} años",
+        "drag_hint": "Arrastra para inscribir/mover"
+      },
+      "teachers": {
+        "title": "Maestros",
+        "desc": "Crea maestros y administra a qué clase pertenecen.",
+        "count": "{{count}} maestros",
+        "create_title": "Crear maestro",
+        "create_desc": "Al crearlo se asigna a una clase existente.",
+        "email_label": "Email",
+        "email_placeholder": "maestro@jcj.dev",
+        "password_label": "Password",
+        "class_label": "Clase",
+        "select_class": "Selecciona una clase",
+        "create_and_assign": "Crear y asignar",
+        "assign_title": "Asignar o reasignar",
+        "assign_desc": "Usa reasignar para mover un maestro a una sola clase.",
+        "teacher_label": "Maestro",
+        "select_teacher": "Selecciona un maestro",
+        "no_assigned_classes": "Sin clases asignadas",
+        "target_class_label": "Clase destino",
+        "assign": "Asignar",
+        "reassign": "Reasignar",
+        "remove_from_class": "Quitar de clase"
+      },
       "toast": {
         "error_loading_schools_title": "No pude cargar escuelas",
         "error_loading_schools_desc": "Revisa el endpoint /v1/schools y permisos.",
@@ -122,7 +167,22 @@
         "school_selected_title": "Escuela seleccionada",
         "school_selected_desc": "Cargando tablero…",
         "select_other_title": "Selecciona otra escuela",
-        "select_other_desc": "Elige una escuela para cargar el tablero."
+        "select_other_desc": "Elige una escuela para cargar el tablero.",
+        "class_created_title": "Clase creada",
+        "class_created_desc": "La nueva columna ya está lista.",
+        "class_create_error_title": "No se pudo crear la clase",
+        "teacher_created_title": "Maestro creado",
+        "teacher_created_desc": "El maestro ya quedó asignado a la clase.",
+        "teacher_create_error_title": "No se pudo crear el maestro",
+        "teacher_assigned_title": "Maestro asignado",
+        "teacher_assigned_desc": "La clase ya tiene este maestro asignado.",
+        "teacher_assign_error_title": "No se pudo asignar",
+        "teacher_reassigned_title": "Maestro reasignado",
+        "teacher_reassigned_desc": "Ahora pertenece a la clase seleccionada.",
+        "teacher_reassign_error_title": "No se pudo reasignar",
+        "teacher_removed_title": "Maestro quitado",
+        "teacher_removed_desc": "Se eliminó la asignación de esa clase.",
+        "teacher_remove_error_title": "No se pudo quitar"
       }
     },
     "reports_page": {
@@ -290,8 +350,10 @@
         "valid": "Válidas:",
         "invalid": "Inválidas:",
         "will_create": "Se crearán estas clases (si aplicas):",
-        "errors": "⚠️ Errores",
-        "sample": "Muestra (primeras"
+        "errors": "Errores",
+        "first": "primeros",
+        "sample": "Muestra (primeras",
+        "parsed_rows": "filas parseadas"
       },
       "result": {
         "title": "Resultado de Importación",
