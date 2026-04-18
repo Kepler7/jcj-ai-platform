@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -250,6 +250,7 @@ export default function ReportsPage() {
 
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
+  const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [student, setStudent] = useState<Student | null>(null);
 
@@ -297,6 +298,16 @@ export default function ReportsPage() {
 
   const [expandedSignalsByReportId, setExpandedSignalsByReportId] = useState<Record<string, boolean>>({});
   const [expandedNotesByReportId, setExpandedNotesByReportId] = useState<Record<string, boolean>>({});
+
+  function focusAISection() {
+    window.setTimeout(() => {
+      const node = aiSectionRef.current;
+      if (!node) return;
+
+      node.focus({ preventScroll: true });
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
 
   async function sendWhatsappPreview(aiReportId: string, guardianId: string) {
     setSendingWaByGuardianId((p) => ({ ...p, [guardianId]: true }));
@@ -597,6 +608,7 @@ export default function ReportsPage() {
     const exists = !!aiExistsByReportId[reportId];
     setSelectedReportId(reportId);
     setAiReport(null);
+    focusAISection();
 
     if (exists) {
       await fetchAIReport(reportId);
@@ -1087,11 +1099,11 @@ export default function ReportsPage() {
               <Table variant="unstyled" sx={{ "tbody tr": { transition: "background 0.2s" }, "tbody tr:hover": { bg: "rgba(243, 244, 245, 0.3)" } }}>
                 <Thead bg="rgba(243, 244, 245, 0.5)">
                   <Tr>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">AI Actions</Th>
                     <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Created</Th>
                     <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Signals Observed</Th>
                     <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Notes</Th>
                     <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.id')}</Th>
-                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5" textAlign="right">AI Actions</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -1102,6 +1114,41 @@ export default function ReportsPage() {
 
                     return (
                       <Tr key={r.id} bg={isSelected ? "rgba(232, 237, 255, 0.5)" : "transparent"} borderBottom="1px solid rgba(195,197,215,0.1)">
+                        <Td px="6" py="5" verticalAlign="top">
+                          <Flex align="center" justify="flex-start" gap="2">
+                            <Button
+                              size="sm"
+                              bg={exists ? "rgba(0, 53, 151, 0.05)" : "transparent"}
+                              border={exists ? "none" : "1px solid #e1e3e4"}
+                              color={exists ? "#003597" : "#434654"}
+                              fontWeight="bold"
+                              borderRadius="full"
+                              px="4"
+                              onClick={() => viewOrGenerateAI(r.id)}
+                              isLoading={aiLoading && selectedReportId === r.id}
+                              _hover={{ bg: "#003597", color: "white" }}
+                            >
+                              {exists ? 'Ver apoyo' : 'Generar IA'}
+                            </Button>
+                            {exists && (
+                              <IconButton
+                                aria-label={t('reports_page.regenerate')}
+                                icon={<RefreshCw size={16} />}
+                                size="sm"
+                                variant="ghost"
+                                color={textMuted}
+                                _hover={{ color: "#003597" }}
+                                onClick={() => {
+                                  setSelectedReportId(r.id);
+                                  setAiReport(null);
+                                  focusAISection();
+                                  generateAI(r.id);
+                                }}
+                                isLoading={aiLoading && selectedReportId === r.id}
+                              />
+                            )}
+                          </Flex>
+                        </Td>
                         <Td px="6" py="5" verticalAlign="top">
                           <Text fontWeight="bold" fontSize="sm" color={textColor}>{reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                           <Text fontSize="xs" color={textMuted} mt="1">{reportDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
@@ -1181,39 +1228,6 @@ export default function ReportsPage() {
                         <Td px="6" py="5" verticalAlign="top">
                           <Text fontSize="xs" fontFamily="'Plus Jakarta Sans', monospace" color={textMuted}>{r.id.substring(0, 10)}...</Text>
                         </Td>
-                        <Td px="6" py="5" verticalAlign="top" textAlign="right">
-                          <Flex align="center" justify="flex-end" gap="2">
-                            <Button
-                              size="sm"
-                              bg={exists ? "rgba(0, 53, 151, 0.05)" : "transparent"}
-                              border={exists ? "none" : "1px solid #e1e3e4"}
-                              color={exists ? "#003597" : "#434654"}
-                              fontWeight="bold"
-                              borderRadius="full"
-                              px="4"
-                              onClick={() => viewOrGenerateAI(r.id)}
-                              isLoading={aiLoading && selectedReportId === r.id}
-                              _hover={{ bg: "#003597", color: "white" }}
-                            >
-                              {exists ? 'Ver apoyo' : 'Generar IA'}
-                            </Button>
-                            {exists && (
-                              <IconButton
-                                aria-label={t('reports_page.regenerate')}
-                                icon={<RefreshCw size={16} />}
-                                size="sm"
-                                variant="ghost"
-                                color={textMuted}
-                                _hover={{ color: "#003597" }}
-                                onClick={() => {
-                                  setSelectedReportId(r.id);
-                                  generateAI(r.id);
-                                }}
-                                isLoading={aiLoading && selectedReportId === r.id}
-                              />
-                            )}
-                          </Flex>
-                        </Td>
                       </Tr>
                     );
                   })}
@@ -1225,7 +1239,7 @@ export default function ReportsPage() {
       </Box>
 
       {/* Apoyo generado por IA Section */}
-      <Box animation="fade-in 0.7s">
+      <Box ref={aiSectionRef} tabIndex={-1} animation="fade-in 0.7s" scrollMarginTop="96px" outline="none">
         <Flex direction="column" align="center" textAlign="center" mb="8" gap="2">
           <Flex align="center" gap="2" px="4" py="1.5" bg={primaryBg} color={primaryColor} borderRadius="full" fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="widest">
             <Sparkles size={14} />

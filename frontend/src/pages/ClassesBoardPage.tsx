@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Box,
@@ -14,6 +14,15 @@ import {
   SimpleGrid,
   Spinner,
   Text,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Radio,
+  RadioGroup,
   useToast,
   VStack,
   useColorModeValue,
@@ -118,6 +127,15 @@ function parseMembershipId(id: string) {
   return { studentId, fromClassId };
 }
 
+function getStudentInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "AL";
+}
+
 function DraggableStudentCard(props: {
   student: StudentItem;
   fromClassId: string;
@@ -143,6 +161,25 @@ function DraggableStudentCard(props: {
       {...attributes}
     >
       <StudentCard student={props.student} showHint={props.showHint} />
+    </Box>
+  );
+}
+
+function MobileSelectableStudentCard(props: {
+  student: StudentItem;
+  fromClassId: string;
+  onSelect: (student: StudentItem, fromClassId: string) => void;
+}) {
+  return (
+    <Box
+      as="button"
+      type="button"
+      w="100%"
+      textAlign="left"
+      onClick={() => props.onSelect(props.student, props.fromClassId)}
+      _focusVisible={{ outline: "3px solid", outlineColor: "blue.300", borderRadius: "xl" }}
+    >
+      <StudentCard student={props.student} showHint={false} interaction="select" />
     </Box>
   );
 }
@@ -177,9 +214,9 @@ function NewClassCard(props: {
 
   return (
     <Flex
-      minW="340px"
-      w="340px"
-      minH="600px"
+      minW={{ base: "100%", md: "340px" }}
+      w={{ base: "100%", md: "340px" }}
+      minH={{ base: "320px", md: "600px" }}
       borderRadius="2rem"
       bg={cardBg}
       border="1px solid"
@@ -549,7 +586,7 @@ export default function ClassesBoardPage() {
   const { t } = useTranslation();
   const toast = useToast();
   const { me } = useAuth();
-  
+
   const panelBg = useColorModeValue("#ffffff", "gray.800");
   const headingColor = useColorModeValue("#191c1d", "whiteAlpha.900");
   const textColor = useColorModeValue("#434654", "gray.400");
@@ -563,6 +600,10 @@ export default function ClassesBoardPage() {
   const btnOutlineHover = useColorModeValue("#f3f4f5", "whiteAlpha.100");
   const scrollbarThumb = useColorModeValue("rgba(0, 53, 151, 0.15)", "whiteAlpha.300");
   const scrollbarThumbHover = useColorModeValue("rgba(0, 53, 151, 0.3)", "whiteAlpha.400");
+  const modalBg = useColorModeValue("#ffffff", "gray.800");
+  const modalMutedColor = useColorModeValue("#737686", "whiteAlpha.600");
+  const modalSectionBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const modalBorderColor = useColorModeValue("#e6e8ee", "whiteAlpha.200");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -575,7 +616,6 @@ export default function ClassesBoardPage() {
   const [showNewClassForm, setShowNewClassForm] = useState(false);
 
   const [mode, setMode] = useState<"add" | "move">("add");
-  const [search, setSearch] = useState("");
 
   const [classes, setClasses] = useState<BoardClass[]>([]);
   const [activeMembership, setActiveMembership] = useState<{
@@ -603,11 +643,18 @@ export default function ClassesBoardPage() {
   const [teacherCreateClassId, setTeacherCreateClassId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
   const [selectedTeacherClassId, setSelectedTeacherClassId] = useState("");
+  const [mobileSelection, setMobileSelection] = useState<{
+    student: StudentItem;
+    fromClassId: string;
+  } | null>(null);
+  const [mobileMode, setMobileMode] = useState<"add" | "move">("add");
+  const [mobileTargetClassId, setMobileTargetClassId] = useState("");
+  const [mobileUpdating, setMobileUpdating] = useState(false);
 
   // 1) Al entrar, lee schoolId de localStorage (por si cambió en otra tab)
   useEffect(() => {
     setSchoolIdState(getSchoolId());
-     
+
   }, [me?.role]);
 
   // 2) Si platform_admin y no hay schoolId => cargar lista de escuelas para selector
@@ -791,7 +838,6 @@ export default function ClassesBoardPage() {
       });
       setNewClassName("");
       setShowNewClassForm(false);
-      setSearch("");
 
       toast({
         status: "success",
@@ -970,18 +1016,6 @@ export default function ClassesBoardPage() {
     );
   }, [classes]);
 
-  const filteredClasses = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return classes;
-
-    return classes.map((c) => ({
-      ...c,
-      students: c.students.filter((s) =>
-        (s.full_name || "").toLowerCase().includes(q)
-      ),
-    }));
-  }, [classes, search]);
-
   function onDragStart(ev: DragStartEvent) {
     const id = String(ev.active.id);
     if (!id.includes("::")) return;
@@ -1037,25 +1071,20 @@ export default function ClassesBoardPage() {
     refresh();
   }
 
-  async function onDragEnd(ev: DragEndEvent) {
-    setActiveMembership(null);
-
-    const overId = ev.over?.id ? String(ev.over.id) : null;
-    const activeId = String(ev.active.id);
-
-    if (!overId) return;
-    if (!activeId.includes("::")) return;
-
-    const { studentId, fromClassId } = parseMembershipId(activeId);
-    const toClassId = overId;
-
+  async function updateStudentClass(params: {
+    studentId: string;
+    fromClassId: string;
+    toClassId: string;
+    actionMode: "add" | "move";
+  }) {
+    const { studentId, fromClassId, toClassId, actionMode } = params;
     if (fromClassId === toClassId) return;
 
     const targetHas = classes
       .find((c) => c.id === toClassId)
       ?.students.some((s) => s.id === studentId);
 
-    if (mode === "add" && targetHas) {
+    if (actionMode === "add" && targetHas) {
       toast({
         status: "info",
         title: t("classes_board_page.toast.enrolled_title"),
@@ -1064,10 +1093,10 @@ export default function ClassesBoardPage() {
       return;
     }
 
-    optimisticMoveOrAdd({ studentId, fromClassId, toClassId, mode });
+    optimisticMoveOrAdd({ studentId, fromClassId, toClassId, mode: actionMode });
 
     try {
-      if (mode === "move") {
+      if (actionMode === "move") {
         await unassignStudentFromClass(fromClassId, studentId);
         await assignStudentToClass(toClassId, studentId);
       } else {
@@ -1076,9 +1105,9 @@ export default function ClassesBoardPage() {
 
       toast({
         status: "success",
-        title: mode === "move" ? t("classes_board_page.toast.moved_title") : t("classes_board_page.toast.enrolled_success_title"),
+        title: actionMode === "move" ? t("classes_board_page.toast.moved_title") : t("classes_board_page.toast.enrolled_success_title"),
         description:
-          mode === "move"
+          actionMode === "move"
             ? t("classes_board_page.toast.moved_desc")
             : t("classes_board_page.toast.enrolled_success_desc"),
       });
@@ -1089,6 +1118,49 @@ export default function ClassesBoardPage() {
         title: t("classes_board_page.toast.update_error_title"),
         description: getErrorMessage(e),
       });
+    }
+  }
+
+  async function onDragEnd(ev: DragEndEvent) {
+    setActiveMembership(null);
+
+    const overId = ev.over?.id ? String(ev.over.id) : null;
+    const activeId = String(ev.active.id);
+
+    if (!overId) return;
+    if (!activeId.includes("::")) return;
+
+    const { studentId, fromClassId } = parseMembershipId(activeId);
+    await updateStudentClass({ studentId, fromClassId, toClassId: overId, actionMode: mode });
+  }
+
+  function openMobileStudentModal(student: StudentItem, fromClassId: string) {
+    setMobileSelection({ student, fromClassId });
+    setMobileMode(mode);
+    setMobileTargetClassId("");
+  }
+
+  function closeMobileStudentModal() {
+    if (mobileUpdating) return;
+    setMobileSelection(null);
+    setMobileTargetClassId("");
+  }
+
+  async function submitMobileStudentUpdate() {
+    if (!mobileSelection || !mobileTargetClassId) return;
+
+    try {
+      setMobileUpdating(true);
+      await updateStudentClass({
+        studentId: mobileSelection.student.id,
+        fromClassId: mobileSelection.fromClassId,
+        toClassId: mobileTargetClassId,
+        actionMode: mobileMode,
+      });
+      setMobileSelection(null);
+      setMobileTargetClassId("");
+    } finally {
+      setMobileUpdating(false);
     }
   }
 
@@ -1196,25 +1268,25 @@ export default function ClassesBoardPage() {
               <Text color={textColor} fontFamily="'Manrope', sans-serif">
                 {t("classes_board_page.subtitle_1")} <Text as="span" fontWeight="bold" color={primaryColor}>{t("classes_board_page.add_mode")}</Text> {t("classes_board_page.subtitle_2")} <Text as="span" fontWeight="bold" color={primaryColor}>{t("classes_board_page.move_mode")}</Text> {t("classes_board_page.subtitle_3")}
               </Text>
-              <Flex 
-                mt={5} 
-                p={4} 
-                bg="#111827" 
-                borderRadius="xl" 
-                align={{ base: "flex-start", md: "center" }} 
+              <Flex
+                mt={5}
+                p={4}
+                bg="#111827"
+                borderRadius="xl"
+                align={{ base: "flex-start", md: "center" }}
                 direction={{ base: "column", md: "row" }}
                 gap={4}
                 border="1px solid"
                 borderColor="whiteAlpha.200"
                 boxShadow="0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)"
               >
-                <Badge 
-                  bgGradient="linear(to-r, #3b82f6, #9333ea)" 
-                  color="white" 
-                  px={3} 
-                  py={1} 
-                  borderRadius="full" 
-                  textTransform="none" 
+                <Badge
+                  bgGradient="linear(to-r, #3b82f6, #9333ea)"
+                  color="white"
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                  textTransform="none"
                   fontWeight="bold"
                   fontSize="xs"
                   letterSpacing="wide"
@@ -1229,20 +1301,20 @@ export default function ClassesBoardPage() {
 
             {/* platform_admin: muestra escuela activa y botón cambiar */}
             {isPlatformAdmin && schoolId && (
-              <Flex 
-                direction={{ base: "column", sm: "row" }} 
-                align={{ base: "flex-start", sm: "center" }} 
+              <Flex
+                direction={{ base: "column", sm: "row" }}
+                align={{ base: "flex-start", sm: "center" }}
                 gap={3}
                 w={{ base: "100%", md: "auto" }}
               >
-                <Badge 
-                  bg={badgeBg} 
-                  color={primaryColor} 
-                  borderRadius="2xl" 
-                  px={4} 
-                  py={1.5} 
-                  textTransform="none" 
-                  fontSize="sm" 
+                <Badge
+                  bg={badgeBg}
+                  color={primaryColor}
+                  borderRadius="2xl"
+                  px={4}
+                  py={1.5}
+                  textTransform="none"
+                  fontSize="sm"
                   fontFamily="'Manrope', sans-serif"
                   whiteSpace="normal"
                   wordBreak="break-word"
@@ -1279,15 +1351,6 @@ export default function ClassesBoardPage() {
           </HStack>
         </Box>
 
-        <BoardToolbar
-          search={search}
-          onSearch={setSearch}
-          mode={mode}
-          onMode={setMode}
-          onRefresh={refresh}
-          isRefreshing={refreshing}
-        />
-
         <TeachersPanel
           classes={classes}
           teachers={teachers}
@@ -1310,6 +1373,13 @@ export default function ClassesBoardPage() {
           onUnassignTeacher={handleUnassignTeacher}
         />
 
+        <BoardToolbar
+          mode={mode}
+          onMode={setMode}
+          onRefresh={refresh}
+          isRefreshing={refreshing}
+        />
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -1317,13 +1387,14 @@ export default function ClassesBoardPage() {
           onDragEnd={onDragEnd}
           onDragCancel={onDragCancel}
         >
-          <Box w="100%" overflow="hidden">
-            <Flex 
-              gap={6} 
-              align="flex-start" 
-              wrap="nowrap" 
-              overflowX="auto" 
-              pb={4} 
+          <Box w="100%" overflow="visible" position="relative">
+            <Flex
+              gap={6}
+              align="flex-start"
+              direction={{ base: "column", md: "row" }}
+              wrap={{ base: "nowrap", md: "nowrap" }}
+              overflowX={{ base: "visible", md: "auto" }}
+              pb={4}
               px={2}
               css={{
                 "&::-webkit-scrollbar": { height: "8px" },
@@ -1332,7 +1403,7 @@ export default function ClassesBoardPage() {
                 "&::-webkit-scrollbar-thumb:hover": { background: scrollbarThumbHover }
               }}
             >
-              {filteredClasses.map((c) => (
+              {classes.map((c) => (
                 <ClassColumn
                   key={c.id}
                   classId={c.id}
@@ -1341,12 +1412,22 @@ export default function ClassesBoardPage() {
                   teachers={c.teachers.map((teacher) => teacher.email)}
                 >
                   {c.students.map((s) => (
-                    <DraggableStudentCard
-                      key={membershipId(s.id, c.id)}
-                      student={s}
-                      fromClassId={c.id}
-                      showHint={false}
-                    />
+                    <Box key={membershipId(s.id, c.id)}>
+                      <Box display={{ base: "block", md: "none" }}>
+                        <MobileSelectableStudentCard
+                          student={s}
+                          fromClassId={c.id}
+                          onSelect={openMobileStudentModal}
+                        />
+                      </Box>
+                      <Box display={{ base: "none", md: "block" }}>
+                        <DraggableStudentCard
+                          student={s}
+                          fromClassId={c.id}
+                          showHint={false}
+                        />
+                      </Box>
+                    </Box>
                   ))}
                 </ClassColumn>
               ))}
@@ -1387,6 +1468,170 @@ export default function ClassesBoardPage() {
             ) : null}
           </DragOverlay>
         </DndContext>
+
+        <Modal isOpen={Boolean(mobileSelection)} onClose={closeMobileStudentModal} isCentered>
+          <ModalOverlay />
+          <ModalContent bg={modalBg} borderRadius="2xl" mx={4} overflow="hidden" maxW="580px">
+            <ModalHeader px={7} pt={7} pb={5} borderBottom="1px solid" borderColor={modalBorderColor}>
+              <Heading size="md" color={headingColor} fontFamily="'Plus Jakarta Sans', sans-serif">
+                {t("classes_board_page.mobile_action.title")}
+              </Heading>
+              <Text mt={1} color={modalMutedColor} fontSize="sm" fontFamily="'Manrope', sans-serif" fontWeight="normal">
+                {t("classes_board_page.mobile_action.subtitle")}
+              </Text>
+            </ModalHeader>
+            <ModalCloseButton top={5} right={5} color={modalMutedColor} isDisabled={mobileUpdating} />
+            <ModalBody px={7} py={7}>
+              <VStack align="stretch" spacing={6}>
+                <Box>
+                  <Text
+                    color={modalMutedColor}
+                    fontSize="xs"
+                    fontWeight="extrabold"
+                    letterSpacing="wide"
+                    textTransform="uppercase"
+                    fontFamily="'Manrope', sans-serif"
+                    mb={3}
+                  >
+                    {t("classes_board_page.mobile_action.student_label")}
+                  </Text>
+                  <Flex align="center" gap={4} bg={modalSectionBg} borderRadius="xl" px={4} py={4}>
+                    <Flex
+                      w="54px"
+                      h="54px"
+                      flex="0 0 auto"
+                      borderRadius="full"
+                      bg={primaryColor}
+                      color="#ffffff"
+                      align="center"
+                      justify="center"
+                      fontWeight="extrabold"
+                      fontFamily="'Manrope', sans-serif"
+                    >
+                      {getStudentInitials(mobileSelection?.student.full_name ?? "")}
+                    </Flex>
+                    <Box minW={0}>
+                      <Text color={headingColor} fontWeight="extrabold" fontSize="lg" fontFamily="'Manrope', sans-serif" noOfLines={1}>
+                        {mobileSelection?.student.full_name}
+                      </Text>
+                      <Text color={modalMutedColor} fontSize="sm" fontFamily="'Manrope', sans-serif">
+                        ID: #{(mobileSelection?.student.id ?? "").slice(0, 4)}
+                      </Text>
+                    </Box>
+                  </Flex>
+                </Box>
+
+                <FormControl>
+                  <FormLabel
+                    color={modalMutedColor}
+                    fontSize="xs"
+                    fontWeight="extrabold"
+                    letterSpacing="wide"
+                    textTransform="uppercase"
+                    fontFamily="'Manrope', sans-serif"
+                  >
+                    {t("classes_board_page.mobile_action.mode_label")}
+                  </FormLabel>
+                  <RadioGroup
+                    value={mobileMode}
+                    onChange={(value) => setMobileMode(value as "add" | "move")}
+                  >
+                    <SimpleGrid columns={2} spacing={4}>
+                      <Radio
+                        value="add"
+                        colorScheme="blue"
+                        isDisabled={mobileUpdating}
+                        border="2px solid"
+                        borderColor={mobileMode === "add" ? primaryColor : modalBorderColor}
+                        borderRadius="lg"
+                        px={4}
+                        py={4}
+                        fontWeight="extrabold"
+                        fontFamily="'Manrope', sans-serif"
+                        bg={mobileMode === "add" ? badgeBg : "transparent"}
+                      >
+                        {t("classes_board_page.add_mode")}
+                      </Radio>
+                      <Radio
+                        value="move"
+                        colorScheme="blue"
+                        isDisabled={mobileUpdating}
+                        border="2px solid"
+                        borderColor={mobileMode === "move" ? primaryColor : modalBorderColor}
+                        borderRadius="lg"
+                        px={4}
+                        py={4}
+                        fontWeight="extrabold"
+                        fontFamily="'Manrope', sans-serif"
+                        bg={mobileMode === "move" ? badgeBg : "transparent"}
+                      >
+                        {t("classes_board_page.move_mode")}
+                      </Radio>
+                    </SimpleGrid>
+                  </RadioGroup>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel
+                    color={modalMutedColor}
+                    fontSize="xs"
+                    fontWeight="extrabold"
+                    letterSpacing="wide"
+                    textTransform="uppercase"
+                    fontFamily="'Manrope', sans-serif"
+                  >
+                    {t("classes_board_page.mobile_action.target_label")}
+                  </FormLabel>
+                  <Select
+                    value={mobileTargetClassId}
+                    onChange={(event) => setMobileTargetClassId(event.target.value)}
+                    placeholder={t("classes_board_page.mobile_action.target_placeholder")}
+                    bg={modalSectionBg}
+                    h="64px"
+                    fontSize="md"
+                    borderRadius="lg"
+                    borderColor={modalBorderColor}
+                    isDisabled={mobileUpdating}
+                  >
+                    {classes
+                      .filter((klass) => klass.id !== mobileSelection?.fromClassId)
+                      .map((klass) => (
+                        <option key={klass.id} value={klass.id}>
+                          {klass.name}
+                        </option>
+                      ))}
+                  </Select>
+                </FormControl>
+              </VStack>
+            </ModalBody>
+            <ModalFooter gap={3} px={7} py={6} bg={modalSectionBg} borderTop="1px solid" borderColor={modalBorderColor}>
+              <Button
+                variant="ghost"
+                borderRadius="full"
+                color={primaryColor}
+                fontWeight="extrabold"
+                onClick={closeMobileStudentModal}
+                isDisabled={mobileUpdating}
+              >
+                {t("classes_board_page.mobile_action.cancel")}
+              </Button>
+              <Button
+                bg={primaryColor}
+                color="#ffffff"
+                borderRadius="full"
+                px={9}
+                h="56px"
+                fontWeight="extrabold"
+                _hover={{ bg: primaryHover }}
+                isLoading={mobileUpdating}
+                isDisabled={!mobileTargetClassId}
+                onClick={submitMobileStudentUpdate}
+              >
+                {t("classes_board_page.mobile_action.accept")}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </VStack>
     </Box>
   );

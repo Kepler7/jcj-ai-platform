@@ -2,18 +2,12 @@ import {
   Box,
   Button,
   HStack,
-  Input,
-  InputGroup,
-  InputLeftElement,
   Text,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 type Props = {
-  search: string;
-  onSearch: (v: string) => void;
   mode: "add" | "move";
   onMode: (m: "add" | "move") => void;
   onRefresh: () => void;
@@ -21,8 +15,6 @@ type Props = {
 };
 
 export default function BoardToolbar({
-  search,
-  onSearch,
   mode,
   onMode,
   onRefresh,
@@ -30,11 +22,7 @@ export default function BoardToolbar({
 }: Props) {
   const { t } = useTranslation();
   const panelBg = useColorModeValue("#ffffff", "gray.800");
-  const inputBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
-  const inputBorder = useColorModeValue("rgba(195, 197, 215, 0.15)", "whiteAlpha.100");
-  const inputHover = useColorModeValue("#f3f4f5", "whiteAlpha.200");
   const inputFocusBorder = useColorModeValue("rgba(0, 53, 151, 0.3)", "blue.300");
-  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
   const textMuted = useColorModeValue("#737686", "whiteAlpha.600");
   const modeContainerBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
   const btnActiveBg = useColorModeValue("#ffffff", "gray.600");
@@ -50,26 +38,15 @@ export default function BoardToolbar({
       boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)"
     >
       <HStack justify="space-between" spacing={6} wrap="wrap">
-        <HStack spacing={4} flex="1" minW={{ base: "100%", md: "360px" }}>
-          <InputGroup size="lg">
-            <InputLeftElement pointerEvents="none">
-              <Search size={20} color="#737686" />
-            </InputLeftElement>
-            <Input
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder={t("classes_board_page.toolbar.search_placeholder")}
-              bg={inputBg}
-              border="1px solid"
-              borderColor={inputBorder}
-              borderRadius="xl"
-              _focus={{ bg: panelBg, borderColor: inputFocusBorder, boxShadow: `0 0 0 1px ${inputFocusBorder}` }}
-              _hover={{ bg: inputHover }}
-              fontFamily="'Manrope', sans-serif"
-              color={textColor}
-            />
-          </InputGroup>
-        </HStack>
+        <Text
+          flex="1"
+          minW={{ base: "100%", md: "360px" }}
+          color={textMuted}
+          fontFamily="'Manrope', sans-serif"
+          fontSize={{ base: "sm", md: "md" }}
+        >
+          {t("classes_board_page.toolbar.assignment_desc")}
+        </Text>
 
         <HStack spacing={{ base: 4, md: 6 }} wrap="wrap">
           <HStack spacing={3}>

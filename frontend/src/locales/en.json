@@ -106,10 +106,16 @@
       "change_school": "Change school",
       "toolbar": {
         "search_placeholder": "Search student...",
+        "assignment_desc": "Move the student to another class or add them to an additional class.",
         "mode_label": "Mode:",
         "add": "Add",
         "move": "Move",
         "refresh": "Refresh"
+      },
+      "carousel": {
+        "previous": "Previous class",
+        "next": "Next class",
+        "mobile_label": "Class {{current}} of {{total}}"
       },
       "new_class": {
         "title": "New Class",
@@ -120,11 +126,22 @@
         "cancel": "Cancel"
       },
       "class_column": {
-        "drag_hint": "Drag students here"
+        "drag_hint": "Drag students here",
+        "tap_hint": "Tap a student to update class"
       },
       "student_card": {
         "age": "{{age}} years old",
         "drag_hint": "Drag to enroll/move"
+      },
+      "mobile_action": {
+        "title": "Update class",
+        "subtitle": "Move the student to another class or add them to an additional class.",
+        "student_label": "Student",
+        "mode_label": "Mode",
+        "target_label": "Target class",
+        "target_placeholder": "Select a class",
+        "cancel": "Cancel",
+        "accept": "Accept"
       },
       "teachers": {
         "title": "Teachers",
