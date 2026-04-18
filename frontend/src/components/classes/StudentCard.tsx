@@ -8,9 +8,10 @@ type Props = {
     age?: number | null;
   };
   showHint?: boolean;
+  interaction?: "drag" | "select";
 };
 
-export default function StudentCard({ student, showHint }: Props) {
+export default function StudentCard({ student, showHint, interaction = "drag" }: Props) {
   const { t } = useTranslation();
   const bg = useColorModeValue("#ffffff", "gray.700");
   const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
@@ -27,10 +28,10 @@ export default function StudentCard({ student, showHint }: Props) {
       borderRadius="xl"
       p={4}
       boxShadow={shadowIdle}
-      cursor="grab"
+      cursor={interaction === "select" ? "pointer" : "grab"}
       _hover={{ boxShadow: shadowHover, transform: "translateY(-2px)" }}
       transition="all 0.2s ease"
-      _active={{ cursor: "grabbing", boxShadow: shadowIdle, transform: "scale(0.98)" }}
+      _active={{ cursor: interaction === "select" ? "pointer" : "grabbing", boxShadow: shadowIdle, transform: "scale(0.98)" }}
     >
       <VStack align="stretch" spacing={2}>
         <HStack justify="space-between" align="start">

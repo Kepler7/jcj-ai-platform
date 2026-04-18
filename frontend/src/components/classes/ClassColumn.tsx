@@ -25,9 +25,9 @@ export default function ClassColumn({ classId, name, count, teachers = [], child
   return (
     <Box
       ref={setNodeRef}
-      minW="340px"
-      w="340px"
-      minH="600px"
+      minW={{ base: "100%", md: "340px" }}
+      w={{ base: "100%", md: "340px" }}
+      minH={{ base: "auto", md: "600px" }}
       borderRadius="2rem"
       bg={isOver ? bgOver : bgIdle}
       overflow="hidden"
@@ -50,8 +50,11 @@ export default function ClassColumn({ classId, name, count, teachers = [], child
             {count}
           </Box>
         </HStack>
-        <Text fontSize="sm" color={hintColor} fontFamily="'Manrope', sans-serif">
+        <Text display={{ base: "none", md: "block" }} fontSize="sm" color={hintColor} fontFamily="'Manrope', sans-serif">
           {t("classes_board_page.class_column.drag_hint")}
+        </Text>
+        <Text display={{ base: "block", md: "none" }} fontSize="sm" color={hintColor} fontFamily="'Manrope', sans-serif">
+          {t("classes_board_page.class_column.tap_hint")}
         </Text>
         {teachers.length > 0 && (
           <HStack mt={3} spacing={2} wrap="wrap">

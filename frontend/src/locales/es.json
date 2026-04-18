@@ -106,10 +106,16 @@
       "change_school": "Cambiar escuela",
       "toolbar": {
         "search_placeholder": "Buscar alumno...",
+        "assignment_desc": "Mueve al alumno a otra clase o agrégalo a una clase adicional.",
         "mode_label": "Modo:",
         "add": "Agregar",
         "move": "Mover",
         "refresh": "Refrescar"
+      },
+      "carousel": {
+        "previous": "Clase anterior",
+        "next": "Siguiente clase",
+        "mobile_label": "Clase {{current}} de {{total}}"
       },
       "new_class": {
         "title": "Nueva Clase",
@@ -120,11 +126,22 @@
         "cancel": "Cancelar"
       },
       "class_column": {
-        "drag_hint": "Arrastra alumnos aquí"
+        "drag_hint": "Arrastra alumnos aquí",
+        "tap_hint": "Toca un alumno para actualizar la clase"
       },
       "student_card": {
         "age": "{{age}} años",
         "drag_hint": "Arrastra para inscribir/mover"
+      },
+      "mobile_action": {
+        "title": "Actualizar clase",
+        "subtitle": "Mueve al alumno a otra clase o agrégalo a una clase adicional.",
+        "student_label": "Alumno",
+        "mode_label": "Modo",
+        "target_label": "Clase destino",
+        "target_placeholder": "Selecciona una clase",
+        "cancel": "Cancelar",
+        "accept": "Aceptar"
       },
       "teachers": {
         "title": "Maestros",
