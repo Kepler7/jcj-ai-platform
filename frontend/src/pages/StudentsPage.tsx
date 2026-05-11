@@ -107,17 +107,27 @@ export default function StudentsPage() {
 
   const cardBg = useColorModeValue("#ffffff", "gray.800");
   const pageBg = useColorModeValue("#f8f9fa", "gray.900");
-  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
   const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
-  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
-  const textLabel = useColorModeValue("#434654", "gray.400");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.700");
+  const textLabel = useColorModeValue("#434654", "whiteAlpha.800");
   const primaryColor = useColorModeValue("#003597", "blue.300");
   const primaryBg = useColorModeValue("#e8edff", "blue.900");
   const highlightColor = useColorModeValue("#006c4a", "green.300");
   const highlightBg = useColorModeValue("#e1fedc", "green.900");
   const errorText = useColorModeValue("#ba1a1a", "red.300");
   const errorBg = useColorModeValue("#ffeceb", "red.900");
-  const borderColor = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const borderColor = useColorModeValue("#f3f4f5", "whiteAlpha.200");
+  const tableHeaderBg = useColorModeValue("transparent", "whiteAlpha.50");
+  const rowHoverBg = useColorModeValue(inputBg, "whiteAlpha.100");
+  const subtleShadow = useColorModeValue(
+    "0px 12px 24px rgba(25, 28, 29, 0.04)",
+    "0px 12px 24px rgba(0, 0, 0, 0.28)"
+  );
+  const controlShadow = useColorModeValue(
+    "0px 4px 12px rgba(25,28,29,0.03)",
+    "0px 4px 12px rgba(0,0,0,0.24)"
+  );
 
   function toggleSort(nextKey: SortKey) {
     if (nextKey === sortKey) {
@@ -314,7 +324,7 @@ export default function StudentsPage() {
   }, [effectiveSchoolId]);
 
   return (
-    <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }} maxW="100%" overflowX="hidden">
+    <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }} maxW="100%" overflowX="hidden" bg={pageBg} minH="100vh">
       {/* Header */}
       <Box mb="8">
         <Text fontSize="xs" fontWeight="bold" color={textMuted} letterSpacing="widest" textTransform="uppercase" mb="2">
@@ -370,7 +380,7 @@ export default function StudentsPage() {
             </Box>
           )}
 
-          <Box bg={cardBg} borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+          <Box bg={cardBg} borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow={subtleShadow} border="1px solid" borderColor={borderColor}>
             <Flex align="center" justify="space-between" mb="8">
               <Text fontSize="xl" fontWeight="extrabold" color={textColor} fontFamily="'Plus Jakarta Sans', sans-serif">
                 {t("students_page.add_new")}
@@ -396,7 +406,7 @@ export default function StudentsPage() {
                   fontSize="sm"
                   color={textColor}
                   _placeholder={{ color: textMuted }}
-                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: cardBg, outline: "none" }}
+                  _focus={{ ring: "2px", ringColor: "rgba(96,165,250,0.35)", bg: cardBg, outline: "none" }}
                 />
               </Box>
 
@@ -424,7 +434,7 @@ export default function StudentsPage() {
                     fontSize="sm"
                     color={textColor}
                     _placeholder={{ color: textMuted }}
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: cardBg, outline: "none" }}
+                    _focus={{ ring: "2px", ringColor: "rgba(96,165,250,0.35)", bg: cardBg, outline: "none" }}
                   />
                 </Box>
                 <Box flex="1">
@@ -444,7 +454,7 @@ export default function StudentsPage() {
                     fontSize="sm"
                     color={textColor}
                     _placeholder={{ color: textMuted }}
-                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: cardBg, outline: "none" }}
+                    _focus={{ ring: "2px", ringColor: "rgba(96,165,250,0.35)", bg: cardBg, outline: "none" }}
                   >
                     {classes.map((c) => (
                       <option key={c.id} value={c.name} style={{ color: "black" }}>
@@ -472,7 +482,7 @@ export default function StudentsPage() {
                   resize="none"
                   rows={4}
                   _placeholder={{ color: textMuted }}
-                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: cardBg, outline: "none" }}
+                  _focus={{ ring: "2px", ringColor: "rgba(96,165,250,0.35)", bg: cardBg, outline: "none" }}
                 />
               </Box>
 
@@ -526,20 +536,20 @@ export default function StudentsPage() {
                 borderRadius="full"
                 fontSize="sm"
                 color={textColor}
-                boxShadow="0px 4px 12px rgba(25,28,29,0.03)"
+                boxShadow={controlShadow}
                 _placeholder={{ color: textMuted }}
-                _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", outline: "none" }}
+                _focus={{ ring: "2px", ringColor: "rgba(96,165,250,0.35)", outline: "none" }}
               />
             </InputGroup>
 
             <HStack spacing="3">
-              <IconButton aria-label="Filter" icon={<ListFilter size={18} />} bg={cardBg} border="none" borderRadius="xl" boxShadow="0px 4px 12px rgba(25,28,29,0.03)" w="12" h="12" color={textColor} _hover={{ bg: inputBg }} />
-              <IconButton aria-label="Download" icon={<Download size={18} />} bg={cardBg} border="none" borderRadius="xl" boxShadow="0px 4px 12px rgba(25,28,29,0.03)" w="12" h="12" color={textColor} _hover={{ bg: inputBg }} />
+              <IconButton aria-label="Filter" icon={<ListFilter size={18} />} bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl" boxShadow={controlShadow} w="12" h="12" color={textColor} _hover={{ bg: rowHoverBg }} />
+              <IconButton aria-label="Download" icon={<Download size={18} />} bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl" boxShadow={controlShadow} w="12" h="12" color={textColor} _hover={{ bg: rowHoverBg }} />
             </HStack>
           </Flex>
 
           {/* Table Box */}
-          <Box bg={cardBg} borderRadius="2rem" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" overflow="hidden" position="relative">
+          <Box bg={cardBg} borderRadius="2rem" boxShadow={subtleShadow} overflow="hidden" position="relative" border="1px solid" borderColor={borderColor}>
             {loading ? (
               <Box p="10" textAlign="center">
                 <Text color={textMuted} fontWeight="medium">{t("students_page.loading")}</Text>
@@ -549,9 +559,9 @@ export default function StudentsPage() {
                 <Box w="full" overflowX="auto" pb="4">
                   <Table variant="unstyled" sx={{
                     "tbody tr": { transition: "background 0.2s" },
-                    "tbody tr:hover": { bg: inputBg }
+                    "tbody tr:hover": { bg: rowHoverBg }
                   }}>
-                    <Thead>
+                    <Thead bg={tableHeaderBg}>
                       <Tr borderBottom="1px solid" borderColor={borderColor}>
                         <SortableHeader column="reports" pl={{ base: 4, md: 8 }}>
                           {t("students_page.table.actions")}

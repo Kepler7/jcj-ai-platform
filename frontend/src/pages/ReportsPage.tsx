@@ -29,6 +29,13 @@ import {
   Checkbox,
   Flex,
   useColorModeValue,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
 } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -47,6 +54,16 @@ import {
   FileText
 } from 'lucide-react';
 import { api } from '../lib/apiClient';
+import {
+  getIhui3Wizard,
+  getIhui3WizardSubmitLabel,
+  submitIhui3ValidationAnswers,
+} from '../services/ihui3';
+import type {
+  Ihui3WizardResponse,
+  Ihui3WizardSubmitState,
+  Ihui3WizardAnswerValue
+} from '../services/ihui3';
 import type { Guardian } from "../types/guardian";
 
 type Student = {
@@ -109,13 +126,18 @@ type AIReport = {
   guardrails_passed: boolean;
   guardrails_notes: string | null;
   created_at: string;
+
+  // IHUI 3.0 / Wizard
+  engine_version?: "ihui_3" | "2" | string;
+  validation_status?: string | null;
+  ai_metadata?: Record<string, unknown> | null;
 };
 
 function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
-  if (!g.is_active) return { ok: false, reason: "Tutor inactivo" };
-  if (!g.whatsapp_phone) return { ok: false, reason: "Sin teléfono" };
-  if (!g.consent_to_contact) return { ok: false, reason: "Sin consentimiento" };
-  if (!g.receive_whatsapp) return { ok: false, reason: "No recibe WhatsApp" };
+  if (!g.is_active) return { ok: false, reason: "reports_page.whatsapp_status.inactive" };
+  if (!g.whatsapp_phone) return { ok: false, reason: "reports_page.whatsapp_status.no_phone" };
+  if (!g.consent_to_contact) return { ok: false, reason: "reports_page.whatsapp_status.no_consent" };
+  if (!g.receive_whatsapp) return { ok: false, reason: "reports_page.whatsapp_status.no_whatsapp" };
   return { ok: true };
 }
 
@@ -239,14 +261,35 @@ export default function ReportsPage() {
   const { t } = useTranslation();
   const cardBg = useColorModeValue("#ffffff", "gray.800");
   const pageBg = useColorModeValue("#f8f9fa", "gray.900");
-  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.50");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
   const inputFocusBg = useColorModeValue("#ffffff", "gray.800");
   const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
-  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
-  const textLabel = useColorModeValue("#434654", "gray.400");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.700");
+  const textLabel = useColorModeValue("#434654", "whiteAlpha.800");
   const primaryColor = useColorModeValue("#003597", "blue.300");
   const primaryBg = useColorModeValue("#e8edff", "blue.900");
   const badgeBg = useColorModeValue("#e1e3e4", "whiteAlpha.200");
+  const borderColor = useColorModeValue("rgba(195,197,215,0.18)", "whiteAlpha.200");
+  const tableHeaderBg = useColorModeValue("rgba(243, 244, 245, 0.5)", "whiteAlpha.100");
+  const tableRowSelectedBg = useColorModeValue("rgba(232, 237, 255, 0.5)", "whiteAlpha.100");
+  const tableRowBorder = useColorModeValue("rgba(195,197,215,0.1)", "whiteAlpha.200");
+  const reportActionBg = useColorModeValue("rgba(0, 53, 151, 0.05)", "whiteAlpha.100");
+  const reportActionColor = useColorModeValue("#003597", "blue.200");
+  const signalBadgeBg = useColorModeValue("#e7e8e9", "whiteAlpha.200");
+  const signalBadgeColor = useColorModeValue(textLabel, "whiteAlpha.900");
+  const disclosureHoverBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const warningBg = useColorModeValue("orange.50", "orange.900");
+  const warningBorder = useColorModeValue("orange.200", "orange.600");
+  const warningText = useColorModeValue("#191c1d", "orange.50");
+  const wizardOverlayBg = useColorModeValue("blackAlpha.600", "blackAlpha.800");
+  const wizardModalBg = useColorModeValue("#ffffff", "gray.800");
+  const wizardModalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
+  const wizardFooterBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
+  const wizardQuestionBg = useColorModeValue("#ffffff", "gray.800");
+  const wizardQuestionBorder = useColorModeValue("gray.200", "whiteAlpha.300");
+  const wizardQuestionHoverBorder = useColorModeValue("blue.200", "blue.300");
+  const wizardBadgeBg = useColorModeValue("blue.50", "whiteAlpha.200");
+  const wizardBadgeColor = useColorModeValue("#003597", "blue.200");
 
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
@@ -270,6 +313,50 @@ export default function ReportsPage() {
   const [aiReport, setAiReport] = useState<AIReport | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiJobStatus, setAiJobStatus] = useState<string | null>(null);
+
+  const [ihui3Wizard, setIhui3Wizard] = useState<Ihui3WizardResponse | null>(null);
+  const [ihui3WizardLoading, setIhui3WizardLoading] = useState(false);
+  const [ihui3WizardError, setIhui3WizardError] = useState<string | null>(null);
+
+  const [ihui3Answers, setIhui3Answers] = useState<
+    Record<string, Ihui3WizardAnswerValue | "">
+  >({});
+  const [ihui3SubmitState, setIhui3SubmitState] =
+    useState<Ihui3WizardSubmitState>("idle");
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    if (ihui3WizardLoading) {
+      console.debug("IHUI 3.0 wizard loading...");
+    }
+
+    if (ihui3WizardError) {
+      console.debug("IHUI 3.0 wizard error:", ihui3WizardError);
+    }
+
+    if (ihui3Wizard) {
+      console.debug("IHUI 3.0 wizard loaded:", {
+        aiReportId: ihui3Wizard.ai_report_id,
+        validationStatus: ihui3Wizard.validation_status,
+        wizardRequired: ihui3Wizard.wizard_required,
+        questionsCount: ihui3Wizard.questions?.length ?? 0,
+      });
+    }
+    if (Object.keys(ihui3Answers).length > 0) {
+      console.debug("IHUI 3.0 answers state:", ihui3Answers);
+    }
+
+    if (ihui3SubmitState !== "idle") {
+      console.debug("IHUI 3.0 submit state:", ihui3SubmitState);
+    }
+  }, [
+    ihui3Wizard,
+    ihui3WizardLoading,
+    ihui3WizardError,
+    ihui3Answers,
+    ihui3SubmitState,
+  ]);
 
   // ✅ Map to know if AI exists per report
   const [aiExistsByReportId, setAiExistsByReportId] = useState<Record<string, boolean>>({});
@@ -494,6 +581,141 @@ export default function ReportsPage() {
     }
   }
 
+  function getIhui3QuestionKey(q: any, index: number) {
+    return `${q?.playbook_id || "playbook"}-${q?.question_id || "question"}-${index}`;
+  }
+
+  async function loadIhui3Wizard(aiReportId: string) {
+    setIhui3WizardLoading(true);
+    setIhui3WizardError(null);
+
+    try {
+      const wizard = await getIhui3Wizard(aiReportId);
+      setIhui3Wizard(wizard);
+
+      const initialAnswers: Record<string, Ihui3WizardAnswerValue | ""> =
+        Object.fromEntries(
+          (wizard.questions ?? []).map((q, index) => [
+            getIhui3QuestionKey(q, index),
+            "",
+          ])
+        );
+
+      setIhui3Answers(initialAnswers);
+      setIhui3SubmitState("idle");
+
+      return wizard;
+    } catch (e: any) {
+      setIhui3Wizard(null);
+      setIhui3WizardError(e?.message ?? 'Error loading IHUI 3.0 wizard');
+      return null;
+    } finally {
+      setIhui3WizardLoading(false);
+    }
+  }
+
+  function handleIhui3AnswerChange(
+    questionId: string,
+    value: Ihui3WizardAnswerValue
+  ) {
+    setIhui3Answers((prev) => ({
+      ...prev,
+      [questionId]: value,
+    }));
+
+    if (ihui3SubmitState === "success" || ihui3SubmitState === "error") {
+      setIhui3SubmitState("idle");
+    }
+  }
+
+  function areIhui3QuestionsAnswered() {
+    if (!ihui3Wizard?.questions?.length) return false;
+
+    return ihui3Wizard.questions.every((q, index) => {
+      const questionKey = getIhui3QuestionKey(q, index);
+      const answer = ihui3Answers[questionKey];
+
+      return answer === "yes" || answer === "no" || answer === "sometimes";
+    });
+  }
+
+  async function handleSubmitIhui3Answers() {
+    if (!ihui3Wizard || !aiReport) return;
+
+    if (!areIhui3QuestionsAnswered()) {
+      setIhui3SubmitState("error");
+      setIhui3WizardError("Responde todas las preguntas antes de continuar.");
+      return;
+    }
+
+    const answers = ihui3Wizard.questions.map((q, index) => {
+      const questionKey = getIhui3QuestionKey(q, index);
+      const answer = ihui3Answers[questionKey];
+
+      if (answer !== "yes" && answer !== "no" && answer !== "sometimes") {
+        throw new Error("Respuesta inválida o incompleta.");
+      }
+
+      const playbookId = q.playbook_id;
+      const questionId = q.question_id;
+
+      if (!playbookId || !questionId) {
+        console.error("Pregunta inválida del wizard:", q);
+        throw new Error("La pregunta del wizard no trae playbook_id o question_id.");
+      }
+
+      return {
+        playbook_id: playbookId,
+        question_id: questionId,
+        answer,
+      };
+    });
+
+    console.log("IHUI 3.0 answers payload:", answers);
+
+    try {
+      setIhui3WizardError(null);
+
+      setIhui3SubmitState("submitting_answers");
+      console.log("IHUI 3.0 answers payload:", answers);
+      await submitIhui3ValidationAnswers(aiReport.id, answers);
+
+      setIhui3SubmitState("refining_strategy");
+
+      // Pequeña pausa para que el usuario vea el cambio de estado.
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
+      setIhui3SubmitState("refreshing_result");
+
+      await loadIhui3Wizard(aiReport.id);
+
+      if (selectedReportId) {
+        await fetchAIReport(selectedReportId);
+      }
+
+      setIhui3SubmitState("success");
+
+      toast({
+        title: "Estrategia afinada",
+        description: "Las respuestas fueron guardadas y la estrategia fue actualizada.",
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (e: any) {
+      setIhui3SubmitState("error");
+      setIhui3WizardError(e?.message ?? "No se pudieron enviar las respuestas.");
+
+      toast({
+        title: "No se pudieron enviar las respuestas",
+        description: e?.message ?? "Intenta de nuevo.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }
+
   async function fetchAIReport(reportId: string) {
     setAiLoading(true);
     setError(null);
@@ -510,17 +732,29 @@ export default function ReportsPage() {
 
       if (!latest) {
         setAiReport(null);
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
         return null;
       }
 
       setAiReport(latest);
       setAiExistsByReportId((prev) => ({ ...prev, [reportId]: true }));
+
+      if (latest.engine_version === 'ihui_3') {
+        await loadIhui3Wizard(latest.id);
+      } else {
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
+      }
+
       return latest;
     } catch (e: any) {
       const status = e?.status ?? e?.response?.status;
       if (status === 404) {
         setAiReport(null);
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
         return null;
       }
@@ -665,7 +899,9 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedReportId]);
 
-  const title = loadingStudent ? 'Informes del alumno' : `Informes de ${student?.full_name || 'Alumno'}`;
+  const title = loadingStudent
+    ? t('reports_page.student_reports_title')
+    : t('reports_page.student_reports_for', { name: student?.full_name || t('reports_page.student_fallback') });
 
   const teacherMIs = aiReport?.teacher_version?.microintervenciones ?? [];
   const parentMIs = aiReport?.parent_version?.microintervenciones ?? [];
@@ -677,20 +913,190 @@ export default function ReportsPage() {
   const parentHasNew = parentMIs.length > 0;
 
   const pendingMessage =
-    "IHUI detectó que este caso necesita validación humana y queremos asegurarnos de darte una estrategia clara, segura y útil.\n\nEscríbenos por WhatsApp y lo resolvemos contigo en un lapso maximo de 24 hrs:";
+    t('reports_page.pending_whatsapp_prompt');
 
-  const pendingWhatsappHref =
-    "https://wa.me/5213346451964?text=Hola%20IHUI,%20necesito%20ayuda%20con%20un%20caso";
+  const selectedReport =
+    reports.find((r) => r.id === selectedReportId) ?? null;
+
+  const pendingWhatsappMessage = (() => {
+    const reportText =
+      selectedReport?.signals_observed?.trim() ||
+      "";
+
+    const studentName = student?.full_name || t('reports_page.student_fallback');
+
+    const baseMessage = `${t('reports_page.whatsapp_case_greeting')}
+
+  ${t('reports_page.student_label')} ${studentName}
+
+  ${t('reports_page.detected_signals_label')}
+  ${reportText || t('reports_page.no_report_text')}
+
+  ${t('reports_page.reason_label')}
+  ${t('reports_page.human_review_reason')}`;
+
+    return baseMessage;
+  })();
+
+  const pendingWhatsappHref = `https://wa.me/5213346451964?text=${encodeURIComponent(
+    pendingWhatsappMessage
+  )}`;
+
+  const isIhui3Report = aiReport?.engine_version === "ihui_3";
+
+  const shouldShowIhui3Wizard =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    ihui3Wizard.wizard_required &&
+    ihui3Wizard.validation_status === "needs_validation_answers" &&
+    !ihui3Wizard.fallback_used;
+
+  const shouldShowIhui3HumanReview =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    (
+      ihui3Wizard.validation_status === "pending_human_review" ||
+      ihui3Wizard.fallback_used ||
+      ihui3Wizard.strategy?.status === "pending_human_review"
+    );
+
+  const ihui3Strategy = ihui3Wizard?.strategy;
+
+  const shouldShowIhui3ValidatedStrategy =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    !shouldShowIhui3Wizard &&
+    !shouldShowIhui3HumanReview &&
+    (
+      ihui3Wizard.validation_status === "validated" ||
+      ihui3Wizard.validation_status === "validated_combined"
+    ) &&
+    ihui3Strategy?.status !== "pending_human_review";
 
   const isPending =
     !!aiReport &&
+    !shouldShowIhui3HumanReview &&
     (
       aiReport.teacher_version?.summary?.includes("validación humana") ||
       aiReport.parent_version?.summary?.includes("validación humana")
     );
 
-  const selectedReport =
-    reports.find((r) => r.id === selectedReportId) ?? null;
+
+  const ihui3HumanReviewMessage =
+    "IHUI revisó tus respuestas, pero todavía hay más de una hipótesis posible. queremos asegurarnos de darte una estrategia clara, segura y útil.\n\nEscríbenos por WhatsApp y lo resolvemos contigo en un lapso maximo de 24 hrs:";
+
+  function renderIhui3StrategyCard(audience: "teacher" | "parent") {
+    if (!ihui3Strategy) return null;
+
+    const title =
+      audience === "teacher"
+        ? "Estrategia sugerida para el aula"
+        : "Estrategia sugerida para casa";
+
+    const steps = ihui3Strategy.steps ?? [];
+
+    return (
+      <Box
+        p="5"
+        border="1px solid"
+        borderColor={borderColor}
+        borderRadius="2xl"
+        bg={wizardQuestionBg}
+      >
+        <Text fontWeight="bold" fontSize="md" color={textColor} mb="3">
+          {title}
+        </Text>
+
+        {ihui3Strategy.micro_objective && (
+          <Box mb="4">
+            <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+              Microobjetivo
+            </Text>
+            <Text fontSize="sm" color={textLabel}>
+              {ihui3Strategy.micro_objective}
+            </Text>
+          </Box>
+        )}
+
+        {steps.length > 0 && (
+          <Box mb="4">
+            <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="2">
+              Estrategias paso a paso
+            </Text>
+
+            <Stack spacing="2">
+              {steps.map((step, idx) => (
+                <HStack key={`${step}-${idx}`} align="flex-start" spacing="3">
+                  <Flex
+                    minW="6"
+                    h="6"
+                    align="center"
+                    justify="center"
+                    borderRadius="full"
+                    bg={primaryBg}
+                    color={primaryColor}
+                    fontSize="xs"
+                    fontWeight="bold"
+                  >
+                    {idx + 1}
+                  </Flex>
+                  <Text fontSize="sm" color={textLabel}>
+                    {step}
+                  </Text>
+                </HStack>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
+          {ihui3Strategy.frequency && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Frecuencia
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.frequency}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.duration && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Duración
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.duration}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.progress_indicator && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Indicador de avance
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.progress_indicator}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.escalation && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Escalamiento
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.escalation}
+              </Text>
+            </Box>
+          )}
+        </Grid>
+      </Box>
+    );
+  }
 
   const detectedSignalsFromTeacherReport = (() => {
     if (!selectedReport?.signals_observed) return [];
@@ -718,9 +1124,9 @@ export default function ReportsPage() {
       {/* Header */}
       <Box mb="8">
         <HStack spacing="2" mb="2">
-          <Text fontSize="sm" fontWeight="medium" color={textMuted} cursor="pointer" _hover={{ color: "#003597" }}>Students</Text>
+          <Text fontSize="sm" fontWeight="medium" color={textMuted} cursor="pointer" _hover={{ color: "#003597" }}>{t('nav.students')}</Text>
           <ChevronRight size={14} color={textMuted} />
-          <Text fontSize="sm" fontWeight="medium" color={textLabel}>Student Report</Text>
+          <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.student_report')}</Text>
         </HStack>
         <Flex align="flex-end" justify="space-between">
           <Box>
@@ -745,7 +1151,7 @@ export default function ReportsPage() {
             _hover={{ bg: "#f8f9fa", transform: "translateY(-1px)" }}
             transition="all 0.2s"
           >
-            Export PDF
+            {t('reports_page.export_pdf')}
           </Button>
         </Flex>
       </Box>
@@ -825,12 +1231,12 @@ export default function ReportsPage() {
                     color={textColor}
                     _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                   >
-                    <option value="madre">Madre</option>
-                    <option value="padre">Padre</option>
-                    <option value="tutor">Tutor Legal</option>
-                    <option value="abuela">Abuela</option>
-                    <option value="abuelo">Abuelo</option>
-                    <option value="otro">Familiar</option>
+                    <option value="madre">{t('reports_page.relationship.mother')}</option>
+                    <option value="padre">{t('reports_page.relationship.father')}</option>
+                    <option value="tutor">{t('reports_page.relationship.legal_guardian')}</option>
+                    <option value="abuela">{t('reports_page.relationship.grandmother')}</option>
+                    <option value="abuelo">{t('reports_page.relationship.grandfather')}</option>
+                    <option value="otro">{t('reports_page.relationship.relative')}</option>
                   </Select>
                 </GridItem>
 
@@ -866,7 +1272,7 @@ export default function ReportsPage() {
                       setGIsPrimary(next);
                     }}
                       colorScheme="blue" borderColor="#c3c5d7">
-                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>Principal</Text>
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.primary')}</Text>
                     </Checkbox>
 
                     <Checkbox isChecked={gReceiveWhatsapp} onChange={(e) => setGReceiveWhatsapp(e.target.checked)} colorScheme="blue" borderColor="#c3c5d7">
@@ -881,7 +1287,7 @@ export default function ReportsPage() {
                   {showPrimaryWarning && gIsPrimary && (
                     <Alert status="warning" borderRadius="md" mt="4">
                       <AlertIcon />
-                      <Text fontSize="sm">{t('reports_page.already_primary')} <strong>Principal</strong>.</Text>
+                      <Text fontSize="sm">{t('reports_page.already_primary')} <strong>{t('reports_page.primary')}</strong>.</Text>
                     </Alert>
                   )}
                 </GridItem>
@@ -900,7 +1306,7 @@ export default function ReportsPage() {
                     _hover={{ transform: "scale(1.02)", bgGradient: "linear(to-r, #003597, #0049ca)" }}
                     _active={{ transform: "scale(0.98)" }}
                   >
-                    Guardar Tutor
+                    {t('reports_page.save_guardian')}
                   </Button>
                 </GridItem>
               </Grid>
@@ -913,7 +1319,7 @@ export default function ReportsPage() {
               <Flex align="center" justify="space-between" mb="6">
                 <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.guardian_list')}</Heading>
                 <Badge bg={badgeBg} color={textLabel} px="3" py="1" borderRadius="full" fontSize="xs" fontWeight="bold">
-                  {guardians.filter(g => g.is_active).length} Activos
+                  {t('reports_page.active_count', { count: guardians.filter(g => g.is_active).length })}
                 </Badge>
               </Flex>
 
@@ -928,7 +1334,7 @@ export default function ReportsPage() {
 
               {!guardiansLoading && !guardiansError && guardians.length === 0 && (
                 <Text fontSize="sm" color={textMuted}>
-                  Este alumno aún no tiene tutores registrados.
+                  {t('reports_page.no_guardians')}
                 </Text>
               )}
 
@@ -948,12 +1354,12 @@ export default function ReportsPage() {
                             </Flex>
                             <Box>
                               <Text fontWeight="bold" color={textColor}>{g.full_name}</Text>
-                              <Text fontSize="sm" color={textMuted}>{g.relationship ?? "Sin relación"} • {g.whatsapp_phone ?? "Sin WhatsApp"}</Text>
+                              <Text fontSize="sm" color={textMuted}>{g.relationship ?? t('reports_page.no_relationship')} • {g.whatsapp_phone ?? t('reports_page.no_whatsapp')}</Text>
                             </Box>
                           </Flex>
                           {g.is_primary && (
                             <Badge bg={primaryBg} color={primaryColor} px="3" py="1" borderRadius="full" fontSize="10px" fontWeight="black" letterSpacing="widest">
-                              PRIMARIO
+                              {t('reports_page.primary_badge')}
                             </Badge>
                           )}
                         </Flex>
@@ -975,11 +1381,11 @@ export default function ReportsPage() {
                               onClick={() => handleSendWhatsapp(g)}
                               _hover={{ bg: "#c6fcc0" }}
                             >
-                              Enviar WhatsApp
+                              {t('reports_page.send_whatsapp')}
                             </Button>
                             {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
                               <Text fontSize="xs" color={textMuted} mt="2">
-                                {!hasSelectedReport ? "Selecciona un reporte." : !hasAiForSelected ? "Genera el apoyo AI primero." : sendState.reason}
+                                {!hasSelectedReport ? t('reports_page.select_report') : !hasAiForSelected ? t('reports_page.generate_ai_first') : sendState.reason ? t(sendState.reason) : null}
                               </Text>
                             )}
                           </Box>
@@ -1001,7 +1407,7 @@ export default function ReportsPage() {
             <Box>
               <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">{t('reports_page.create_new')}</Heading>
               <Text color="whiteAlpha.80" fontSize="sm" lineHeight="relaxed">
-                Nuestra IA analizará las señales detectadas para proporcionar estrategias de intervención personalizadas tanto para el aula como para el hogar.
+                {t('reports_page.create_new_desc')}
               </Text>
             </Box>
             <Flex mt="8" align="center" gap="4">
@@ -1017,7 +1423,7 @@ export default function ReportsPage() {
           <Box bg={cardBg} borderRadius="2rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" h="full">
             <Stack spacing="6">
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">Señales observables</Text>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.signals_observable')}</Text>
                 <Textarea
                   value={signalsObserved}
                   onChange={(e) => setSignalsObserved(e.target.value)}
@@ -1036,7 +1442,7 @@ export default function ReportsPage() {
                 />
               </Box>
               <Box>
-                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">Notas (opcional)</Text>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.notes_optional')}</Text>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -1070,7 +1476,7 @@ export default function ReportsPage() {
                   _active={{ transform: "scale(0.98)" }}
                   leftIcon={<PlusCircle size={18} />}
                 >
-                  Crear reporte
+                  {t('reports_page.create_report')}
                 </Button>
               </Flex>
             </Stack>
@@ -1084,12 +1490,12 @@ export default function ReportsPage() {
           <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color={textColor}>{t('reports_page.history')}</Heading>
           <HStack gap="2">
             <Text fontSize="sm" fontWeight="medium" color={textMuted}>{t('reports_page.filter_by')}</Text>
-            <Button variant="ghost" size="sm" color={primaryColor} fontWeight="bold" rightIcon={<ChevronDown size={14} />}>Date</Button>
+            <Button variant="ghost" size="sm" color={primaryColor} fontWeight="bold" rightIcon={<ChevronDown size={14} />}>{t('reports_page.table.date')}</Button>
             <IconButton aria-label={t('reports_page.reload')} icon={<RefreshCw size={16} />} size="sm" variant="ghost" color={textMuted} onClick={() => loadReports()} isLoading={loading} />
           </HStack>
         </Flex>
 
-        <Box bg={cardBg} borderRadius="2rem" overflow="hidden" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+        <Box bg={cardBg} borderRadius="2rem" overflow="hidden" border="1px solid" borderColor={borderColor} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
           {reports.length === 0 ? (
             <Box p="10" textAlign="center">
               <Text color={textMuted}>{t('reports_page.no_reports')}</Text>
@@ -1097,12 +1503,12 @@ export default function ReportsPage() {
           ) : (
             <Box overflowX="auto" pb="2">
               <Table variant="unstyled" sx={{ "tbody tr": { transition: "background 0.2s" }, "tbody tr:hover": { bg: "rgba(243, 244, 245, 0.3)" } }}>
-                <Thead bg="rgba(243, 244, 245, 0.5)">
+                <Thead bg={tableHeaderBg}>
                   <Tr>
-                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">AI Actions</Th>
-                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Created</Th>
-                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Signals Observed</Th>
-                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">Notes</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.ai_actions')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.created')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.signals')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.notes')}</Th>
                     <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.id')}</Th>
                   </Tr>
                 </Thead>
@@ -1113,14 +1519,14 @@ export default function ReportsPage() {
                     const reportDate = new Date(r.created_at);
 
                     return (
-                      <Tr key={r.id} bg={isSelected ? "rgba(232, 237, 255, 0.5)" : "transparent"} borderBottom="1px solid rgba(195,197,215,0.1)">
+                      <Tr key={r.id} bg={isSelected ? tableRowSelectedBg : "transparent"} borderBottom="1px solid" borderColor={tableRowBorder}>
                         <Td px="6" py="5" verticalAlign="top">
                           <Flex align="center" justify="flex-start" gap="2">
                             <Button
                               size="sm"
-                              bg={exists ? "rgba(0, 53, 151, 0.05)" : "transparent"}
+                              bg={exists ? reportActionBg : "transparent"}
                               border={exists ? "none" : "1px solid #e1e3e4"}
-                              color={exists ? "#003597" : "#434654"}
+                              color={exists ? reportActionColor : textLabel}
                               fontWeight="bold"
                               borderRadius="full"
                               px="4"
@@ -1273,7 +1679,7 @@ export default function ReportsPage() {
           <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="8">
 
             {/* Maestro Card */}
-            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid" borderColor={borderColor} boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
               <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#0049ca"></Box>
               <Flex align="center" justify="space-between" mb="8">
                 <Flex align="center" gap="4">
@@ -1315,8 +1721,8 @@ export default function ReportsPage() {
                       detectedSignalsFromTeacherReport.map((s, idx) => (
                         <Badge
                           key={idx}
-                          bg="#e7e8e9"
-                          color={textLabel}
+                          bg={signalBadgeBg}
+                          color={signalBadgeColor}
                           px="3"
                           py="1.5"
                           borderRadius="full"
@@ -1336,23 +1742,63 @@ export default function ReportsPage() {
                   </Flex>
                 </Box>
 
-                <Box border="1px solid rgba(195,197,215,0.2)" borderRadius="2xl" overflow="hidden">
-                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandTeacher(!expandTeacher)} _hover={{ bg: "#f3f4f5" }} transition="colors">
+                <Box border="1px solid" borderColor={borderColor} borderRadius="2xl" overflow="hidden">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandTeacher(!expandTeacher)} _hover={{ bg: disclosureHoverBg }} transition="colors">
                     <Flex align="center" gap="3">
                       <FileText size={18} color="#0049ca" />
-                      <Text fontWeight="bold" fontSize="sm" color={textColor}>{teacherHasNew ? 'Microintervenciones en el aula' : 'Recomendaciones'}</Text>
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>
+                        {shouldShowIhui3HumanReview
+                          ? t('reports_page.human_review_required')
+                          : shouldShowIhui3ValidatedStrategy
+                            ? t('reports_page.ihui3_strategy')
+                            : teacherHasNew
+                              ? t('reports_page.classroom_microinterventions')
+                              : t('reports_page.recommendations')}
+                      </Text>
                     </Flex>
                     {expandTeacher ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
                   </Flex>
                   <Collapse in={expandTeacher}>
                     <Box p="5" bg={cardBg}>
-                      {teacherHasNew && teacherMIs.map((mi, idx) => (
+                      {shouldShowIhui3HumanReview && (
+                        <Alert
+                          status="warning"
+                          borderRadius="xl"
+                          bg={warningBg}
+                          border="1px solid"
+                          borderColor={warningBorder}
+                        >
+                          <AlertIcon />
+                          <Box>
+                            <Text fontSize="sm" fontWeight="bold" color={warningText} mb="1">
+                              Este caso requiere revisión humana
+                            </Text>
+                            <Text fontSize="sm" color={warningText} whiteSpace="pre-line">
+                              {ihui3HumanReviewMessage}
+                            </Text>
+                            <Button
+                              as="a"
+                              href={pendingWhatsappHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              mt="4"
+                              size="sm"
+                              borderRadius="full"
+                              colorScheme="green"
+                            >
+                              Pedir apoyo por WhatsApp
+                            </Button>
+                          </Box>
+                        </Alert>
+                      )}
+                      {shouldShowIhui3ValidatedStrategy && renderIhui3StrategyCard("teacher")}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && teacherHasNew && teacherMIs.map((mi, idx) => (
                         <Box key={idx} mb={idx === teacherMIs.length - 1 ? 0 : 4}>
                           <MicroInterventionCard mi={mi} idx={idx} accentColor="#0049ca" />
                         </Box>
                       ))}
 
-                      {!teacherHasNew && teacherLegacyRecs.map((rec, idx) => (
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !teacherHasNew && teacherLegacyRecs.map((rec, idx) => (
                         <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === teacherLegacyRecs.length - 1 ? 0 : 4}>
                           <Flex justify="space-between" mb="2">
                             <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
@@ -1363,7 +1809,11 @@ export default function ReportsPage() {
                           </Stack>
                         </Box>
                       ))}
-                      {!teacherHasNew && teacherLegacyRecs.length === 0 && <Text fontSize="sm" color={textMuted}>{t('reports_page.no_recommendations')}</Text>}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !teacherHasNew && teacherLegacyRecs.length === 0 && (
+                        <Text fontSize="sm" color={textMuted}>
+                          {t('reports_page.no_recommendations')}
+                        </Text>
+                      )}
                     </Box>
                   </Collapse>
                 </Box>
@@ -1378,7 +1828,7 @@ export default function ReportsPage() {
             </Box>
 
             {/* Familia Card */}
-            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid" borderColor={borderColor} boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
               <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#7d4ce7"></Box>
               <Flex align="center" justify="space-between" mb="8">
                 <Flex align="center" gap="4">
@@ -1417,8 +1867,8 @@ export default function ReportsPage() {
                       detectedSignalsFromTeacherReport.map((s, idx) => (
                         <Badge
                           key={idx}
-                          bg="#e7e8e9"
-                          color={textLabel}
+                          bg={signalBadgeBg}
+                          color={signalBadgeColor}
                           px="3"
                           py="1.5"
                           borderRadius="full"
@@ -1438,23 +1888,63 @@ export default function ReportsPage() {
                   </Flex>
                 </Box>
 
-                <Box border="1px solid rgba(195,197,215,0.2)" borderRadius="2xl" overflow="hidden">
-                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandParent(!expandParent)} _hover={{ bg: "#f3f4f5" }} transition="colors">
+                <Box border="1px solid" borderColor={borderColor} borderRadius="2xl" overflow="hidden">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandParent(!expandParent)} _hover={{ bg: disclosureHoverBg }} transition="colors">
                     <Flex align="center" gap="3">
                       <FileText size={18} color="#7d4ce7" />
-                      <Text fontWeight="bold" fontSize="sm" color={textColor}>{parentHasNew ? 'Dinámicas para el hogar' : 'Recomendaciones'}</Text>
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>
+                        {shouldShowIhui3HumanReview
+                          ? t('reports_page.human_review_required')
+                          : shouldShowIhui3ValidatedStrategy
+                            ? t('reports_page.ihui3_strategy')
+                            : parentHasNew
+                              ? t('reports_page.home_dynamics')
+                              : t('reports_page.recommendations')}
+                      </Text>
                     </Flex>
                     {expandParent ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
                   </Flex>
                   <Collapse in={expandParent}>
                     <Box p="5" bg={cardBg}>
-                      {parentHasNew && parentMIs.map((mi, idx) => (
+                      {shouldShowIhui3HumanReview && (
+                        <Alert
+                          status="warning"
+                          borderRadius="xl"
+                          bg={warningBg}
+                          border="1px solid"
+                          borderColor={warningBorder}
+                        >
+                          <AlertIcon />
+                          <Box>
+                            <Text fontSize="sm" fontWeight="bold" color={warningText} mb="1">
+                              Este caso requiere revisión humana
+                            </Text>
+                            <Text fontSize="sm" color={warningText} whiteSpace="pre-line">
+                              {ihui3HumanReviewMessage}
+                            </Text>
+                            <Button
+                              as="a"
+                              href={pendingWhatsappHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              mt="4"
+                              size="sm"
+                              borderRadius="full"
+                              colorScheme="green"
+                            >
+                              Pedir apoyo por WhatsApp
+                            </Button>
+                          </Box>
+                        </Alert>
+                      )}
+                      {shouldShowIhui3ValidatedStrategy && renderIhui3StrategyCard("parent")}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && parentHasNew && parentMIs.map((mi, idx) => (
                         <Box key={idx} mb={idx === parentMIs.length - 1 ? 0 : 4}>
                           <MicroInterventionCard mi={mi} idx={idx} accentColor="#7d4ce7" />
                         </Box>
                       ))}
 
-                      {!parentHasNew && parentLegacyRecs.map((rec, idx) => (
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !parentHasNew && parentLegacyRecs.map((rec, idx) => (
                         <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === parentLegacyRecs.length - 1 ? 0 : 4}>
                           <Flex justify="space-between" mb="2">
                             <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
@@ -1465,7 +1955,11 @@ export default function ReportsPage() {
                           </Stack>
                         </Box>
                       ))}
-                      {!parentHasNew && parentLegacyRecs.length === 0 && <Text fontSize="sm" color={textMuted}>{t('reports_page.no_recommendations')}</Text>}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !parentHasNew && parentLegacyRecs.length === 0 && (
+                        <Text fontSize="sm" color={textMuted}>
+                          {t('reports_page.no_recommendations')}
+                        </Text>
+                      )}
                     </Box>
                   </Collapse>
                 </Box>
@@ -1481,6 +1975,156 @@ export default function ReportsPage() {
           </Grid>
         )}
       </Box>
+      {shouldShowIhui3Wizard && ihui3Wizard && (
+        <Modal
+          isOpen={shouldShowIhui3Wizard}
+          onClose={() => { }}
+          closeOnOverlayClick={false}
+          closeOnEsc={false}
+          size="2xl"
+          isCentered
+        >
+          <ModalOverlay bg={wizardOverlayBg} />
+          <ModalContent
+            bg={wizardModalBg}
+            borderRadius="2xl"
+            border="1px solid"
+            borderColor={wizardModalBorder}
+            boxShadow="2xl"
+            overflow="hidden"
+          >
+            <ModalHeader px={{ base: 5, md: 6 }} pt={6} pb={4}>
+              <VStack align="start" spacing="1">
+                <Badge
+                  bg={wizardBadgeBg}
+                  color={wizardBadgeColor}
+                  borderRadius="full"
+                  px="3"
+                  py="1"
+                >
+                  IHUI 3.0
+                </Badge>
+                <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                  IHUI necesita validar una hipótesis
+                </Text>
+              </VStack>
+            </ModalHeader>
+
+            <ModalCloseButton display="none" />
+
+            <ModalBody px={{ base: 5, md: 6 }} maxH="70vh" overflowY="auto">
+              <Text fontSize="sm" color={textLabel} mb="5">
+                Antes de cerrar las recomendaciones para maestro y familia, responde estas preguntas rápidas.
+                Tus respuestas ayudarán a elegir la estrategia más adecuada o, si el caso sigue ambiguo,
+                pedir revisión humana.
+              </Text>
+
+              <Stack spacing="4">
+                {ihui3Wizard.questions.map((q, idx) => {
+                  const questionKey = getIhui3QuestionKey(q, idx);
+                  const selectedAnswer = ihui3Answers[questionKey];
+                  const questionText = q.text ?? q.question ?? "";
+
+                  return (
+                    <Box
+                      key={questionKey}
+                      p="4"
+                      border="1px solid"
+                      borderColor={wizardQuestionBorder}
+                      borderRadius="xl"
+                      bg={wizardQuestionBg}
+                      transition="border-color 0.2s ease, box-shadow 0.2s ease"
+                      _hover={{ borderColor: wizardQuestionHoverBorder }}
+                    >
+                      <Text fontSize="sm" fontWeight="bold" color={textColor} mb="1">
+                        Pregunta {idx + 1}
+                      </Text>
+
+                      <Text fontSize="sm" color={textLabel} mb="3">
+                        {questionText}
+                      </Text>
+
+                      {(q.nucleus || q.subskill) && (
+                        <Text fontSize="xs" color={textMuted} mb="3">
+                          {q.nucleus}
+                          {q.subskill ? ` / ${q.subskill}` : ""}
+                        </Text>
+                      )}
+
+                      <HStack spacing="3" wrap="wrap">
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "yes" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "yes" ? "green" : "gray"}
+                          onClick={() => handleIhui3AnswerChange(questionKey, "yes")}
+                        >
+                          Sí
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "sometimes" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "sometimes" ? "yellow" : "gray"}
+                          onClick={() =>
+                            handleIhui3AnswerChange(questionKey, "sometimes")
+                          }
+                        >
+                          A veces
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "no" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "no" ? "red" : "gray"}
+                          onClick={() => handleIhui3AnswerChange(questionKey, "no")}
+                        >
+                          No
+                        </Button>
+                      </HStack>
+                    </Box>
+                  );
+                })}
+
+                {ihui3WizardError && (
+                  <Alert status="error" borderRadius="xl">
+                    <AlertIcon />
+                    <Text fontSize="sm">{ihui3WizardError}</Text>
+                  </Alert>
+                )}
+              </Stack>
+            </ModalBody>
+
+            <ModalFooter
+              px={{ base: 5, md: 6 }}
+              py={5}
+              bg={wizardFooterBg}
+              borderTop="1px solid"
+              borderColor={wizardModalBorder}
+            >
+              <Button
+                bg="#0049ca"
+                color="white"
+                borderRadius="xl"
+                w={{ base: "full", md: "auto" }}
+                onClick={handleSubmitIhui3Answers}
+                isDisabled={!areIhui3QuestionsAnswered()}
+                isLoading={
+                  ihui3SubmitState === "submitting_answers" ||
+                  ihui3SubmitState === "refining_strategy" ||
+                  ihui3SubmitState === "refreshing_result"
+                }
+                loadingText={getIhui3WizardSubmitLabel(ihui3SubmitState)}
+                _hover={{ bg: "#003a9e" }}
+              >
+                {getIhui3WizardSubmitLabel(ihui3SubmitState)}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
 
     </Box>
   );

@@ -311,13 +311,13 @@ export default function SchoolsPage() {
                                 />
                                 <Box>
                                   <Text fontWeight="bold" color={textColor} fontSize="sm">{s.name}</Text>
-                                  <Text fontSize="xs" color={textMuted}>Last updated recently</Text>
+                                  <Text fontSize="xs" color={textMuted}>{t("schools_page.last_updated_recently")}</Text>
                                 </Box>
                               </Flex>
                             </Td>
                             <Td py="4">
                               <Box>
-                                <Text fontWeight="bold" color={textLabel} fontSize="sm">{s.city ?? 'Unknown'}</Text>
+                                <Text fontWeight="bold" color={textLabel} fontSize="sm">{s.city ?? t("schools_page.unknown")}</Text>
                                 <Text fontSize="xs" color={textMuted}>{s.state ? `${s.state}` : '-'}</Text>
                               </Box>
                             </Td>

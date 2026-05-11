@@ -41,17 +41,17 @@ export default function ResetPasswordPage() {
     setStatusMsg(null);
 
     if (tokenMissing) {
-      setError('Missing token. Please use the link from your email.');
+      setError(t('reset_password.missing_token_submit'));
       return;
     }
 
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('reset_password.password_min'));
       return;
     }
 
     if (newPassword !== confirm) {
-      setError('Passwords do not match.');
+      setError(t('reset_password.passwords_mismatch'));
       return;
     }
 
@@ -65,13 +65,13 @@ export default function ResetPasswordPage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail ?? 'Reset failed');
+        throw new Error(data?.detail ?? t('reset_password.reset_failed'));
       }
 
-      setStatusMsg('Password updated. You can sign in now.');
+      setStatusMsg(t('reset_password.success_msg'));
       setTimeout(() => navigate('/login', { replace: true }), 800);
     } catch (err: any) {
-      setError(err?.message ?? 'Reset failed');
+      setError(err?.message ?? t('reset_password.reset_failed'));
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,7 @@ export default function ResetPasswordPage() {
             {tokenMissing && (
               <Box mb="6">
                 <Text color={errorText} bg={errorBg} p="4" borderRadius="xl" fontSize="sm" textAlign="center" fontWeight="bold">
-                  Missing token. Please open the link from your email.
+                  {t('reset_password.missing_token_open_link')}
                 </Text>
               </Box>
             )}

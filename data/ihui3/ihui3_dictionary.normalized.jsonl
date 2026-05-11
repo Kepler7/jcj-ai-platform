@@ -1,0 +1,51 @@
+{"expression": "no pone atención", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "se distrae mucho", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "no termina nada", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "se le va la mente", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "no se concentra", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "empieza pero no acaba", "nucleus": "Atención", "subskill": "Concentración", "canonical_signal": "Baja atención sostenida / permanencia en tarea", "notes": ""}
+{"expression": "no se le entiende", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "habla mal", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "pronuncia raro", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "dice mal las palabras", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "no pronuncia bien letras", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "habla como bebé", "nucleus": "Lenguaje", "subskill": "Pronunciación", "canonical_signal": "Dificultad en articulación / pronunciación", "notes": ""}
+{"expression": "dice que no a todo", "nucleus": "Conducta Oposicionista", "subskill": "", "canonical_signal": "Conducta oposicionista / baja disposición", "notes": ""}
+{"expression": "no quiere trabajar", "nucleus": "Conducta Oposicionista", "subskill": "", "canonical_signal": "Conducta oposicionista / baja disposición", "notes": ""}
+{"expression": "hace lo que quiere", "nucleus": "Conducta Oposicionista", "subskill": "", "canonical_signal": "Conducta oposicionista / baja disposición", "notes": ""}
+{"expression": "no obedece", "nucleus": "Conducta Oposicionista", "subskill": "", "canonical_signal": "Conducta oposicionista / baja disposición", "notes": ""}
+{"expression": "se niega a todo", "nucleus": "Conducta Oposicionista", "subskill": "", "canonical_signal": "Conducta oposicionista / baja disposición", "notes": ""}
+{"expression": "llora por todo", "nucleus": "Regulación Emocional", "subskill": "", "canonical_signal": "Baja regulación emocional", "notes": ""}
+{"expression": "hace berrinche", "nucleus": "Regulación Emocional", "subskill": "", "canonical_signal": "Baja regulación emocional", "notes": ""}
+{"expression": "se enoja mucho", "nucleus": "Regulación Emocional", "subskill": "", "canonical_signal": "Baja regulación emocional", "notes": ""}
+{"expression": "explota", "nucleus": "Regulación Emocional", "subskill": "", "canonical_signal": "Baja regulación emocional", "notes": ""}
+{"expression": "no controla sus emociones", "nucleus": "Regulación Emocional", "subskill": "", "canonical_signal": "Baja regulación emocional", "notes": ""}
+{"expression": "muerde todo", "nucleus": "Sensorial Oral", "subskill": "", "canonical_signal": "Búsqueda oral / regulación sensorial oral", "notes": ""}
+{"expression": "se mete cosas a la boca", "nucleus": "Sensorial Oral", "subskill": "", "canonical_signal": "Búsqueda oral / regulación sensorial oral", "notes": ""}
+{"expression": "mastica ropa", "nucleus": "Sensorial Oral", "subskill": "", "canonical_signal": "Búsqueda oral / regulación sensorial oral", "notes": ""}
+{"expression": "muerde lápices", "nucleus": "Sensorial Oral", "subskill": "", "canonical_signal": "Búsqueda oral / regulación sensorial oral", "notes": ""}
+{"expression": "se come cosas", "nucleus": "Sensorial Oral", "subskill": "", "canonical_signal": "Búsqueda oral / regulación sensorial oral", "notes": ""}
+{"expression": "pega", "nucleus": "Agresividad", "subskill": "", "canonical_signal": "Conducta agresiva / desregulación", "notes": ""}
+{"expression": "muerde", "nucleus": "Agresividad", "subskill": "", "canonical_signal": "Conducta agresiva / desregulación", "notes": ""}
+{"expression": "rasguña", "nucleus": "Agresividad", "subskill": "", "canonical_signal": "Conducta agresiva / desregulación", "notes": ""}
+{"expression": "patea", "nucleus": "Agresividad", "subskill": "", "canonical_signal": "Conducta agresiva / desregulación", "notes": ""}
+{"expression": "lastima a otros", "nucleus": "Agresividad", "subskill": "", "canonical_signal": "Conducta agresiva / desregulación", "notes": ""}
+{"expression": "no tiene amigos", "nucleus": "Social", "subskill": "", "canonical_signal": "Dificultad en interacción social", "notes": ""}
+{"expression": "no convive", "nucleus": "Social", "subskill": "", "canonical_signal": "Dificultad en interacción social", "notes": ""}
+{"expression": "se queda solo", "nucleus": "Social", "subskill": "", "canonical_signal": "Dificultad en interacción social", "notes": ""}
+{"expression": "no juega con otros", "nucleus": "Social", "subskill": "", "canonical_signal": "Dificultad en interacción social", "notes": ""}
+{"expression": "le cuesta socializar", "nucleus": "Social", "subskill": "", "canonical_signal": "Dificultad en interacción social", "notes": ""}
+{"expression": "está muy nervioso", "nucleus": "Ansiedad", "subskill": "", "canonical_signal": "Ansiedad / activación emocional alta", "notes": ""}
+{"expression": "se angustia", "nucleus": "Ansiedad", "subskill": "", "canonical_signal": "Ansiedad / activación emocional alta", "notes": ""}
+{"expression": "no se calma", "nucleus": "Ansiedad", "subskill": "", "canonical_signal": "Ansiedad / activación emocional alta", "notes": ""}
+{"expression": "está inquieto", "nucleus": "Ansiedad", "subskill": "", "canonical_signal": "Ansiedad / activación emocional alta", "notes": ""}
+{"expression": "se preocupa mucho", "nucleus": "Ansiedad", "subskill": "", "canonical_signal": "Ansiedad / activación emocional alta", "notes": ""}
+{"expression": "no sabe leer", "nucleus": "Aprendizaje (Lectura)", "subskill": "", "canonical_signal": "Dificultad en lectura / decodificación", "notes": ""}
+{"expression": "le cuesta leer", "nucleus": "Aprendizaje (Lectura)", "subskill": "", "canonical_signal": "Dificultad en lectura / decodificación", "notes": ""}
+{"expression": "se equivoca al leer", "nucleus": "Aprendizaje (Lectura)", "subskill": "", "canonical_signal": "Dificultad en lectura / decodificación", "notes": ""}
+{"expression": "no junta letras", "nucleus": "Aprendizaje (Lectura)", "subskill": "", "canonical_signal": "Dificultad en lectura / decodificación", "notes": ""}
+{"expression": "lee pero no entiende", "nucleus": "Aprendizaje (Lectura)", "subskill": "", "canonical_signal": "Dificultad en lectura / decodificación", "notes": ""}
+{"expression": "no sabe sumar", "nucleus": "Matemáticas", "subskill": "", "canonical_signal": "Dificultad en pensamiento matemático básico", "notes": ""}
+{"expression": "no entiende números", "nucleus": "Matemáticas", "subskill": "", "canonical_signal": "Dificultad en pensamiento matemático básico", "notes": ""}
+{"expression": "se confunde al contar", "nucleus": "Matemáticas", "subskill": "", "canonical_signal": "Dificultad en pensamiento matemático básico", "notes": ""}
+{"expression": "no sabe hacer operaciones", "nucleus": "Matemáticas", "subskill": "", "canonical_signal": "Dificultad en pensamiento matemático básico", "notes": ""}

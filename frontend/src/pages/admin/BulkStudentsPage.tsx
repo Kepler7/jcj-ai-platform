@@ -400,9 +400,9 @@ export default function BulkStudentsPage() {
                       <Table size="sm" variant="simple">
                         <Thead>
                           <Tr>
-                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Row</Th>
-                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Field</Th>
-                            <Th color={errorText} fontFamily="'Manrope', sans-serif">Message</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">{t('bulk_page.preview_data.row')}</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">{t('bulk_page.preview_data.field')}</Th>
+                            <Th color={errorText} fontFamily="'Manrope', sans-serif">{t('bulk_page.preview_data.message')}</Th>
                           </Tr>
                         </Thead>
                         <Tbody>

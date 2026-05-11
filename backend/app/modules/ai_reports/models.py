@@ -56,3 +56,8 @@ class AIReport(Base):
         nullable=False,
         index=True,
     )
+    engine_version: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="2", server_default="2"
+    )
+    ai_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    validation_status: Mapped[str | None] = mapped_column(String(32), nullable=True)

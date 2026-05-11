@@ -1,6 +1,9 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional
+
+from app.modules.ai_guardrails.audit import build_guardrail_audit_payload
 
 from agno.agent import Agent
 from sqlalchemy.orm import Session
@@ -24,6 +27,9 @@ from app.ai.orchestrator import (
     extract_json_object_lenient,
 )
 from app.ai.utils.normalization import normalize_topic_nucleo
+from app.modules.ai_guardrails.pipeline import run_input_guardrails
+
+logger = logging.getLogger(__name__)
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
@@ -53,6 +59,178 @@ def _coerce_topic_nucleo_in_support(data: dict) -> dict:
     return data
 
 
+def build_general_fallback_response(
+    report_text: str,
+    age: int,
+    prediction_id,
+) -> AIGeneratedSupport:
+    """
+    Construye una respuesta general cuando:
+    - no hubo match suficiente con playbooks
+    - o el sistema necesita caer a fallback general
+
+    ¿Por qué la movimos a nivel módulo?
+    Porque así se puede:
+    - testear mejor
+    - mockear en unit tests
+    - reutilizar sin depender del scope interno de generate_support_v2
+    """
+    disclaimer = (
+        "⚠️ Nota: No se encontraron estrategias específicas en el Playbook JCJ "
+        "para este caso. Las sugerencias siguientes son generales y deben ser "
+        "validadas/ajustadas por el equipo profesional."
+    )
+
+    def _extract_raw_text(resp: Any) -> str:
+        """
+        Intenta sacar texto útil desde distintas formas de respuesta del agente.
+        """
+        if resp is None:
+            return ""
+        for attr in ("output", "content", "text", "message"):
+            if hasattr(resp, attr):
+                v = getattr(resp, attr)
+                if isinstance(v, str):
+                    return v
+        if isinstance(resp, str):
+            return resp
+        return str(resp)
+
+    def _force_note(summary: str) -> str:
+        """
+        Asegura que el summary empiece con la nota de fallback.
+        """
+        s = (summary or "").strip()
+        if not s.startswith("⚠️ Nota:"):
+            s = f"{disclaimer}\n\n{s}".strip()
+        return s[:800]
+
+    schema_hint = {
+        "teacher_version": {
+            "summary": "string",
+            "signals_detected": ["string"],
+            "microintervenciones": [
+                {
+                    "topic_nucleo": [
+                        "string (1..10 elementos, cada uno corto y claro)"
+                    ],
+                    "subhabilidad": "string",
+                    "senal_observable": "string",
+                    "hipotesis_funcional": "string",
+                    "microobjetivo": "string",
+                    "estrategias_paso_a_paso": ["string"],
+                    "frecuencia": "string",
+                    "duracion": "string",
+                    "indicador_de_avance": "string",
+                    "escalamiento": "string",
+                }
+            ],
+        },
+        "parent_version": {
+            "summary": "string",
+            "signals_detected": ["string"],
+            "microintervenciones": [
+                {
+                    "topic_nucleo": [
+                        "string (1..10 elementos, cada uno corto y claro)"
+                    ],
+                    "subhabilidad": "string",
+                    "senal_observable": "string",
+                    "hipotesis_funcional": "string",
+                    "microobjetivo": "string",
+                    "estrategias_paso_a_paso": ["string"],
+                    "frecuencia": "string",
+                    "duracion": "string",
+                    "indicador_de_avance": "string",
+                    "escalamiento": "string",
+                }
+            ],
+        },
+        "guardrails": {
+            "no_diagnosis_confirmed": True,
+            "no_clinical_labels_confirmed": True,
+        },
+    }
+
+    prompt = f"""
+Genera una respuesta de apoyo GENERAL para un alumno de {age} años.
+
+IMPORTANTE:
+- Devuelve SOLO JSON válido.
+- No uses markdown.
+- No des diagnósticos.
+- No uses etiquetas clínicas como si fueran confirmaciones.
+- Debes seguir esta estructura:
+
+{json.dumps(schema_hint, ensure_ascii=False, indent=2)}
+
+Reporte:
+{report_text}
+""".strip()
+
+    try:
+        agent = Agent(model=get_ai_model(), tools=[])
+        resp = agent.run(prompt)
+        raw = _strip_code_fences(_extract_raw_text(resp))
+        data = extract_json_object_lenient(raw)
+
+        if isinstance(data.get("teacher_version"), dict):
+            data["teacher_version"]["summary"] = _force_note(
+                data["teacher_version"].get("summary")
+            )
+        if isinstance(data.get("parent_version"), dict):
+            data["parent_version"]["summary"] = _force_note(
+                data["parent_version"].get("summary")
+            )
+
+        data["guardrails"] = {
+            "no_diagnosis_confirmed": True,
+            "no_clinical_labels_confirmed": True,
+        }
+
+        combined_text = json.dumps(data, ensure_ascii=False).lower()
+        ok, hits = check_guardrails(combined_text)
+        if not ok:
+            raise ValueError(f"Guardrails failed. Banned terms found: {hits}")
+
+        data = _coerce_topic_nucleo_in_support(data)
+        return AIGeneratedSupport.model_validate(data)
+
+    except Exception:
+        teacher_msg = (
+            f"{disclaimer}\n\n"
+            "Como apoyo inicial en aula, se recomienda observar con mayor precisión "
+            "en qué momentos aparece la dificultad, reducir demandas simultáneas, "
+            "dar instrucciones breves y claras, ofrecer apoyo visual cuando sea útil "
+            "y registrar qué estrategias ayudan más al alumno."
+        )
+
+        parent_msg = (
+            f"{disclaimer}\n\n"
+            "Como apoyo inicial en casa, se recomienda mantener rutinas claras, "
+            "dar una instrucción a la vez, reforzar avances pequeños, anticipar cambios "
+            "y observar si hay momentos, ambientes o estímulos que aumentan o disminuyen "
+            "la dificultad."
+        )
+
+        return AIGeneratedSupport(
+            teacher_version=TeacherVersion(
+                summary=teacher_msg,
+                signals_detected=[],
+                microintervenciones=[],
+            ),
+            parent_version=ParentVersion(
+                summary=parent_msg,
+                signals_detected=[],
+                microintervenciones=[],
+            ),
+            guardrails=GuardrailsBlock(
+                no_diagnosis_confirmed=True,
+                no_clinical_labels_confirmed=True,
+            ),
+        )
+
+
 # ----------------------------
 # MAIN
 # ----------------------------
@@ -66,198 +244,86 @@ def generate_support_v2(
     school_id=None,
     model_name: str = "v2-llm-rerank",
 ) -> Dict[str, Any]:
-    def build_general_fallback_response(
-        report_text: str,
-        age: int,
-        prediction_id,
-    ) -> AIGeneratedSupport:
-        disclaimer = (
-            "⚠️ Nota: No se encontraron estrategias específicas en el Playbook JCJ "
-            "para este caso. Las sugerencias siguientes son generales y deben ser "
-            "validadas/ajustadas por el equipo profesional."
-        )
 
-        def _extract_raw_text(resp: Any) -> str:
-            if resp is None:
-                return ""
-            for attr in ("output", "content", "text", "message"):
-                if hasattr(resp, attr):
-                    v = getattr(resp, attr)
-                    if isinstance(v, str):
-                        return v
-            if isinstance(resp, str):
-                return resp
-            return str(resp)
+    # ----------------------------
+    # 0) INPUT GUARDRAILS
+    # ----------------------------
+    # Aquí protegemos la entrada ANTES de pasarla al retrieval o al modelo.
+    input_guardrails = run_input_guardrails(report_text)
 
-        def _force_note(summary: str) -> str:
-            s = (summary or "").strip()
-            if not s.startswith("⚠️ Nota:"):
-                s = f"{disclaimer}\n\n{s}".strip()
-            return s[:800]
+    # Este es el texto que sí está permitido usar en el flujo.
+    # Si había PII, aquí ya vendrá redactada.
+    sanitized_report_text = input_guardrails.sanitized_text
 
-        schema_hint = {
-            "teacher_version": {
-                "summary": "string",
-                "signals_detected": ["string"],
-                "microintervenciones": [
-                    {
-                        "topic_nucleo": [
-                            "string (1..10 elementos, cada uno corto y claro)"
-                        ],
-                        "subhabilidad": "string",
-                        "senal_observable": "string",
-                        "hipotesis_funcional": "string",
-                        "microobjetivo": "string",
-                        "estrategias_paso_a_paso": ["string"],
-                        "frecuencia": "string",
-                        "duracion": "string",
-                        "indicador_de_avance": "string",
-                        "escalamiento": "string",
-                    }
-                ],
-            },
-            "parent_version": {
-                "summary": "string",
-                "signals_detected": ["string"],
-                "microintervenciones": [
-                    {
-                        "topic_nucleo": [
-                            "string (1..10 elementos, cada uno corto y claro)"
-                        ],
-                        "subhabilidad": "string",
-                        "senal_observable": "string",
-                        "hipotesis_funcional": "string",
-                        "microobjetivo": "string",
-                        "estrategias_paso_a_paso": ["string"],
-                        "frecuencia": "string",
-                        "duracion": "string",
-                        "indicador_de_avance": "string",
-                        "escalamiento": "string",
-                    }
-                ],
-            },
-            "guardrails": {
-                "no_diagnosis_confirmed": True,
-                "no_clinical_labels_confirmed": True,
+    # Metadata estructurada de guardrails de entrada.
+    # La armamos desde el inicio para reutilizarla en cualquier ruta:
+    # normal, safeguarding_review o block.
+    input_guardrails_meta = {
+        "safe": input_guardrails.safe,
+        "should_block": input_guardrails.should_block,
+        "should_restrict": input_guardrails.should_restrict,
+        "risk_level": input_guardrails.risk_level,
+        "flags": input_guardrails.flags,
+        "blocked_reason": input_guardrails.blocked_reason,
+        "route": input_guardrails.route,
+        "response_mode": input_guardrails.response_mode,
+        "human_review_required": input_guardrails.human_review_required,
+        "allow_rag": input_guardrails.allow_rag,
+        "allow_llm_generation": input_guardrails.allow_llm_generation,
+        "classification": input_guardrails.classification.model_dump(),
+    }
+
+    # Auditoría estructurada del router de entrada.
+    # Esto nos ayuda a observar qué decidió IHUI antes de entrar
+    # al flujo normal, safeguarding o bloqueo.
+    audit_payload = build_guardrail_audit_payload(
+        report_id=str(report_id) if report_id is not None else None,
+        student_id=str(student_id) if student_id is not None else None,
+        school_id=str(school_id) if school_id is not None else None,
+        route=input_guardrails.route,
+        risk_level=input_guardrails.risk_level,
+        input_guardrails_meta=input_guardrails_meta,
+        sanitized_report_text=sanitized_report_text,
+    )
+
+    logger.info(
+        "AI guardrails/router decision: %s",
+        json.dumps(audit_payload, ensure_ascii=False),
+    )
+
+    # Si el pipeline decide bloquear, salimos temprano.
+    # En este primer paso NO guardamos prediction en DB para evitar
+    # contaminar datos con entradas bloqueadas.
+    if input_guardrails.should_block:
+        return {
+            "status": "guardrails_blocked",
+            "prediction_id": None,
+            "support": build_guardrails_blocked_response(
+                input_guardrails.blocked_reason
+            ),
+            "model_name": model_name,
+            "meta": {
+                "prediction_status": "guardrails_blocked",
+                "fallback_used": False,
+                "input_guardrails": input_guardrails_meta,
             },
         }
-
-        prompt = f"""
-Eres un asistente educativo. No se encontró una estrategia específica del Playbook JCJ.
-
-Tu tarea es generar apoyo GENERAL, prudente y útil, sin atribuirlo al Playbook JCJ.
-
-Reglas obligatorias:
-- Devuelve SOLO JSON válido.
-- No uses markdown.
-- No agregues texto fuera del JSON.
-- No des diagnósticos.
-- No uses etiquetas clínicas confirmatorias.
-- Las sugerencias deben ser generales, conservadoras y aplicables en aula y casa.
-- Si no estás seguro, mantén recomendaciones amplias y seguras.
-- Incluye de 1 a 3 microintervenciones generales como máximo.
-- Cada microintervención debe tener pasos concretos y breves.
-- En ambos summaries debe quedar claro que son sugerencias generales y no del Playbook JCJ.
-
-Edad del alumno: {age}
-
-Reporte del maestro:
-{report_text}
-
-Esquema esperado:
-{json.dumps(schema_hint, ensure_ascii=False, indent=2)}
-""".strip()
-
-        try:
-            agent = Agent(model=get_ai_model(), tools=[], instructions=[])
-            resp = agent.run(prompt)
-            raw = _strip_code_fences(_extract_raw_text(resp))
-
-            try:
-                data = extract_json_object_lenient(raw)
-            except Exception:
-                fix_prompt = (
-                    "Tu respuesta NO es JSON válido.\n"
-                    "Devuelve SOLO un objeto JSON válido, sin markdown ni texto extra.\n"
-                    "Respeta exactamente el esquema pedido.\n\n"
-                    f"Salida anterior:\n{raw}\n"
-                )
-                resp2 = agent.run(fix_prompt)
-                raw2 = _strip_code_fences(_extract_raw_text(resp2))
-                data = extract_json_object_lenient(raw2)
-
-            if not isinstance(data, dict):
-                raise ValueError("Fallback general no devolvió un objeto JSON")
-
-            teacher = data.get("teacher_version") or {}
-            parent = data.get("parent_version") or {}
-
-            if not isinstance(teacher, dict):
-                teacher = {}
-            if not isinstance(parent, dict):
-                parent = {}
-
-            teacher["summary"] = _force_note(str(teacher.get("summary") or ""))
-            parent["summary"] = _force_note(str(parent.get("summary") or ""))
-
-            if not isinstance(teacher.get("signals_detected"), list):
-                teacher["signals_detected"] = []
-            if not isinstance(parent.get("signals_detected"), list):
-                parent["signals_detected"] = []
-
-            if not isinstance(teacher.get("microintervenciones"), list):
-                teacher["microintervenciones"] = []
-            if not isinstance(parent.get("microintervenciones"), list):
-                parent["microintervenciones"] = []
-
-            data["teacher_version"] = teacher
-            data["parent_version"] = parent
-            data["guardrails"] = {
-                "no_diagnosis_confirmed": True,
-                "no_clinical_labels_confirmed": True,
-            }
-
-            combined_text = json.dumps(data, ensure_ascii=False).lower()
-            ok, hits = check_guardrails(combined_text)
-            if not ok:
-                raise ValueError(f"Guardrails failed. Banned terms found: {hits}")
-
-            data = _coerce_topic_nucleo_in_support(data)
-            return AIGeneratedSupport.model_validate(data)
-
-        except Exception:
-            teacher_msg = (
-                f"{disclaimer}\n\n"
-                "Como apoyo inicial en aula, se recomienda observar con mayor precisión "
-                "en qué momentos aparece la dificultad, reducir demandas simultáneas, "
-                "dar instrucciones breves y claras, ofrecer apoyo visual cuando sea útil "
-                "y registrar qué estrategias ayudan más al alumno."
-            )
-
-            parent_msg = (
-                f"{disclaimer}\n\n"
-                "Como apoyo inicial en casa, se recomienda mantener rutinas claras, "
-                "dar una instrucción a la vez, reforzar avances pequeños, anticipar cambios "
-                "y observar si hay momentos, ambientes o estímulos que aumentan o disminuyen "
-                "la dificultad."
-            )
-
-            return AIGeneratedSupport(
-                teacher_version=TeacherVersion(
-                    summary=teacher_msg,
-                    signals_detected=[],
-                    microintervenciones=[],
-                ),
-                parent_version=ParentVersion(
-                    summary=parent_msg,
-                    signals_detected=[],
-                    microintervenciones=[],
-                ),
-                guardrails=GuardrailsBlock(
-                    no_diagnosis_confirmed=True,
-                    no_clinical_labels_confirmed=True,
-                ),
-            )
+    # Si el caso es sensible legítimo, NO seguimos al flujo normal.
+    # Salimos temprano con una respuesta restringida.
+    if input_guardrails.should_restrict:
+        return {
+            "status": "safeguarding_review",
+            "prediction_id": None,
+            "support": build_safeguarding_review_response(
+                input_guardrails.classification
+            ),
+            "model_name": model_name,
+            "meta": {
+                "prediction_status": "safeguarding_review",
+                "fallback_used": False,
+                "input_guardrails": input_guardrails_meta,
+            },
+        }
 
     store = ChromaPlaybookStore(
         host=CHROMA_HOST,
@@ -265,9 +331,10 @@ Esquema esperado:
         collection_name=CHROMA_COLLECTION,
     )
 
+    # Usamos el texto sanitizado para no mandar PII al retrieval.
     raw_docs: List[str] = retrieve_playbooks(
         store=store,
-        report_text=report_text,
+        report_text=sanitized_report_text,
         n_results=40,
     )
 
@@ -282,11 +349,12 @@ Esquema esperado:
     # ----------------------------
     # 2) RERANK
     # ----------------------------
-    scored = llm_rerank_playbooks(report_text, parsed_playbooks)
+    # El rerank también debe usar el texto sanitizado.
+    scored = llm_rerank_playbooks(sanitized_report_text, parsed_playbooks)
 
     # fallback local si el LLM falla o no regresa nada útil
     if not scored:
-        scored = local_rerank_playbooks(report_text, parsed_playbooks)
+        scored = local_rerank_playbooks(sanitized_report_text, parsed_playbooks)
 
     top1 = scored[0] if scored else None
     top2 = scored[1] if len(scored) > 1 else None
@@ -344,6 +412,7 @@ Esquema esperado:
                 "confidence_gap": gap,
                 "top_candidates": [extract_playbook_id(x) for x in scored[:3]],
                 "fallback_used": False,
+                "input_guardrails": input_guardrails_meta,
             },
         }
 
@@ -360,13 +429,18 @@ Esquema esperado:
                 "confidence_gap": gap,
                 "top_candidates": [extract_playbook_id(x) for x in scored[:3]],
                 "fallback_used": False,
+                "input_guardrails": input_guardrails_meta,
             },
         }
 
     return {
         "status": status,
         "prediction_id": str(prediction.id),
-        "support": build_general_fallback_response(report_text, age, prediction.id),
+        "support": build_general_fallback_response(
+            sanitized_report_text,
+            age,
+            prediction.id,
+        ),
         "model_name": model_name,
         "meta": {
             "prediction_status": status,
@@ -376,6 +450,7 @@ Esquema esperado:
             "top_candidates": [extract_playbook_id(x) for x in scored[:3]],
             "fallback_used": True,
             "fallback_reason": "no_match",
+            "input_guardrails": input_guardrails_meta,
         },
     }
 
@@ -640,6 +715,112 @@ def _age_status_for_playbook(pb: Dict[str, Any], student_age: int) -> str:
 # ----------------------------
 # RESPONSE BUILDERS
 # ----------------------------
+
+
+def build_safeguarding_review_response(
+    classification,
+) -> AIGeneratedSupport:
+    """
+    Construye una respuesta restringida para casos sensibles legítimos.
+
+    ¿Cuándo se usa?
+    - Cuando el clasificador decide route = safeguarding_review
+
+    ¿Por qué existe esta función?
+    - Para no mandar estos casos al flujo normal de playbooks
+    - Para devolver una respuesta segura y consistente
+    - Para dejar claro que se requiere revisión humana
+
+    Nota:
+    En esta primera versión NO generamos un plan completo.
+    Solo devolvemos una respuesta restringida y segura.
+    """
+    teacher_msg = (
+        "IHUI detectó que este caso incluye un tema sensible que requiere revisión humana. "
+        "Por seguridad, no se generó un plan automático estándar. "
+        "Se recomienda revisar el caso con el equipo responsable y seguir el protocolo interno de escalamiento."
+    )
+
+    parent_msg = (
+        "IHUI detectó que este caso incluye un tema sensible que requiere revisión humana. "
+        "Por seguridad, no se generó un plan automático estándar. "
+        "Se recomienda dar seguimiento con el equipo responsable y continuar la atención según el protocolo correspondiente."
+    )
+
+    # Si el clasificador trae topics, los mandamos como señales detectadas
+    # para que el frontend o logs tengan una pista estructurada.
+    detected_topics = [
+        topic for topic in (classification.topics or []) if topic != "none"
+    ]
+
+    return AIGeneratedSupport(
+        teacher_version=TeacherVersion(
+            summary=teacher_msg,
+            signals_detected=detected_topics,
+            microintervenciones=[],
+        ),
+        parent_version=ParentVersion(
+            summary=parent_msg,
+            signals_detected=detected_topics,
+            microintervenciones=[],
+        ),
+        guardrails=GuardrailsBlock(
+            no_diagnosis_confirmed=True,
+            no_clinical_labels_confirmed=True,
+        ),
+    )
+
+
+def build_guardrails_blocked_response(
+    blocked_reason: Optional[str],
+) -> AIGeneratedSupport:
+    """
+    Construye una respuesta segura cuando los guardrails de entrada
+    detectan que NO debemos mandar el texto al retrieval ni al LLM.
+
+    ¿Por qué existe esta función?
+    - Para no pasar contenido peligroso al agente.
+    - Para responder de forma controlada.
+    - Para no romper el contrato del tipo AIGeneratedSupport.
+
+    Nota:
+    En este primer paso regresamos un mensaje seguro y simple.
+    Más adelante podremos mejorar el copy para teacher/parent/UI.
+    """
+    teacher_msg = (
+        "IHUI detectó que este caso necesita validación humana antes de generar apoyo automático. "
+        "Por seguridad, este contenido no fue procesado automáticamente."
+    )
+
+    parent_msg = (
+        "IHUI detectó que este caso necesita validación humana antes de generar apoyo automático. "
+        "Por seguridad, este contenido no fue procesado automáticamente."
+    )
+
+    # Si tenemos motivo de bloqueo, lo agregamos como nota corta
+    # para debug/control. No revelamos reglas internas ni detalles sensibles.
+    if blocked_reason:
+        teacher_msg = f"{teacher_msg}\n\nMotivo de seguridad: {blocked_reason}"
+        parent_msg = f"{parent_msg}\n\nMotivo de seguridad: {blocked_reason}"
+
+    return AIGeneratedSupport(
+        teacher_version=TeacherVersion(
+            summary=teacher_msg,
+            signals_detected=[],
+            microintervenciones=[],
+        ),
+        parent_version=ParentVersion(
+            summary=parent_msg,
+            signals_detected=[],
+            microintervenciones=[],
+        ),
+        guardrails=GuardrailsBlock(
+            no_diagnosis_confirmed=True,
+            no_clinical_labels_confirmed=True,
+        ),
+    )
+
+
 def build_confirmed_response(
     pb: Dict[str, Any], age: int, prediction_id
 ) -> AIGeneratedSupport:

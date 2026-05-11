@@ -42,6 +42,7 @@ from app.api.v1.classes import router as classes_router
 from app.api.v1.students import router as student_router
 from app.api.v1.playbooks import router as playbooks_router
 from app.api.v1.ai_feedback import router as ai_feedback_router
+from app.api.v1.ihui3 import router as ihui3_router
 
 app.include_router(schools_router)
 app.include_router(auth_router)
@@ -58,6 +59,7 @@ app.include_router(classes_router)
 app.include_router(student_router)
 app.include_router(playbooks_router)
 app.include_router(ai_feedback_router)
+app.include_router(ihui3_router)
 
 
 # 4️⃣ Health checks

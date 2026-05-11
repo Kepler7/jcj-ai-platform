@@ -7,6 +7,7 @@ import {
   Text,
   UnorderedList,
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 
 type Recommendation = {
   title: string;
@@ -36,6 +37,7 @@ export function AiSupportCard({
   title: string;
   version: Version;
 }) {
+  const { t } = useTranslation();
   const plan = version.classroom_plan_7_days ?? version.home_plan_7_days ?? [];
 
   return (
@@ -49,7 +51,7 @@ export function AiSupportCard({
       <Stack gap="4">
         <Box>
           <Text fontWeight="semibold" mb="1">
-            Señales observadas
+            {t('ai_support.signals_observed')}
           </Text>
           <UnorderedList>
             {version.signals_detected?.map((s, idx) => (
@@ -60,7 +62,7 @@ export function AiSupportCard({
 
         <Box>
           <Text fontWeight="semibold" mb="2">
-            Recomendaciones
+            {t('ai_support.recommendations')}
           </Text>
 
           <Stack gap="3">
@@ -70,7 +72,7 @@ export function AiSupportCard({
 
                 {r.when_to_use && (
                   <Text fontSize="sm" opacity={0.85}>
-                    Cuándo usar: {r.when_to_use}
+                    {t('ai_support.when_to_use')} {r.when_to_use}
                   </Text>
                 )}
 
@@ -88,18 +90,18 @@ export function AiSupportCard({
 
         <Box>
           <Text fontWeight="semibold" mb="2">
-            Plan 7 días
+            {t('ai_support.seven_day_plan')}
           </Text>
 
           <Stack gap="2">
             {plan.map((d, idx) => (
               <Box key={idx} borderWidth="1px" borderRadius="md" p="3">
                 <Text fontWeight="bold">
-                  Día {d.day}: {d.focus}
+                  {t('ai_support.day', { day: d.day })}: {d.focus}
                 </Text>
-                <Text fontSize="sm">Actividad: {d.activity}</Text>
+                <Text fontSize="sm">{t('ai_support.activity')} {d.activity}</Text>
                 <Text fontSize="sm" opacity={0.85}>
-                  Criterio de éxito: {d.success_criteria}
+                  {t('ai_support.success_criteria')} {d.success_criteria}
                 </Text>
               </Box>
             ))}

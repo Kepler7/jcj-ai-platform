@@ -16,6 +16,7 @@ import {
   ListItem,
   Divider,
 } from "@chakra-ui/react";
+import { useTranslation } from "react-i18next";
 
 type SharePayload = {
   ai_report_id: string;
@@ -33,6 +34,7 @@ type SharePayload = {
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function ParentSharePage() {
+  const { t } = useTranslation();
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SharePayload | null>(null);
@@ -56,7 +58,7 @@ export default function ParentSharePage() {
         const json = (await res.json()) as SharePayload;
         setData(json);
       } catch (e: any) {
-        setError(e?.message ?? "Error");
+        setError(e?.message ?? t("common.error"));
       } finally {
         setLoading(false);
       }
@@ -66,23 +68,23 @@ export default function ParentSharePage() {
   return (
     <Container maxW="container.md" py={8}>
       <Heading size="md" mb={2}>
-        Apoyo para casa
+        {t("parent_share.title")}
       </Heading>
       <Text color="gray.600" mb={6}>
-        Vista para padres/tutores (link seguro).
+        {t("parent_share.subtitle")}
       </Text>
 
       {loading && (
         <Box display="flex" alignItems="center" gap={3}>
           <Spinner />
-          <Text>Cargando…</Text>
+          <Text>{t("common.loading")}</Text>
         </Box>
       )}
 
       {error && (
         <Alert status="error">
           <AlertIcon />
-          {error.includes("410") ? "Este link ya expiró o fue revocado." : error}
+          {error.includes("410") ? t("parent_share.expired_link") : error}
         </Alert>
       )}
 
@@ -90,7 +92,7 @@ export default function ParentSharePage() {
         <Stack spacing={4}>
           <Card>
             <CardHeader>
-              <Heading size="sm">Resumen</Heading>
+              <Heading size="sm">{t("parent_share.summary")}</Heading>
             </CardHeader>
             <CardBody>
               <Text>{data.parent_version?.summary ?? "—"}</Text>
@@ -99,7 +101,7 @@ export default function ParentSharePage() {
 
           <Card>
             <CardHeader>
-              <Heading size="sm">Señales observadas</Heading>
+              <Heading size="sm">{t("parent_share.observed_signals")}</Heading>
             </CardHeader>
             <CardBody>
               <List spacing={2}>
@@ -113,16 +115,16 @@ export default function ParentSharePage() {
 
           <Card>
             <CardHeader>
-              <Heading size="sm">Recomendaciones</Heading>
+              <Heading size="sm">{t("parent_share.recommendations")}</Heading>
             </CardHeader>
             <CardBody>
               <Stack spacing={3}>
                 {(data.parent_version?.recommendations ?? []).map((r, idx) => (
                   <Box key={idx}>
-                    <Text fontWeight="semibold">{r.title ?? "Recomendación"}</Text>
+                    <Text fontWeight="semibold">{r.title ?? t("parent_share.recommendation")}</Text>
                     {r.when_to_use && (
                       <Text fontSize="sm" color="gray.600">
-                        Cuándo: {r.when_to_use}
+                        {t("parent_share.when")} {r.when_to_use}
                       </Text>
                     )}
                     {(r.steps ?? []).length > 0 && (
@@ -142,17 +144,17 @@ export default function ParentSharePage() {
 
           <Card>
             <CardHeader>
-              <Heading size="sm">Plan de 7 días</Heading>
+              <Heading size="sm">{t("parent_share.seven_day_plan")}</Heading>
             </CardHeader>
             <CardBody>
               <Stack spacing={3}>
                 {(data.parent_version?.home_plan_7_days ?? []).map((d, idx) => (
                   <Box key={idx}>
-                    <Text fontWeight="semibold">Día {d.day ?? idx + 1}: {d.focus ?? ""}</Text>
-                    {d.activity && <Text>Actividad: {d.activity}</Text>}
+                    <Text fontWeight="semibold">{t("parent_share.day", { day: d.day ?? idx + 1 })}: {d.focus ?? ""}</Text>
+                    {d.activity && <Text>{t("parent_share.activity")} {d.activity}</Text>}
                     {d.success_criteria && (
                       <Text fontSize="sm" color="gray.600">
-                        Criterio de éxito: {d.success_criteria}
+                        {t("parent_share.success_criteria")} {d.success_criteria}
                       </Text>
                     )}
                     <Divider mt={3} />
@@ -164,7 +166,7 @@ export default function ParentSharePage() {
           </Card>
 
           <Text fontSize="sm" color="gray.500">
-            Generado: {data.created_at ? new Date(data.created_at).toLocaleString() : "—"}
+            {t("parent_share.generated")} {data.created_at ? new Date(data.created_at).toLocaleString() : "—"}
           </Text>
         </Stack>
       )}

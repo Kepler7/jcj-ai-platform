@@ -40,6 +40,11 @@ import {
   startPlaybookSync,
   type PlaybookSyncStatusResponse,
 } from "../services/playbooks";
+import {
+  getLatestIhui3Sync,
+  syncIhui3Knowledge,
+  type Ihui3SyncResponse,
+} from "../services/ihui3";
 
 type StatusFilter = "pending" | "resolved" | "all";
 
@@ -215,6 +220,13 @@ export default function PlaybookPendientesPage() {
   const textLabel = useColorModeValue("#434654", "gray.400");
   const primaryColor = useColorModeValue("#003597", "blue.300");
 
+  const [ihui3Sync, setIhui3Sync] = useState<Ihui3SyncResponse | null>(null);
+  const [ihui3SyncLoading, setIhui3SyncLoading] = useState(false);
+  const [ihui3SyncError, setIhui3SyncError] = useState<string | null>(null);
+
+  const ihuiEngineVersion = import.meta.env.VITE_IHUI_ENGINE_VERSION ?? "2";
+  const isIhui3Enabled = ihuiEngineVersion === "3";
+
   const navigate = useNavigate();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -274,23 +286,23 @@ export default function PlaybookPendientesPage() {
       >
         <HStack justify="space-between" align="start">
           <Text fontSize="sm" fontWeight="semibold">
-            {formatTopics(pb.topic_nucleo) === "-" ? "Sin topic_nucleo" : formatTopics(pb.topic_nucleo)}
+            {formatTopics(pb.topic_nucleo) === "-" ? t("playbook_page.without_topic") : formatTopics(pb.topic_nucleo)}
           </Text>
 
           {isSelected ? (
-            <Badge colorScheme="blue">Seleccionado</Badge>
+            <Badge colorScheme="blue">{t("playbook_page.selected")}</Badge>
           ) : null}
         </HStack>
 
         {pb.subhabilidad ? (
           <Text fontSize="sm" color="gray.700" mt={1}>
-            Subhabilidad: {pb.subhabilidad}
+            {t("playbook_page.subskill")} {pb.subhabilidad}
           </Text>
         ) : null}
 
         {pb.senal_observable ? (
           <Text fontSize="sm" color="gray.700" mt={1}>
-            Señal observable: {pb.senal_observable}
+            {t("playbook_page.observable_signal")} {pb.senal_observable}
           </Text>
         ) : null}
 
@@ -299,12 +311,56 @@ export default function PlaybookPendientesPage() {
           {(pb.age_min !== null && pb.age_min !== undefined) ||
             (pb.age_max !== null && pb.age_max !== undefined) ? (
             <Badge variant="subtle">
-              Edad: {pb.age_min ?? "?"}–{pb.age_max ?? "?"}
+              {t("playbook_page.age_range", { min: pb.age_min ?? "?", max: pb.age_max ?? "?" })}
             </Badge>
           ) : null}
         </HStack>
       </Box>
     );
+  }
+
+  async function loadLatestIhui3Sync() {
+    try {
+      const latest = await getLatestIhui3Sync();
+      setIhui3Sync(latest);
+      setIhui3SyncError(null);
+    } catch (e: any) {
+      setIhui3SyncError(
+        e?.message ?? t("playbook_page.toast.ihui3_latest_error")
+      );
+    }
+  }
+
+  async function handleSyncIhui3Knowledge() {
+    setIhui3SyncLoading(true);
+    setIhui3SyncError(null);
+
+    try {
+      const result = await syncIhui3Knowledge();
+      setIhui3Sync(result);
+      await loadLatestIhui3Sync();
+
+      toast({
+        title: t("playbook_page.toast.ihui3_synced_title"),
+        description: t("playbook_page.toast.playbooks_loaded", { count: result.items_count ?? 0 }),
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (e: any) {
+      const message = e?.message ?? t("playbook_page.toast.ihui3_sync_error_desc");
+      setIhui3SyncError(message);
+
+      toast({
+        title: t("playbook_page.toast.ihui3_sync_error_title"),
+        description: message,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIhui3SyncLoading(false);
+    }
   }
 
   async function loadLatestSync() {
@@ -330,8 +386,8 @@ export default function PlaybookPendientesPage() {
       setSyncStatus(result.status);
 
       toast({
-        title: "Sincronización iniciada",
-        description: `Job ${result.job_id} en estado: ${result.status}`,
+        title: t("playbook_page.toast.sync_started_title"),
+        description: t("playbook_page.toast.sync_started_desc", { jobId: result.job_id, status: result.status }),
         status: "success",
         duration: 4000,
         isClosable: true,
@@ -342,13 +398,13 @@ export default function PlaybookPendientesPage() {
       const message =
         e instanceof Error
           ? e.message
-          : e?.message ?? "No se pudo iniciar la sincronización";
+          : e?.message ?? t("playbook_page.toast.sync_start_error_desc");
 
       setSyncError(message);
       setIsSyncing(false);
 
       toast({
-        title: "Error al reprocesar playbooks",
+        title: t("playbook_page.toast.reprocess_error_title"),
         description: message,
         status: "error",
         duration: 5000,
@@ -388,7 +444,7 @@ export default function PlaybookPendientesPage() {
       window.dispatchEvent(new Event("playbook:pending-changed"));
 
       toast({
-        title: "Pendiente resuelto",
+        title: t("playbook_page.toast.pending_resolved_title"),
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -398,10 +454,10 @@ export default function PlaybookPendientesPage() {
         closeDetail();
       }
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo resolver el evento");
+      setError(e?.message ?? t("playbook_page.toast.resolve_error_desc"));
       toast({
-        title: "Error al resolver",
-        description: e?.message ?? "No se pudo resolver el evento",
+        title: t("playbook_page.toast.resolve_error_title"),
+        description: e?.message ?? t("playbook_page.toast.resolve_error_desc"),
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -425,7 +481,7 @@ export default function PlaybookPendientesPage() {
         body: JSON.stringify({
           prediction_id: predictionId,
           verdict: "correct",
-          note: "Aprobado desde UI de {t('playbook_page.title')}",
+          note: t("playbook_page.feedback_note.approved"),
         }),
       });
 
@@ -455,17 +511,17 @@ export default function PlaybookPendientesPage() {
       window.dispatchEvent(new Event("playbook:pending-changed"));
 
       toast({
-        title: "Sugerencia aprobada",
-        description: "El AI report fue actualizado con el playbook confirmado.",
+        title: t("playbook_page.toast.suggestion_approved_title"),
+        description: t("playbook_page.toast.suggestion_approved_desc"),
         status: "success",
         duration: 4000,
         isClosable: true,
       });
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo aprobar la sugerencia");
+      setError(e?.message ?? t("playbook_page.toast.approve_error_desc"));
       toast({
-        title: "Error al aprobar sugerencia",
-        description: e?.message ?? "No se pudo aprobar la sugerencia",
+        title: t("playbook_page.toast.approve_error_title"),
+        description: e?.message ?? t("playbook_page.toast.approve_error_desc"),
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -485,8 +541,8 @@ export default function PlaybookPendientesPage() {
     } catch (e: any) {
       setSelectedPlaybookDetail(null);
       toast({
-        title: "Error al cargar playbook",
-        description: e?.message ?? "No se pudo cargar el detalle del playbook",
+        title: t("playbook_page.toast.playbook_load_error_title"),
+        description: e?.message ?? t("playbook_page.toast.playbook_load_error_desc"),
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -514,8 +570,8 @@ export default function PlaybookPendientesPage() {
     } catch (e: any) {
       setPlaybookSearchResults([]);
       toast({
-        title: "Error al buscar playbooks",
-        description: e?.message ?? "No se pudo buscar playbooks",
+        title: t("playbook_page.toast.playbook_search_error_title"),
+        description: e?.message ?? t("playbook_page.toast.playbook_search_error_desc"),
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -636,7 +692,7 @@ export default function PlaybookPendientesPage() {
         setPredictionLoading(false);
       }
     } catch (e: any) {
-      setDetailError(e?.message ?? "No se pudo cargar el detalle");
+      setDetailError(e?.message ?? t("playbook_page.toast.detail_load_error"));
     } finally {
       setDetailLoading(false);
     }
@@ -693,7 +749,7 @@ export default function PlaybookPendientesPage() {
             reason: "pending_human_review",
             query_text: null,
             model_output_summary:
-              "Este caso requiere validación humana antes de compartir una estrategia final.",
+              t("playbook_page.human_review_required"),
             topic_nucleo: null,
             signals_detected: [],
             resolved_at: null,
@@ -714,7 +770,7 @@ export default function PlaybookPendientesPage() {
 
       setRows(combined);
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo cargar {t('playbook_page.title')}");
+      setError(e?.message ?? t("playbook_page.toast.load_page_error"));
     } finally {
       setLoading(false);
     }
@@ -726,10 +782,15 @@ export default function PlaybookPendientesPage() {
   }, [statusFilter]);
 
   useEffect(() => {
-    loadLatestSync();
+    if (isIhui3Enabled) {
+      loadLatestIhui3Sync();
+    } else {
+      loadLatestSync(); // IHUI 2.0
+    }
   }, []);
 
   useEffect(() => {
+    if (isIhui3Enabled) return;
     if (!isSyncing) return;
 
     const intervalId = window.setInterval(async () => {
@@ -750,8 +811,8 @@ export default function PlaybookPendientesPage() {
 
         if (current.status === "finished") {
           toast({
-            title: "Playbooks reprocesados",
-            description: "La sincronización terminó correctamente.",
+            title: t("playbook_page.toast.reprocessed_title"),
+            description: t("playbook_page.toast.reprocessed_desc"),
             status: "success",
             duration: 4000,
             isClosable: true,
@@ -760,9 +821,9 @@ export default function PlaybookPendientesPage() {
 
         if (current.status === "failed") {
           toast({
-            title: "La sincronización falló",
+            title: t("playbook_page.toast.sync_failed_title"),
             description:
-              current.error_message || "Ocurrió un error en el proceso",
+              current.error_message || t("playbook_page.toast.sync_failed_desc"),
             status: "error",
             duration: 5000,
             isClosable: true,
@@ -798,8 +859,7 @@ export default function PlaybookPendientesPage() {
             {t('playbook_page.title')}
           </Heading>
           <Text color={textLabel} fontFamily="'Manrope', sans-serif">
-            Casos donde no se encontró estrategia JCJ o donde una sugerencia JCJ
-            requiere validación humana.
+            {t("playbook_page.subtitle")}
           </Text>
         </Box>
 
@@ -831,27 +891,44 @@ export default function PlaybookPendientesPage() {
             _hover={{ bg: "#f3f4f5" }}
             fontFamily="'Manrope', sans-serif"
           >
-            Recargar
+            {t("common.reload")}
           </Button>
 
-          <Button
-            onClick={handleReprocessPlaybooks}
-            isLoading={isSyncing}
-            loadingText="Procesando..."
-            bg="#003597"
-            color="#ffffff"
-            borderRadius="full"
-            _hover={{ bg: "#0049ca", transform: "translateY(-1px)", boxShadow: "0px 8px 16px rgba(0, 53, 151, 0.2)" }}
-            transition="all 0.2s"
-            fontFamily="'Manrope', sans-serif"
-            fontWeight="bold"
-          >
-            Reprocesar playbooks
-          </Button>
+          {!isIhui3Enabled && (
+            <Button
+              onClick={handleReprocessPlaybooks}
+              isLoading={isSyncing}
+              loadingText={t("playbook_page.processing")}
+              bg="#003597"
+              color="#ffffff"
+              borderRadius="full"
+              _hover={{ bg: "#0049ca", transform: "translateY(-1px)", boxShadow: "0px 8px 16px rgba(0, 53, 151, 0.2)" }}
+              transition="all 0.2s"
+              fontFamily="'Manrope', sans-serif"
+              fontWeight="bold"
+            >
+              {t("playbook_page.reprocess_playbooks")}
+            </Button>
+          )}
+
+          {isIhui3Enabled && (
+            <Button
+              onClick={handleSyncIhui3Knowledge}
+              isLoading={ihui3SyncLoading}
+              loadingText={t("playbook_page.syncing_ihui3")}
+              bg="#7d4ce7"
+              color="white"
+              borderRadius="full"
+              px="6"
+              _hover={{ bg: "#6336b8" }}
+            >
+              {t("playbook_page.sync_ihui3")}
+            </Button>
+          )}
 
           {isSyncing && <Spinner size="sm" color={primaryColor} />}
 
-          {syncStatus && (
+          {!isIhui3Enabled && syncStatus && (
             <Badge
               bg={syncStatus === "finished" ? "#e8edff" : syncStatus === "failed" ? "#fce8e8" : "#f3f4f5"}
               color={syncStatus === "finished" ? "#003597" : syncStatus === "failed" ? "#c52828" : "#434654"}
@@ -865,77 +942,202 @@ export default function PlaybookPendientesPage() {
               {syncStatus}
             </Badge>
           )}
+
+          {isIhui3Enabled && ihui3Sync?.status && (
+            <Badge
+              bg={ihui3Sync.status === "finished" ? "#e8edff" : ihui3Sync.status === "failed" ? "#fce8e8" : "#f3f4f5"}
+              color={ihui3Sync.status === "finished" ? "#003597" : ihui3Sync.status === "failed" ? "#c52828" : "#434654"}
+              borderRadius="full"
+              px={4}
+              py={1.5}
+              textTransform="none"
+              fontSize="sm"
+              fontFamily="'Manrope', sans-serif"
+            >
+              {ihui3Sync.status}
+            </Badge>
+          )}
         </HStack>
       </HStack>
 
-      <Box p={6} borderRadius="2rem" bg={cardBg} mb={8} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
-        <VStack align="start" spacing={3}>
-          <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('playbook_page.last_sync')}</Text>
+      {!isIhui3Enabled && (
+        <Box p={6} borderRadius="2rem" bg={cardBg} mb={8} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+          <VStack align="start" spacing={3}>
+            <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
+              {t('playbook_page.last_sync')}
+            </Text>
 
-          {syncError ? (
-            <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828">
-              <AlertIcon color="#c52828" />
-              <Text fontFamily="'Manrope', sans-serif">{syncError}</Text>
-            </Alert>
-          ) : !latestSync ? (
-            <HStack>
-              <Text fontFamily="'Manrope', sans-serif" color={textLabel}>{t('playbook_page.status_filter')}</Text>
-              <Badge bg={inputBg} color={textMuted} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">N/A</Badge>
-            </HStack>
-          ) : (
-            <Stack spacing={2}>
+            {syncError ? (
+              <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828">
+                <AlertIcon color="#c52828" />
+                <Text fontFamily="'Manrope', sans-serif">{syncError}</Text>
+              </Alert>
+            ) : !latestSync ? (
               <HStack>
-                <Text fontWeight="medium" fontFamily="'Manrope', sans-serif" color={textColor}>{t('playbook_page.status_filter')}</Text>
-                <Badge
-                  bg={latestSync.status === "finished" ? "#e8edff" : latestSync.status === "failed" ? "#fce8e8" : "#f3f4f5"}
-                  color={latestSync.status === "finished" ? "#003597" : latestSync.status === "failed" ? "#c52828" : "#434654"}
-                  borderRadius="full"
-                  px={3}
-                  py={1}
-                  textTransform="none"
-                  fontFamily="'Manrope', sans-serif"
-                >
-                  {latestSync.status}
+                <Text fontFamily="'Manrope', sans-serif" color={textLabel}>
+                  {t('playbook_page.status_filter')}
+                </Text>
+                <Badge bg={inputBg} color={textMuted} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                  N/A
                 </Badge>
               </HStack>
-
-              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
-                Fecha:{" "}
-                {latestSync.finished_at
-                  ? new Date(latestSync.finished_at).toLocaleString()
-                  : latestSync.created_at
-                    ? new Date(latestSync.created_at).toLocaleString()
-                    : "-"}
-              </Text>
-
-              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
-                Playbooks cargados:{" "}
-                <Text as="span" fontWeight="bold">
-                  {typeof (latestSync.result as any)?.loaded_count === "number"
-                    ? (latestSync.result as any).loaded_count
-                    : "-"}
-                </Text>
-              </Text>
-
-              <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
-                Colección:{" "}
-                <Text as="span" fontWeight="bold">
-                  {(latestSync.result as any)?.chroma_collection ?? "-"}
-                </Text>
-              </Text>
-
-              {latestSync.error_message ? (
-                <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828" mt={2} p={3}>
-                  <AlertIcon color="#c52828" boxSize={4} />
-                  <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
-                    {latestSync.error_message}
+            ) : (
+              <Stack spacing={2}>
+                <HStack>
+                  <Text fontWeight="medium" fontFamily="'Manrope', sans-serif" color={textColor}>
+                    {t('playbook_page.status_filter')}
                   </Text>
-                </Alert>
-              ) : null}
-            </Stack>
-          )}
-        </VStack>
-      </Box>
+                  <Badge
+                    bg={latestSync.status === "finished" ? "#e8edff" : latestSync.status === "failed" ? "#fce8e8" : "#f3f4f5"}
+                    color={latestSync.status === "finished" ? "#003597" : latestSync.status === "failed" ? "#c52828" : "#434654"}
+                    borderRadius="full"
+                    px={3}
+                    py={1}
+                    textTransform="none"
+                    fontFamily="'Manrope', sans-serif"
+                  >
+                    {latestSync.status}
+                  </Badge>
+                </HStack>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.date")}{" "}
+                  {latestSync.finished_at
+                    ? new Date(latestSync.finished_at).toLocaleString()
+                    : latestSync.created_at
+                      ? new Date(latestSync.created_at).toLocaleString()
+                      : "-"}
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.playbooks_loaded_label")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {typeof (latestSync.result as any)?.loaded_count === "number"
+                      ? (latestSync.result as any).loaded_count
+                      : "-"}
+                  </Text>
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.collection")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {(latestSync.result as any)?.chroma_collection ?? "-"}
+                  </Text>
+                </Text>
+
+                {latestSync.error_message ? (
+                  <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828" mt={2} p={3}>
+                    <AlertIcon color="#c52828" boxSize={4} />
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
+                      {latestSync.error_message}
+                    </Text>
+                  </Alert>
+                ) : null}
+              </Stack>
+            )}
+          </VStack>
+        </Box>
+      )}
+
+      {isIhui3Enabled && (
+        <Box p={6} borderRadius="2rem" bg={cardBg} mb={8} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
+          <VStack align="start" spacing={3} w="full">
+            <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
+              {t("playbook_page.ihui3_last_sync")}
+            </Text>
+
+            {ihui3SyncError ? (
+              <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828">
+                <AlertIcon color="#c52828" />
+                <Text fontFamily="'Manrope', sans-serif">{ihui3SyncError}</Text>
+              </Alert>
+            ) : !ihui3Sync ? (
+              <HStack>
+                <Text fontFamily="'Manrope', sans-serif" color={textLabel}>
+                  {t("playbook_page.status_filter")}
+                </Text>
+                <Badge bg={inputBg} color={textMuted} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
+                  N/A
+                </Badge>
+              </HStack>
+            ) : (
+              <Stack spacing={2}>
+                <HStack>
+                  <Text fontWeight="medium" fontFamily="'Manrope', sans-serif" color={textColor}>
+                    {t("playbook_page.status_filter")}
+                  </Text>
+                  <Badge
+                    bg={ihui3Sync.status === "finished" ? "#e8edff" : ihui3Sync.status === "failed" ? "#fce8e8" : "#f3f4f5"}
+                    color={ihui3Sync.status === "finished" ? "#003597" : ihui3Sync.status === "failed" ? "#c52828" : "#434654"}
+                    borderRadius="full"
+                    px={3}
+                    py={1}
+                    textTransform="none"
+                    fontFamily="'Manrope', sans-serif"
+                  >
+                    {ihui3Sync.status}
+                  </Badge>
+                </HStack>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.date")}{" "}
+                  {ihui3Sync.finished_at
+                    ? new Date(ihui3Sync.finished_at).toLocaleString()
+                    : ihui3Sync.started_at
+                      ? new Date(ihui3Sync.started_at).toLocaleString()
+                      : "-"}
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.playbooks_loaded_label")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {ihui3Sync.items_count ?? 0}
+                  </Text>
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.dictionary_loaded")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {ihui3Sync.dictionary_items_count ?? 0}
+                  </Text>
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.source")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {ihui3Sync.source ?? "-"}
+                  </Text>
+                </Text>
+
+                <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                  {t("playbook_page.output")}{" "}
+                  <Text as="span" fontWeight="bold">
+                    {ihui3Sync.output ?? "-"}
+                  </Text>
+                </Text>
+
+                {ihui3Sync.dictionary_output ? (
+                  <Text fontSize="sm" color={textLabel} fontFamily="'Manrope', sans-serif">
+                    {t("playbook_page.dictionary_output")}{" "}
+                    <Text as="span" fontWeight="bold">
+                      {ihui3Sync.dictionary_output}
+                    </Text>
+                  </Text>
+                ) : null}
+
+                {ihui3Sync.error ? (
+                  <Alert status="error" borderRadius="xl" bg="#fce8e8" color="#c52828" mt={2} p={3}>
+                    <AlertIcon color="#c52828" boxSize={4} />
+                    <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
+                      {ihui3Sync.error}
+                    </Text>
+                  </Alert>
+                ) : null}
+              </Stack>
+            )}
+          </VStack>
+        </Box>
+      )}
 
       {error && (
         <Alert status="error" mb={6} borderRadius="xl" bg="#fce8e8" color="#c52828">
@@ -946,9 +1148,9 @@ export default function PlaybookPendientesPage() {
 
       <Box bg={cardBg} borderRadius="2rem" p={6} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
         <HStack justify="space-between" align="center" mb={6}>
-          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>Lista</Heading>
+          <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t("playbook_page.list")}</Heading>
           <Badge bg="#e8edff" color={primaryColor} borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-            {pendingCount} PENDIENTES
+            {t("playbook_page.pending_count", { count: pendingCount })}
           </Badge>
         </HStack>
 
@@ -1003,8 +1205,8 @@ export default function PlaybookPendientesPage() {
                               fontSize="xs"
                             >
                               {row.row_type === "prediction_pending"
-                                ? "Revisión humana"
-                                : "Fallback"}
+                                ? t("playbook_page.human_review")
+                                : t("playbook_page.fallback")}
                             </Badge>
                           </VStack>
                         </Td>
@@ -1016,7 +1218,7 @@ export default function PlaybookPendientesPage() {
                             </Text>
                           ) : row.predicted_playbook_id ? (
                             <Text whiteSpace="normal" fontFamily="'Manrope', sans-serif" fontSize="sm" color={textLabel}>
-                              Suggested playbook:{" "}
+                              {t("playbook_page.suggested_playbook")}{" "}
                               <Text as="span" fontWeight="bold">{truncate(row.predicted_playbook_id, 80)}</Text>
                             </Text>
                           ) : (
@@ -1050,7 +1252,7 @@ export default function PlaybookPendientesPage() {
                               fontFamily="'Manrope', sans-serif"
                               onClick={() => openDetail(row)}
                             >
-                              Ver detalle
+                              {t("playbook_page.view_detail")}
                             </Button>
 
                             {!isResolved && row.row_type === "fallback" && (
@@ -1064,7 +1266,7 @@ export default function PlaybookPendientesPage() {
                                 isLoading={!!resolvingById[row.id]}
                                 fontFamily="'Manrope', sans-serif"
                               >
-                                Marcar resuelto
+                                {t("playbook_page.mark_resolved")}
                               </Button>
                             )}
                           </VStack>
@@ -1105,7 +1307,7 @@ export default function PlaybookPendientesPage() {
                 <HStack justify="space-between" align="start" p={{ base: 4, md: 6 }} bg={pageBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" flexWrap="wrap" gap={4}>
                   <Box>
                     <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
-                      Estado
+                      {t("playbook_page.table.status")}
                     </Text>
                     {selectedIsResolved ? (
                       <Badge bg="#e6f4ea" color="#137333" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>{t('playbook_page.status_resolved')}</Badge>
@@ -1113,14 +1315,14 @@ export default function PlaybookPendientesPage() {
                       <Badge bg="#fff0e0" color="#e06c00" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none" mt={1}>{t('playbook_page.status_pending')}</Badge>
                     )}
                     <Text fontSize="sm" color={textLabel} mt={3} fontFamily="'Manrope', sans-serif">
-                      Reason: <Text as="span" fontWeight="bold">{selected.reason || "n/a"}</Text>
+                      {t("playbook_page.table.reason")}: <Text as="span" fontWeight="bold">{selected.reason || "n/a"}</Text>
                     </Text>
                     <Text fontSize="sm" color={textLabel} mt={1} fontFamily="'Manrope', sans-serif">
-                      Tipo:{" "}
+                      {t("playbook_page.type")}:{" "}
                       <Text as="span" fontWeight="bold">
                         {selected.row_type === "prediction_pending"
-                          ? "Revisión humana"
-                          : "Fallback"}
+                          ? t("playbook_page.human_review")
+                          : t("playbook_page.fallback")}
                       </Text>
                     </Text>
                   </Box>
@@ -1136,10 +1338,10 @@ export default function PlaybookPendientesPage() {
                       fontFamily="'Manrope', sans-serif"
                       textTransform="none"
                     >
-                      Topic: {formatTopics(selected.topic_nucleo)}
+                      {t("playbook_page.topic")}: {formatTopics(selected.topic_nucleo)}
                     </Badge>
                     <Badge variant="subtle" bg={inputBg} color={textLabel} borderRadius="full" px={3} py={1.5} fontFamily="'Manrope', sans-serif" textTransform="none">
-                      Signals: {formatSignals(selected.signals_detected)}
+                      {t("playbook_page.signals")}: {formatSignals(selected.signals_detected)}
                     </Badge>
                   </HStack>
                 </HStack>
@@ -1149,7 +1351,7 @@ export default function PlaybookPendientesPage() {
                 {selected.query_text ? (
                   <Box>
                     <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={2}>
-                      Query (completo)
+                      {t("playbook_page.full_query")}
                     </Text>
                     <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={cardBg}>
                       <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
@@ -1161,7 +1363,7 @@ export default function PlaybookPendientesPage() {
 
                 <Box>
                   <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={2}>
-                    Summary del modelo (completo)
+                    {t("playbook_page.full_model_summary")}
                   </Text>
                   <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={cardBg}>
                     <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
@@ -1174,14 +1376,14 @@ export default function PlaybookPendientesPage() {
 
                 <Box>
                   <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
-                    Reporte del maestro (StudentReport)
+                    {t("playbook_page.teacher_report")}
                   </Heading>
 
                   {!reportDetail ? (
                     <Alert status="warning" borderRadius="xl" bg="#fff0e0" color="#e06c00">
                       <AlertIcon color="#e06c00" />
                       <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
-                        No se pudo cargar el reporte base.
+                        {t("playbook_page.base_report_load_error")}
                       </Text>
                     </Alert>
                   ) : (
@@ -1207,14 +1409,14 @@ export default function PlaybookPendientesPage() {
 
                 <Box>
                   <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
-                    Apoyo generado por IA
+                    {t("playbook_page.ai_generated_support")}
                   </Heading>
 
                   {!aiDetail ? (
                     <Alert status="warning" borderRadius="xl" bg="#fff0e0" color="#e06c00">
                       <AlertIcon color="#e06c00" />
                       <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
-                        No se encontró AI report para este reporte.
+                        {t("playbook_page.ai_report_not_found")}
                       </Text>
                     </Alert>
                   ) : (
@@ -1222,14 +1424,14 @@ export default function PlaybookPendientesPage() {
                       <HStack justify="space-between" align="start" flexWrap="wrap">
                         <Box>
                           <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
-                            Modelo
+                            {t("playbook_page.model")}
                           </Text>
                           <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>{aiDetail.model_name}</Text>
                         </Box>
 
                         <Box textAlign="right">
                           <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
-                            Creado
+                            {t("playbook_page.created")}
                           </Text>
                           <Text fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
                             {new Date(aiDetail.created_at).toLocaleString()}
@@ -1239,7 +1441,7 @@ export default function PlaybookPendientesPage() {
 
                       <Box>
                         <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
-                          Resumen (familia)
+                          {t("playbook_page.family_summary")}
                         </Text>
                         <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={inputBg}>
                           <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
@@ -1251,7 +1453,7 @@ export default function PlaybookPendientesPage() {
                       {(aiDetail.parent_version?.signals_detected ?? []).length > 0 ? (
                         <Box>
                           <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
-                            Señales detectadas (familia)
+                            {t("playbook_page.family_detected_signals")}
                           </Text>
                           <Box border="1px solid rgba(195, 197, 215, 0.3)" borderRadius="xl" p={4} bg={inputBg}>
                             <Stack spacing={2}>
@@ -1268,7 +1470,7 @@ export default function PlaybookPendientesPage() {
                       {(aiDetail.parent_version?.microintervenciones ?? []).length > 0 ? (
                         <Box>
                           <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
-                            Microintervenciones (familia)
+                            {t("playbook_page.family_microinterventions")}
                           </Text>
 
                           <Stack spacing={4}>
@@ -1280,16 +1482,16 @@ export default function PlaybookPendientesPage() {
                                       {formatTopics(mi.topic_nucleo)} · {mi.subhabilidad}
                                     </Text>
                                     <Text fontSize="sm" color={textLabel} mt={1} fontFamily="'Manrope', sans-serif">
-                                      Señal observable: {mi.senal_observable}
+                                      {t("playbook_page.observable_signal")} {mi.senal_observable}
                                     </Text>
                                   </Box>
 
                                   <VStack align="end" spacing={2}>
                                     <Badge variant="subtle" bg="#f4e8ff" color="#6b0097" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                                      Frecuencia: {mi.frecuencia}
+                                      {t("playbook_page.frequency")} {mi.frecuencia}
                                     </Badge>
                                     <Badge variant="subtle" bg="#e8f5e9" color="#2e7d32" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                                      Duración: {mi.duracion}
+                                      {t("playbook_page.duration")} {mi.duracion}
                                     </Badge>
                                   </VStack>
                                 </HStack>
@@ -1299,7 +1501,7 @@ export default function PlaybookPendientesPage() {
                                 <Stack spacing={4}>
                                   <Box>
                                     <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
-                                      Hipótesis funcional
+                                      {t("playbook_page.hypothesis")}
                                     </Text>
                                     <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.hipotesis_funcional}
@@ -1308,7 +1510,7 @@ export default function PlaybookPendientesPage() {
 
                                   <Box>
                                     <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
-                                      Microobjetivo
+                                      {t("playbook_page.micro_objective")}
                                     </Text>
                                     <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.microobjetivo}
@@ -1317,7 +1519,7 @@ export default function PlaybookPendientesPage() {
 
                                   <Box>
                                     <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
-                                      Estrategias paso a paso
+                                      {t("playbook_page.steps")}
                                     </Text>
                                     <Stack spacing={1} mt={2}>
                                       {(mi.estrategias_paso_a_paso ?? []).map((st, i) => (
@@ -1330,7 +1532,7 @@ export default function PlaybookPendientesPage() {
 
                                   <Box>
                                     <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
-                                      Indicador de avance
+                                      {t("playbook_page.indicator")}
                                     </Text>
                                     <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.indicador_de_avance}
@@ -1339,7 +1541,7 @@ export default function PlaybookPendientesPage() {
 
                                   <Box>
                                     <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif" color={textColor}>
-                                      Escalamiento
+                                      {t("playbook_page.escalation")}
                                     </Text>
                                     <Text fontSize="sm" whiteSpace="pre-wrap" fontFamily="'Manrope', sans-serif" color={textLabel}>
                                       {mi.escalamiento}
@@ -1366,7 +1568,7 @@ export default function PlaybookPendientesPage() {
 
                 <Box>
                   <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
-                    Revisión humana de sugerencia JCJ
+                    {t("playbook_page.human_suggestion_review")}
                   </Heading>
 
                   {predictionLoading ? (
@@ -1378,8 +1580,7 @@ export default function PlaybookPendientesPage() {
                     <Alert status="info" borderRadius="xl" bg="#e8edff" color={primaryColor}>
                       <AlertIcon color={primaryColor} />
                       <Text fontSize="sm" fontFamily="'Manrope', sans-serif">
-                        No hay una sugerencia de playbook pendiente para este
-                        reporte.
+                        {t("playbook_page.no_pending_suggestion")}
                       </Text>
                     </Alert>
                   ) : (
@@ -1388,12 +1589,10 @@ export default function PlaybookPendientesPage() {
                         <AlertIcon color="#e06c00" />
                         <Box>
                           <Text fontSize="sm" fontWeight="bold" fontFamily="'Manrope', sans-serif">
-                            Este reporte tiene una sugerencia JCJ pendiente de
-                            validación humana.
+                            {t("playbook_page.pending_suggestion_title")}
                           </Text>
                           <Text fontSize="sm" mt={1} fontFamily="'Manrope', sans-serif">
-                            Si esta sugerencia es correcta, puedes aprobarla y
-                            el AI report se actualizará.
+                            {t("playbook_page.pending_suggestion_desc")}
                           </Text>
                         </Box>
                       </Alert>
@@ -1401,7 +1600,7 @@ export default function PlaybookPendientesPage() {
                       <HStack justify="space-between" align="start" flexWrap="wrap">
                         <Box>
                           <Text fontSize="sm" color={textMuted} fontFamily="'Manrope', sans-serif">
-                            Sugerencia principal
+                            {t("playbook_page.main_suggestion")}
                           </Text>
                         </Box>
 
@@ -1422,7 +1621,7 @@ export default function PlaybookPendientesPage() {
                       ) : (
                         <Box>
                           <Text fontSize="sm" color={textMuted} mb={1} fontFamily="'Manrope', sans-serif">
-                            Predicted playbook ID
+                            {t("playbook_page.predicted_playbook_id")}
                           </Text>
                           <Code fontSize="xs" bg={inputBg} color={textColor} p={1} borderRadius="md">
                             {pendingPrediction.predicted_playbook_id ?? "-"}
@@ -1433,13 +1632,13 @@ export default function PlaybookPendientesPage() {
                       {!!pendingPrediction.top_candidates_preview?.length && (
                         <Box mt={4}>
                           <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
-                            Candidatos sugeridos
+                            {t("playbook_page.suggested_candidates")}
                           </Text>
                           <Stack spacing={3}>
                             {pendingPrediction.top_candidates_preview.map((pb, idx) => (
                               <Box key={`${pb.id}-${idx}`}>
                                 <Text fontSize="sm" fontWeight="bold" mb={2} color={primaryColor} fontFamily="'Manrope', sans-serif">
-                                  Opción {idx + 1}
+                                  {t("playbook_page.option", { number: idx + 1 })}
                                 </Text>
                                 {renderPlaybookPreview(pb)}
                               </Box>
@@ -1452,7 +1651,7 @@ export default function PlaybookPendientesPage() {
                         !!pendingPrediction.top_candidates_json?.length ? (
                         <Box mt={4}>
                           <Text fontWeight="bold" mb={2} fontFamily="'Manrope', sans-serif" color={textColor}>
-                            Top candidates
+                            {t("playbook_page.top_candidates")}
                           </Text>
                           <Stack spacing={2}>
                             {pendingPrediction.top_candidates_json.map((id, idx) => (
@@ -1471,7 +1670,7 @@ export default function PlaybookPendientesPage() {
                       ) : selectedPlaybookDetail ? (
                         <Box mt={6} bg={cardBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)" p={6}>
                           <Heading size="sm" mb={4} fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>
-                            Detalle del playbook seleccionado
+                            {t("playbook_page.selected_playbook_detail")}
                           </Heading>
 
                           <Box>
@@ -1510,10 +1709,10 @@ export default function PlaybookPendientesPage() {
 
                             <HStack mt={4} spacing={2} wrap="wrap">
                               <Badge variant="subtle" bg="#f4e8ff" color="#6b0097" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                                Frecuencia: {selectedPlaybookDetail.frecuencia || "-"}
+                                {t("playbook_page.frequency")} {selectedPlaybookDetail.frecuencia || "-"}
                               </Badge>
                               <Badge variant="subtle" bg="#e8f5e9" color="#2e7d32" borderRadius="full" px={3} py={1} fontFamily="'Manrope', sans-serif" textTransform="none">
-                                Duración: {selectedPlaybookDetail.duracion || "-"}
+                                {t("playbook_page.duration")} {selectedPlaybookDetail.duracion || "-"}
                               </Badge>
                             </HStack>
 
@@ -1542,19 +1741,19 @@ export default function PlaybookPendientesPage() {
                           size="md"
                           onClick={() => setShowAlternativeSearch((v) => !v)}
                         >
-                          No es ninguna de estas opciones
+                          {t("playbook_page.none_of_these")}
                         </Button>
                       </Box>
 
                       {showAlternativeSearch ? (
                         <Box mt={4} p={6} bg={pageBg} borderRadius="2rem" border="1px solid rgba(195, 197, 215, 0.3)">
                           <Text fontWeight="bold" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor} mb={4}>
-                            Buscar otro playbook
+                            {t("playbook_page.search_other_playbook")}
                           </Text>
 
                           <HStack align="stretch" spacing={3} wrap="wrap">
                             <Input
-                              placeholder="Busca por topic, subhabilidad o señal observable"
+                              placeholder={t("playbook_page.search_placeholder")}
                               value={playbookSearchQuery}
                               onChange={(e) => setPlaybookSearchQuery(e.target.value)}
                               bg={cardBg}
@@ -1572,7 +1771,7 @@ export default function PlaybookPendientesPage() {
                               _hover={{ bg: "#0049ca", transform: "translateY(-1px)", boxShadow: "0px 4px 8px rgba(0, 53, 151, 0.2)" }}
                               fontFamily="'Manrope', sans-serif"
                             >
-                              Buscar
+                              {t("playbook_page.search")}
                             </Button>
                           </HStack>
 
@@ -1584,7 +1783,7 @@ export default function PlaybookPendientesPage() {
                             </Stack>
                           ) : playbookSearchQuery.trim().length >= 2 && !searchingPlaybooks ? (
                             <Text fontSize="sm" color={textMuted} mt={4} fontFamily="'Manrope', sans-serif">
-                              No se encontraron resultados.
+                              {t("playbook_page.no_results")}
                             </Text>
                           ) : null}
                         </Box>
@@ -1607,7 +1806,7 @@ export default function PlaybookPendientesPage() {
                           }
                           isLoading={approvingSuggestion}
                         >
-                          Aprobar sugerencia
+                          {t("playbook_page.approve_suggestion")}
                         </Button>
                         {selectedPlaybookId &&
                           selectedPlaybookId !== pendingPrediction.predicted_playbook_id ? (
@@ -1629,7 +1828,7 @@ export default function PlaybookPendientesPage() {
                                     prediction_id: pendingPrediction.id,
                                     verdict: "incorrect",
                                     corrected_playbook_id: selectedPlaybookId,
-                                    note: "Corregido desde UI de {t('playbook_page.title')}",
+                                    note: t("playbook_page.feedback_note.corrected"),
                                   }),
                                 });
 
@@ -1659,17 +1858,17 @@ export default function PlaybookPendientesPage() {
                                 window.dispatchEvent(new Event("playbook:pending-changed"));
 
                                 toast({
-                                  title: "Playbook corregido",
-                                  description: "El AI report fue actualizado con el playbook seleccionado.",
+                                  title: t("playbook_page.toast.playbook_corrected_title"),
+                                  description: t("playbook_page.toast.playbook_corrected_desc"),
                                   status: "success",
                                   duration: 4000,
                                   isClosable: true,
                                 });
                               } catch (e: any) {
-                                setError(e?.message ?? "No se pudo corregir el playbook");
+                                setError(e?.message ?? t("playbook_page.toast.playbook_correct_error_desc"));
                                 toast({
-                                  title: "Error al corregir playbook",
-                                  description: e?.message ?? "No se pudo corregir el playbook",
+                                  title: t("playbook_page.toast.playbook_correct_error_title"),
+                                  description: e?.message ?? t("playbook_page.toast.playbook_correct_error_desc"),
                                   status: "error",
                                   duration: 5000,
                                   isClosable: true,
@@ -1680,7 +1879,7 @@ export default function PlaybookPendientesPage() {
                             }}
                             isLoading={approvingSuggestion}
                           >
-                            Usar playbook seleccionado
+                            {t("playbook_page.use_selected_playbook")}
                           </Button>
                         ) : null}
                       </HStack>
@@ -1692,7 +1891,7 @@ export default function PlaybookPendientesPage() {
 
                 <Box mb={4}>
                   <Text fontWeight="bold" mb={3} fontFamily="'Manrope', sans-serif" color={textColor}>
-                    IDs (debug)
+                    {t("playbook_page.debug_ids")}
                   </Text>
                   <VStack align="stretch" spacing={2}>
                     <Text fontSize="sm" fontFamily="'Manrope', sans-serif" color={textLabel}>
@@ -1747,7 +1946,7 @@ export default function PlaybookPendientesPage() {
                     closeDetail();
                   }}
                 >
-                  Ir al reporte
+                  {t("playbook_page.go_to_report")}
                 </Button>
               ) : null}
 
@@ -1763,7 +1962,7 @@ export default function PlaybookPendientesPage() {
                   onClick={() => resolveEvent(selected.id)}
                   isLoading={!!resolvingById[selected.id]}
                 >
-                  Marcar resuelto
+                  {t("playbook_page.mark_resolved")}
                 </Button>
               ) : null}
 
@@ -1775,7 +1974,7 @@ export default function PlaybookPendientesPage() {
                 fontFamily="'Manrope', sans-serif"
                 onClick={closeDetail}
               >
-                Cerrar
+                {t("common.close")}
               </Button>
             </HStack>
           </ModalFooter>

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+from app.settings import settings
 
 from app.modules.reports.models import StudentReport
 from app.modules.students.models import Student
@@ -12,6 +13,11 @@ from app.modules.ai_reports.models import AIReport
 # from app.ai.orchestrator import generate_support
 from app.ai.generate_support_v2 import generate_support_v2
 from app.ai.utils.normalization import normalize_topic_nucleo
+
+try:
+    from app.modules.ihui_3.service import generate_support_ihui3
+except ImportError:
+    generate_support_ihui3 = None
 
 
 def generate_ai_report(
@@ -41,6 +47,8 @@ def generate_ai_report(
     if not student:
         raise ValueError("Student not found")
 
+    engine_version = str(getattr(settings, "IHUI_ENGINE_VERSION", "2")).strip()
+
     print(
         "DEBUG REPORT STUDENT:",
         {
@@ -48,6 +56,7 @@ def generate_ai_report(
             "student_id": str(student.id),
             "student_name": student.full_name,
             "student_age": student.age,
+            "ihui_version": engine_version,
         },
     )
 
@@ -73,15 +82,32 @@ def generate_ai_report(
     model_name: str
     meta: Dict[str, Any] = {}
 
-    out = generate_support_v2(
-        db=db,
-        report_id=report.id,
-        report_text=report_text,
-        age=student.age,
-        student_id=student.id,
-        school_id=report.school_id,
-        model_name="v2-initial",
-    )
+    if engine_version == "3":
+        if generate_support_ihui3 is None:
+            raise RuntimeError(
+                "IHUI_ENGINE_VERSION=3 pero app.modules.ihui_3.service.generate_support_ihui3 "
+                "todavía no existe. Crea el módulo IHUI 3.0 o cambia IHUI_ENGINE_VERSION=2."
+            )
+
+        out = generate_support_ihui3(
+            db=db,
+            report_id=report.id,
+            report_text=report_text,
+            age=student.age,
+            student_id=student.id,
+            school_id=report.school_id,
+            model_name="ihui-3-initial",
+        )
+    else:
+        out = generate_support_v2(
+            db=db,
+            report_id=report.id,
+            report_text=report_text,
+            age=student.age,
+            student_id=student.id,
+            school_id=report.school_id,
+            model_name="v2-initial",
+        )
 
     support = out["support"]
     model_name = out["model_name"]
@@ -128,6 +154,9 @@ def generate_ai_report(
         guardrails_passed=True,
         # ✅ si fallback, guardamos disclaimer aquí (te sirve en UI también)
         guardrails_notes=guardrails_notes,
+        engine_version=meta.get("engine_version", engine_version),
+        ai_metadata=meta,
+        validation_status=meta.get("validation_status"),
     )
 
     db.add(ai_report)
