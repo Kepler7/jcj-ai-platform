@@ -18,7 +18,7 @@ services:
       - "6379:6379"
 
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.6.3
     container_name: jcj_chroma
     environment:
       - IS_PERSISTENT=TRUE
@@ -39,6 +39,12 @@ services:
       - AI_PROVIDER=${AI_PROVIDER:-groq}
       - AI_MODEL=${AI_MODEL:-llama-3.3-70b-versatile}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - IHUI_ENGINE_VERSION=${IHUI_ENGINE_VERSION:-2}
+      - IHUI3_SHEET_CSV_URL=${IHUI3_SHEET_CSV_URL}
+      - IHUI3_KNOWLEDGE_SOURCE=${IHUI3_KNOWLEDGE_SOURCE:-/app/data/ihui3/ihui3_knowledge.normalized.jsonl}
+      - IHUI3_REVIEW_THRESHOLD=${IHUI3_REVIEW_THRESHOLD:-0.70}
+      - IHUI3_DICTIONARY_CSV_URL=${IHUI3_DICTIONARY_CSV_URL}
+      - IHUI3_DICTIONARY_SOURCE=${IHUI3_DICTIONARY_SOURCE:-/app/data/ihui3/ihui3_dictionary.normalized.jsonl}
     ports:
       - "8000:8000"
     depends_on:
@@ -48,14 +54,19 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/scripts:/app/scripts
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
       - ./data:/app/data
     command: >
       uvicorn app.main:app
       --host 0.0.0.0
       --port 8000
+      --reload
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     container_name: jcj_frontend
     ports:
       - "5173:5173"
@@ -78,6 +89,12 @@ services:
       - AI_PROVIDER=${AI_PROVIDER:-groq}
       - AI_MODEL=${AI_MODEL:-llama-3.3-70b-versatile}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - IHUI_ENGINE_VERSION=${IHUI_ENGINE_VERSION:-2}
+      - IHUI3_SHEET_CSV_URL=${IHUI3_SHEET_CSV_URL}
+      - IHUI3_KNOWLEDGE_SOURCE=${IHUI3_KNOWLEDGE_SOURCE:-/app/data/ihui3/ihui3_knowledge.normalized.jsonl}
+      - IHUI3_REVIEW_THRESHOLD=${IHUI3_REVIEW_THRESHOLD:-0.70}
+      - IHUI3_DICTIONARY_CSV_URL=${IHUI3_DICTIONARY_CSV_URL}
+      - IHUI3_DICTIONARY_SOURCE=${IHUI3_DICTIONARY_SOURCE:-/app/data/ihui3/ihui3_dictionary.normalized.jsonl}
     depends_on:
       - postgres
       - redis
@@ -85,6 +102,8 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/scripts:/app/scripts
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
       - ./data:/app/data
     command: >
       sh -lc "PYTHONPATH=/app rq worker jcj"

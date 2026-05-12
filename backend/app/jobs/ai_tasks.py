@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, List
 from uuid import UUID
 import uuid
 
 from sqlalchemy.orm import Session
 
 from app.db.db import SessionLocal
-from app.db import models_imports  # noqa: F401  <-- IMPORTANT: registra todos los modelos
+from app.db import (
+    models_imports,
+)  # noqa: F401  <-- IMPORTANT: registra todos los modelos
 
 from app.modules.ai_jobs.models import AIJob, JobStatus
 from app.modules.ai_fallback_events.models import AIFallbackEvent
 from app.modules.ai_reports.service import generate_ai_report
 from app.modules.reports.models import StudentReport
+from app.ai.utils.normalization import normalize_topic_nucleo
+
 
 def create_fallback_event(
     *,
@@ -23,8 +27,8 @@ def create_fallback_event(
     report_id: UUID,
     ai_report_id: Optional[UUID],
     reason: str,
-    topic_nucleo: Optional[str] = None,
-    context: Optional[List[str]] = None,   # 👈 ahora lista
+    topic_nucleo: Optional[List[str]] = None,
+    context: Optional[List[str]] = None,  # 👈 ahora lista
     query_text: Optional[str] = None,
     model_output_summary: Optional[str] = None,
     created_by_user_id: Optional[UUID] = None,
@@ -35,8 +39,8 @@ def create_fallback_event(
         student_id=student_id,
         report_id=report_id,
         ai_report_id=ai_report_id,
-        topic_nucleo=topic_nucleo,
-        context=context,                    # JSON / ARRAY
+        topic_nucleo=normalize_topic_nucleo(topic_nucleo),
+        context=context,  # JSON / ARRAY
         reason=reason,
         query_text=query_text,
         model_output_summary=model_output_summary,
@@ -46,6 +50,7 @@ def create_fallback_event(
     )
 
     db.add(ev)
+
 
 def generate_ai_report_task(job_id: str) -> None:
     db: Session = SessionLocal()
@@ -94,6 +99,7 @@ def generate_ai_report_task(job_id: str) -> None:
                 report_id=job.report_id,
                 user_id=job.requested_by_user_id,
                 contexts=contexts,
+                job_id=job_id,  # ✅ seed para seleccionar subset distinto por regeneración
             )
 
             # 4) Interpretar resultado sin romper si generate_ai_report retorna AIReport u otra cosa
@@ -101,7 +107,7 @@ def generate_ai_report_task(job_id: str) -> None:
             fallback_reason: Optional[str] = None
             ai_report_id: Optional[UUID] = None
 
-            topic_nucleo: Optional[str] = None
+            topic_nucleo: Optional[List[str]] = None
             context_value: Any = None  # puede ser list[str]
             query_text: Optional[str] = None
             model_output_summary: Optional[str] = None
@@ -117,8 +123,8 @@ def generate_ai_report_task(job_id: str) -> None:
                     except Exception:
                         ai_report_id = None
 
-                topic_nucleo = result.get("topic_nucleo")
-                context_value = result.get("context_primary")
+                topic_nucleo = normalize_topic_nucleo(result.get("topic_nucleo"))
+                context_value = result.get("contexts") or result.get("context_primary")
                 query_text = result.get("query_text")
                 model_output_summary = result.get("model_output_summary")
 
@@ -143,9 +149,9 @@ def generate_ai_report_task(job_id: str) -> None:
                 create_fallback_event(
                     db=db,
                     school_id=school_id,
-                    student_id=report.student_id,         # ✅ viene del StudentReport
-                    report_id=job.report_id,              # ✅ el StudentReport id
-                    ai_report_id=ai_report_id,            # puede ser None si no se pudo parsear
+                    student_id=report.student_id,  # ✅ viene del StudentReport
+                    report_id=job.report_id,  # ✅ el StudentReport id
+                    ai_report_id=ai_report_id,  # puede ser None si no se pudo parsear
                     reason=reason,
                     topic_nucleo=topic_nucleo,
                     context=context_value,

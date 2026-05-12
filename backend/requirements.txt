@@ -1,4 +1,5 @@
 agno
+alembic
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.0
@@ -9,7 +10,7 @@ build==1.3.0
 cachetools==6.2.4
 certifi==2025.11.12
 charset-normalizer==3.4.4
-chromadb==1.3.7
+chromadb==0.6.3
 click==8.3.1
 coloredlogs==15.0.1
 distro==1.9.0
@@ -58,8 +59,7 @@ packaging==25.0
 passlib==1.7.4
 posthog==5.4.0
 protobuf==6.33.2
-psycopg==3.3.2
-psycopg-binary==3.3.2
+psycopg[binary]==3.3.2
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pybase64==1.4.3
@@ -68,6 +68,8 @@ pydantic_core==2.41.5
 Pygments==2.19.2
 PyPika==0.48.9
 pyproject_hooks==1.2.0
+pytest
+pytest-mock
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0

@@ -1,20 +1,36 @@
-from pydantic import BaseModel, ConfigDict, Field
-from uuid import UUID
+from __future__ import annotations
+
+from datetime import datetime
 from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.modules.classes.schemas import ClassMiniOut
+
 
 class StudentCreate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     school_id: UUID
     full_name: str = Field(min_length=2, max_length=160)
-    age: int = Field(ge=0, le=8)
-    group: str = Field(min_length=1, max_length=60)
+    age: int = Field(ge=0, le=12)
+    classes: list[str] = Field(default_factory=list)
     notes: Optional[str] = None
 
+
 class StudentUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=160)
-    age: Optional[int] = Field(default=None, ge=0, le=8)
-    group: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    age: Optional[int] = Field(default=None, ge=0, le=18)
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+
+    # si viene, reemplaza clases (por ids)
+    class_ids: Optional[list[UUID]] = None
+    classes: Optional[list[str]] = None
+
 
 class StudentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -22,7 +38,24 @@ class StudentOut(BaseModel):
     id: UUID
     school_id: UUID
     full_name: str
-    age: int
-    group: str
-    notes: Optional[str]
-    is_active: bool
+    age: int | None = None
+    classes: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    created_at: datetime | None = None
+
+
+class ClassMiniOut(BaseModel):
+    id: UUID
+    name: str
+
+
+class StudentOutWithClasses(BaseModel):
+    id: UUID
+    school_id: UUID
+    full_name: str
+    age: int | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+    created_at: datetime | None = None
+    reports_count: int = 0
+    classes: list[ClassMiniOut] = []

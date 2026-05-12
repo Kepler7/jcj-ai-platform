@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import Any, List, Optional
 
+
 class AIReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +22,12 @@ class AIReportOut(BaseModel):
     guardrails_passed: bool
     guardrails_notes: str | None
     created_at: datetime
+
+    # IHUI 3.0 / Wizard
+    engine_version: str = "2"
+    validation_status: Optional[str] = None
+    ai_metadata: Optional[dict[str, Any]] = None
+
 
 class GenerateAIReportRequest(BaseModel):
     report_id: UUID

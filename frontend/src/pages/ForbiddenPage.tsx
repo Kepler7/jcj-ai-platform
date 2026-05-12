@@ -1,10 +1,13 @@
 import { Box, Heading, Text } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 
 export default function ForbiddenPage() {
+  const { t } = useTranslation();
+
   return (
     <Box p="6">
-      <Heading size="md">403 Forbidden</Heading>
-      <Text mt="2">No tienes permisos para ver esta pantalla.</Text>
+      <Heading size="md">{t('forbidden.title')}</Heading>
+      <Text mt="2">{t('forbidden.message')}</Text>
     </Box>
   );
 }

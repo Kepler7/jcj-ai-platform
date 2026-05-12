@@ -13,6 +13,11 @@ import AppShell from './components/AppShell';
 // NUEVO
 import ParentSharePage from "./pages/ParentSharePage";
 import PlaybookPendientesPage from "./pages/PlaybookPendientesPage";
+import ClassesBoardPage from "./pages/ClassesBoardPage";
+
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import BulkStudentsPage from "./pages/admin/BulkStudentsPage";
 
 export default function App() {
   return (
@@ -22,6 +27,8 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Private + Layout */}
       <Route
@@ -65,7 +72,24 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
+        {/* Classes Board */}
+        <Route
+          path="/admin/classes-board"
+          element={
+            <ProtectedRoute
+              roles={['platform_admin', 'school_admin', 'teacher']}
+            >
+              <ClassesBoardPage />
+            </ProtectedRoute>
+          }
+        />
+          {/* Bulk Students (solo platform_admin y school_admin) */} 
+          <Route path="/admin/bulk-students" 
+                 element={
+            <ProtectedRoute roles={['platform_admin', 'school_admin']}>
+                 <BulkStudentsPage />
+            </ProtectedRoute>
+          } />
         {/* Reports (dentro del layout) */}
         <Route
           path="/students/:studentId/reports"

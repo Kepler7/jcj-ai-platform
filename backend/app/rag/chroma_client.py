@@ -2,6 +2,7 @@ import json
 from chromadb import HttpClient
 from typing import List, Dict, Any, Optional
 
+
 def _sanitize_metadata(md: Dict[str, Any]) -> Dict[str, Any]:
     """
     Chroma metadata values must be: str, int, float, bool or None.
@@ -24,15 +25,13 @@ class ChromaPlaybookStore:
     def __init__(self, host: str, port: int, collection_name: str):
         self.collection_name = collection_name
         self.client = HttpClient(host=host, port=port)
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name
-        )
+        self.collection = self.client.get_or_create_collection(name=collection_name)
 
     def reset(self):
         self.client.delete_collection(self.collection_name)
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name
-    )
+        )
 
     def count(self) -> int:
         return int(self.collection.count())
@@ -58,57 +57,74 @@ class ChromaPlaybookStore:
             metadatas=[md],
         )
 
+    from typing import List, Optional
+
     def query(
-        self,
-        query_text: str,
-        age: int,
-        context: str,
-        n_results: int = 5,
+        self, query_text: str, age: Optional[int] = None, n_results: int = 5
     ) -> List[str]:
         """
-        Busca playbooks relevantes por similitud semántica, filtrando:
-        - En Chroma: por edad.
-        - En Python: por contexto usando metadata 'contexts_csv'
-          ("casa,aula,otro_contexto_social").
-        Devuelve lista de DOCUMENTOS (strings).
+        Query a Chroma.
+        - Soporta age=None (sin filtro).
+        - Filtro por edad usa $and (Chroma 1.3.x requiere un solo operador raíz).
+        - Devuelve SOLO documents (List[str]).
         """
 
-        results = self.collection.query(
-            query_texts=[query_text],
-            n_results=n_results,
-            where={
+        where = None
+        if age is not None:
+            where = {
                 "$and": [
                     {"age_min": {"$lte": int(age)}},
                     {"age_max": {"$gte": int(age)}},
                 ]
+            }
+
+        print(
+            "DEBUG CHROMA QUERY:",
+            {
+                "collection": self.collection_name,
+                "n_results": n_results,
+                "age": age,
+                "query_preview": (query_text or "")[:120],
+                "where": where,
             },
-            include=["documents", "metadatas"],
+        )
+
+        # include: ids no se piden; documents/metadatas son suficientes y estables
+        if where is not None:
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                where=where,
+                include=["documents", "metadatas"],
+            )
+        else:
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                include=["documents", "metadatas"],
+            )
+
+        print(
+            "DEBUG CHROMA RAW:",
+            type(results),
+            results.keys() if hasattr(results, "keys") else None,
         )
 
         documents: List[str] = (results.get("documents") or [[]])[0] or []
-        metadatas: List[Dict[str, Any]] = (results.get("metadatas") or [[]])[0] or []
+        metadatas = results.get("metadatas") or []
+        print(
+            "DEBUG CHROMA PROCESSED:",
+            {
+                "documents_count": len(documents),
+                "metadatas_count": len(metadatas),
+                "sample_metadata": metadatas[0] if metadatas else None,
+            },
+        )
+        return {
+            "documents": documents,
+            "metadatas": metadatas,
+        }
 
-        ctx_raw = (context or "").strip().lower()
-        if not ctx_raw:
-            return documents
-
-        # soporta "aula,casa" o "aula"
-        wanted_tokens = [t.strip() for t in ctx_raw.split(",") if t.strip()]
-        wanted_tokens = [_normalize_ctx_token(t) for t in wanted_tokens]
-
-        # "en todas las anteriores" => no filtrar
-        if any(t is None for t in wanted_tokens):
-            return documents
-
-        filtered_docs: List[str] = []
-        for doc, meta in zip(documents, metadatas):
-            meta_ctx_csv = (meta.get("contexts_csv") or "").strip().lower()
-            meta_tokens = [t.strip() for t in meta_ctx_csv.split(",") if t.strip()]
-
-            if any(t in meta_tokens for t in wanted_tokens):
-                filtered_docs.append(doc)
-
-        return filtered_docs
 
 _CONTEXT_NORMALIZE = {
     "otro contexto social": "otro_contexto_social",
@@ -116,8 +132,7 @@ _CONTEXT_NORMALIZE = {
     "en todas las anteriores": None,  # significa "cualquiera"
 }
 
+
 def _normalize_ctx_token(s: str) -> str:
     s = (s or "").strip().lower()
     return _CONTEXT_NORMALIZE.get(s, s)
-
-

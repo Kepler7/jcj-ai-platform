@@ -22,7 +22,7 @@ type AuthState = {
   token: string | null;
   signIn: (email: string, password: string) => Promise<string>;
   signOut: () => void;
-  refreshMe: () => Promise<void>;
+  refreshMe: (tokenOverride?: string) => Promise<void>
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);

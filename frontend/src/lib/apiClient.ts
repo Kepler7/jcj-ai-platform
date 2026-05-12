@@ -1,4 +1,4 @@
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 export class ApiError extends Error {
   status: number;
@@ -40,6 +40,42 @@ export async function api<T>(
     method,
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+
+  const text = await res.text();
+  const data = text ? safeJson(text) : null;
+
+  if (!res.ok) {
+    throw new ApiError(data?.detail ?? res.statusText, res.status, data);
+  }
+
+  return data as T;
+}
+
+export async function apiForm<T>(
+  path: string,
+  formData: FormData,
+  opts: {
+    method?: "POST" | "PATCH";
+    auth?: boolean;
+    headers?: Record<string, string>;
+  } = {}
+): Promise<T> {
+  const method = opts.method ?? "POST";
+  const headers: Record<string, string> = {
+    ...(opts.headers ?? {}),
+    // NO pongas Content-Type aquí. El browser lo pone con boundary.
+  };
+
+  if (opts.auth) {
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: formData,
   });
 
   const text = await res.text();

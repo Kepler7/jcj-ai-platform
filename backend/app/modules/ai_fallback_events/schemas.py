@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -14,8 +14,7 @@ class AIFallbackOut(BaseModel):
     report_id: UUID
     ai_report_id: Optional[UUID] = None
 
-    topic_nucleo: Optional[str] = None
-    context: Optional[str] = None
+    topic_nucleo: Optional[List[str]] = None
     reason: str
 
     query_text: Optional[str] = None
@@ -25,6 +24,8 @@ class AIFallbackOut(BaseModel):
     created_at: datetime
     resolved_at: Optional[datetime] = None
     resolved_by_user_id: Optional[UUID] = None
+
+    signals_detected: List[str] = []
 
     class Config:
         from_attributes = True

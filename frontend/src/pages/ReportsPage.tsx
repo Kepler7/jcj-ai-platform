@@ -1,14 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Divider,
-  FormControl,
-  FormLabel,
   Grid,
   GridItem,
   Heading,
@@ -33,12 +27,44 @@ import {
   VStack,
   Select,
   Checkbox,
+  Flex,
+  useColorModeValue,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
 } from '@chakra-ui/react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import {
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  UserPlus,
+  Users,
+  Download,
+  PlusCircle,
+  RefreshCw,
+  Sparkles,
+  School,
+  Home,
+  Activity,
+  FileText
+} from 'lucide-react';
 import { api } from '../lib/apiClient';
+import {
+  getIhui3Wizard,
+  getIhui3WizardSubmitLabel,
+  submitIhui3ValidationAnswers,
+} from '../services/ihui3';
+import type {
+  Ihui3WizardResponse,
+  Ihui3WizardSubmitState,
+  Ihui3WizardAnswerValue
+} from '../services/ihui3';
 import type { Guardian } from "../types/guardian";
-
-type Role = 'platform_admin' | 'school_admin' | 'teacher';
 
 type Student = {
   id: string;
@@ -54,30 +80,39 @@ type StudentReport = {
   id: string;
   student_id: string;
   school_id: string;
-  strengths: string;
-  challenges: string;
+  signals_observed: string;
   notes: string | null;
   created_by_user_id: string;
   created_at: string;
 };
 
+// ✅ legacy (si te llega un AI viejo)
 type Recommendation = {
   title: string;
   steps: string[];
   when_to_use?: string | null;
 };
 
-type PlanDay = {
-  day: number;
-  focus: string;
-  activity: string;
-  success_criteria: string;
+// ✅ NUEVO: MicroIntervención (IHUI 2.0)
+type MicroIntervention = {
+  topic_nucleo?: string[] | null;
+  subhabilidad?: string | null;
+  microobjetivo?: string | null;
+  senal_observable?: string | null;
+  hipotesis_funcional?: string | null;
+  estrategias_paso_a_paso?: string[] | null;
+  frecuencia?: string | null;
+  duracion?: string | null;
+  indicador_de_avance?: string | null;
+  escalamiento?: string | null;
 };
 
+// ✅ NUEVO AIVersion: ahora trae microintervenciones (pero mantenemos optional recommendations por compat)
 type AIVersion = {
   summary: string;
   signals_detected: string[];
-  recommendations: Recommendation[];
+  microintervenciones?: MicroIntervention[]; // ✅ nuevo
+  recommendations?: Recommendation[]; // ✅ legacy compat
 };
 
 type AIReport = {
@@ -91,46 +126,174 @@ type AIReport = {
   guardrails_passed: boolean;
   guardrails_notes: string | null;
   created_at: string;
+
+  // IHUI 3.0 / Wizard
+  engine_version?: "ihui_3" | "2" | string;
+  validation_status?: string | null;
+  ai_metadata?: Record<string, unknown> | null;
 };
 
-function GuardiansFormCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
-      <Heading size="sm" mb={3}>
-        Tutores
-      </Heading>
-      <Text fontSize="sm" color="gray.600" mb={4}>
-        Agrega y define quién recibe primero.
-      </Text>
-      {children}
-    </Box>
-  );
-}
-
-function GuardiansListCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Box borderWidth="1px" borderRadius="md" p={4} bg="white">
-      <Heading size="sm" mb={3}>
-        Lista de tutores
-      </Heading>
-      {children}
-    </Box>
-  );
-}
-
 function canSendWhatsapp(g: Guardian): { ok: boolean; reason?: string } {
-  if (!g.is_active) return { ok: false, reason: "Tutor inactivo" };
-  if (!g.whatsapp_phone) return { ok: false, reason: "Sin teléfono" };
-  if (!g.consent_to_contact) return { ok: false, reason: "Sin consentimiento" };
-  if (!g.receive_whatsapp) return { ok: false, reason: "No recibe WhatsApp" };
+  if (!g.is_active) return { ok: false, reason: "reports_page.whatsapp_status.inactive" };
+  if (!g.whatsapp_phone) return { ok: false, reason: "reports_page.whatsapp_status.no_phone" };
+  if (!g.consent_to_contact) return { ok: false, reason: "reports_page.whatsapp_status.no_consent" };
+  if (!g.receive_whatsapp) return { ok: false, reason: "reports_page.whatsapp_status.no_whatsapp" };
   return { ok: true };
 }
 
 const SHOW_WHATSAPP_BUTTONS = false;
 
+function formatTopics(topics?: string[] | string | null, max = 3): string {
+  if (!topics) return "—";
+
+  const list = Array.isArray(topics)
+    ? topics.map((x) => String(x).trim()).filter(Boolean)
+    : String(topics)
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+  if (list.length === 0) return "—";
+
+  const first = list.slice(0, max);
+  const extra = list.length - first.length;
+
+  return extra > 0 ? `${first.join(", ")} (+${extra})` : first.join(", ");
+}
+
+function normalizeSteps(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((x) => String(x)).filter(Boolean);
+  // a veces llega como string con "1. ... 2. ..."
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return [];
+    // separa por saltos o por " 2. " etc
+    const byLines = s.split('\n').map((x) => x.trim()).filter(Boolean);
+    if (byLines.length > 1) return byLines;
+    // fallback: split por números
+    const byNums = s.split(/\s*\d+\.\s*/).map((x) => x.trim()).filter(Boolean);
+    return byNums.length ? byNums : [s];
+  }
+  return [];
+}
+
+export function MicroInterventionCard({
+  mi,
+  idx,
+  accentColor
+}: {
+  mi: MicroIntervention;
+  idx: number;
+  accentColor: string;
+}) {
+  const { t } = useTranslation();
+  const steps = normalizeSteps(mi.estrategias_paso_a_paso);
+
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.500");
+  const textLabel = useColorModeValue("#434654", "gray.400");
+
+  return (
+    <Box bg={cardBg} p="5" borderRadius="2xl" border="1px dashed" borderColor={`${accentColor}40`}>
+      <Flex gap="4" align="flex-start">
+        <Flex w="10" h="10" borderRadius="full" bg={`${accentColor}10`} color={accentColor} align="center" justify="center" fontWeight="black" flexShrink={0}>
+          {idx + 1}
+        </Flex>
+        <Box>
+          <Text fontWeight="bold" fontSize="sm" color={textColor}>
+            {mi.microobjetivo?.trim() ? mi.microobjetivo : `Microintervención ${idx + 1}`}
+          </Text>
+          <Text fontSize="xs" color={textLabel} mt="1">
+            {formatTopics(mi.topic_nucleo)}{mi.subhabilidad ? ` · ${mi.subhabilidad}` : ''}
+          </Text>
+        </Box>
+      </Flex>
+
+      {/*mi.senal_observable && (
+        <Box mt="4">
+          <Text fontSize="xs" fontWeight="bold" color={textColor}>{t('reports_page.mi.observable')}</Text>
+          <Text fontSize="sm" color={textLabel} mt="1">{mi.senal_observable}</Text>
+        </Box>
+      )*/}
+
+      {mi.hipotesis_funcional && (
+        <Box mt="3">
+          <Text fontSize="xs" fontWeight="bold" color={textColor}>{t('reports_page.mi.hypothesis')}</Text>
+          <Text fontSize="sm" color={textLabel} mt="1">{mi.hipotesis_funcional}</Text>
+        </Box>
+      )}
+
+      {steps.length > 0 && (
+        <Box mt="3">
+          <Text fontSize="xs" fontWeight="bold" color={textColor} mb="1">{t('reports_page.mi.steps')}</Text>
+          <Stack spacing="1">
+            {steps.map((st, i) => (
+              <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {(mi.indicador_de_avance || mi.escalamiento) && (
+        <Box mt="4" pt="4" borderTop="1px dashed" borderColor="#e1e3e4">
+          {mi.indicador_de_avance && (
+            <Box mb={mi.escalamiento ? "3" : "0"}>
+              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color={textMuted} mb="1">{t('reports_page.mi.indicator')}</Text>
+              <Text fontSize="xs" color={textLabel}>{mi.indicador_de_avance}</Text>
+            </Box>
+          )}
+
+          {mi.escalamiento && (
+            <Box>
+              <Text fontSize="10px" fontWeight="black" textTransform="uppercase" color={accentColor} mb="1">{t('reports_page.mi.escalation')}</Text>
+              <Text fontSize="10px" color={textLabel} fontStyle="italic">{mi.escalamiento}</Text>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 export default function ReportsPage() {
+  const { t } = useTranslation();
+  const cardBg = useColorModeValue("#ffffff", "gray.800");
+  const pageBg = useColorModeValue("#f8f9fa", "gray.900");
+  const inputBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const inputFocusBg = useColorModeValue("#ffffff", "gray.800");
+  const textColor = useColorModeValue("#191c1d", "whiteAlpha.900");
+  const textMuted = useColorModeValue("#737686", "whiteAlpha.700");
+  const textLabel = useColorModeValue("#434654", "whiteAlpha.800");
+  const primaryColor = useColorModeValue("#003597", "blue.300");
+  const primaryBg = useColorModeValue("#e8edff", "blue.900");
+  const badgeBg = useColorModeValue("#e1e3e4", "whiteAlpha.200");
+  const borderColor = useColorModeValue("rgba(195,197,215,0.18)", "whiteAlpha.200");
+  const tableHeaderBg = useColorModeValue("rgba(243, 244, 245, 0.5)", "whiteAlpha.100");
+  const tableRowSelectedBg = useColorModeValue("rgba(232, 237, 255, 0.5)", "whiteAlpha.100");
+  const tableRowBorder = useColorModeValue("rgba(195,197,215,0.1)", "whiteAlpha.200");
+  const reportActionBg = useColorModeValue("rgba(0, 53, 151, 0.05)", "whiteAlpha.100");
+  const reportActionColor = useColorModeValue("#003597", "blue.200");
+  const signalBadgeBg = useColorModeValue("#e7e8e9", "whiteAlpha.200");
+  const signalBadgeColor = useColorModeValue(textLabel, "whiteAlpha.900");
+  const disclosureHoverBg = useColorModeValue("#f3f4f5", "whiteAlpha.100");
+  const warningBg = useColorModeValue("orange.50", "orange.900");
+  const warningBorder = useColorModeValue("orange.200", "orange.600");
+  const warningText = useColorModeValue("#191c1d", "orange.50");
+  const wizardOverlayBg = useColorModeValue("blackAlpha.600", "blackAlpha.800");
+  const wizardModalBg = useColorModeValue("#ffffff", "gray.800");
+  const wizardModalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
+  const wizardFooterBg = useColorModeValue("#f8f9fa", "whiteAlpha.50");
+  const wizardQuestionBg = useColorModeValue("#ffffff", "gray.800");
+  const wizardQuestionBorder = useColorModeValue("gray.200", "whiteAlpha.300");
+  const wizardQuestionHoverBorder = useColorModeValue("blue.200", "blue.300");
+  const wizardBadgeBg = useColorModeValue("blue.50", "whiteAlpha.200");
+  const wizardBadgeColor = useColorModeValue("#003597", "blue.200");
+
   const { studentId } = useParams<{ studentId: string }>();
   const toast = useToast();
+  const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [student, setStudent] = useState<Student | null>(null);
 
@@ -141,8 +304,7 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Create report form
-  const [strengths, setStrengths] = useState('');
-  const [challenges, setChallenges] = useState('');
+  const [signalsObserved, setSignalsObserved] = useState('');
   const [notes, setNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -152,18 +314,56 @@ export default function ReportsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiJobStatus, setAiJobStatus] = useState<string | null>(null);
 
-  // ✅ Map to know if AI exists per report (for showing Regenerar only when exists)
-  const [aiExistsByReportId, setAiExistsByReportId] = useState<
-    Record<string, boolean>
+  const [ihui3Wizard, setIhui3Wizard] = useState<Ihui3WizardResponse | null>(null);
+  const [ihui3WizardLoading, setIhui3WizardLoading] = useState(false);
+  const [ihui3WizardError, setIhui3WizardError] = useState<string | null>(null);
+
+  const [ihui3Answers, setIhui3Answers] = useState<
+    Record<string, Ihui3WizardAnswerValue | "">
   >({});
+  const [ihui3SubmitState, setIhui3SubmitState] =
+    useState<Ihui3WizardSubmitState>("idle");
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    if (ihui3WizardLoading) {
+      console.debug("IHUI 3.0 wizard loading...");
+    }
+
+    if (ihui3WizardError) {
+      console.debug("IHUI 3.0 wizard error:", ihui3WizardError);
+    }
+
+    if (ihui3Wizard) {
+      console.debug("IHUI 3.0 wizard loaded:", {
+        aiReportId: ihui3Wizard.ai_report_id,
+        validationStatus: ihui3Wizard.validation_status,
+        wizardRequired: ihui3Wizard.wizard_required,
+        questionsCount: ihui3Wizard.questions?.length ?? 0,
+      });
+    }
+    if (Object.keys(ihui3Answers).length > 0) {
+      console.debug("IHUI 3.0 answers state:", ihui3Answers);
+    }
+
+    if (ihui3SubmitState !== "idle") {
+      console.debug("IHUI 3.0 submit state:", ihui3SubmitState);
+    }
+  }, [
+    ihui3Wizard,
+    ihui3WizardLoading,
+    ihui3WizardError,
+    ihui3Answers,
+    ihui3SubmitState,
+  ]);
+
+  // ✅ Map to know if AI exists per report
+  const [aiExistsByReportId, setAiExistsByReportId] = useState<Record<string, boolean>>({});
 
   // UI expansions for AI cards
-  const [expandTeacherRecs, setExpandTeacherRecs] = useState(true);
-  const [expandTeacherPlan, setExpandTeacherPlan] = useState(false);
-  const [expandParentRecs, setExpandParentRecs] = useState(true);
-  const [expandParentPlan, setExpandParentPlan] = useState(false);
-
-  const studentName = useMemo(() => student?.full_name ?? 'alumno', [student]);
+  const [expandTeacher, setExpandTeacher] = useState(true);
+  const [expandParent, setExpandParent] = useState(true);
 
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardiansLoading, setGuardiansLoading] = useState(false);
@@ -183,6 +383,19 @@ export default function ReportsPage() {
 
   const [sendingWaByGuardianId, setSendingWaByGuardianId] = useState<Record<string, boolean>>({});
 
+  const [expandedSignalsByReportId, setExpandedSignalsByReportId] = useState<Record<string, boolean>>({});
+  const [expandedNotesByReportId, setExpandedNotesByReportId] = useState<Record<string, boolean>>({});
+
+  function focusAISection() {
+    window.setTimeout(() => {
+      const node = aiSectionRef.current;
+      if (!node) return;
+
+      node.focus({ preventScroll: true });
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   async function sendWhatsappPreview(aiReportId: string, guardianId: string) {
     setSendingWaByGuardianId((p) => ({ ...p, [guardianId]: true }));
     try {
@@ -191,7 +404,6 @@ export default function ReportsPage() {
         { method: "POST", auth: true }
       );
 
-      // abre wa.me con el texto ya prellenado
       window.open(res.wa_url, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       const msg =
@@ -223,7 +435,6 @@ export default function ReportsPage() {
         },
       });
 
-      // reset form
       setGFullName("");
       setGPhone("");
       setGRelationship("madre");
@@ -232,7 +443,6 @@ export default function ReportsPage() {
       setGReceiveWhatsapp(true);
       setGConsent(true);
 
-      // refresh list
       await loadGuardians(studentId);
     } catch (e: any) {
       setGuardianError(e?.message ?? "Error creando tutor");
@@ -260,13 +470,11 @@ export default function ReportsPage() {
     if (!studentId) return;
     setLoadingStudent(true);
     try {
-      // Assumes you have GET /v1/students/{id}
       const data = await api<Student>(`/v1/students/${studentId}`, {
         auth: true,
       });
       setStudent(data);
     } catch (e: any) {
-      // Not fatal for reports list, but affects title
       setStudent(null);
     } finally {
       setLoadingStudent(false);
@@ -277,9 +485,7 @@ export default function ReportsPage() {
     try {
       const data = await api<any>(
         `/v1/ai-reports?report_id=${encodeURIComponent(reportId)}`,
-        {
-          auth: true,
-        }
+        { auth: true }
       );
 
       if (Array.isArray(data)) return data.length > 0;
@@ -306,13 +512,11 @@ export default function ReportsPage() {
         { auth: true }
       );
 
-      // newest first
       const sorted = [...data].sort((a, b) =>
         a.created_at < b.created_at ? 1 : -1
       );
       setReports(sorted);
 
-      // ✅ fill AI-exists map
       const entries = await Promise.all(
         sorted.map(async (r) => {
           try {
@@ -325,7 +529,6 @@ export default function ReportsPage() {
       );
       setAiExistsByReportId(Object.fromEntries(entries));
 
-      // Keep selection if still exists
       if (selectedReportId) {
         const still = sorted.find((r) => r.id === selectedReportId);
         if (!still) {
@@ -351,28 +554,23 @@ export default function ReportsPage() {
         auth: true,
         body: {
           student_id: studentId,
-          strengths: strengths.trim(),
-          challenges: challenges.trim(),
+          signals_observed: signalsObserved.trim(),
           notes: notes.trim() || null,
         },
       });
 
       toast({
-        title: 'Reporte creado',
+        title: t('reports_page.create_success'),
         status: 'success',
         duration: 1500,
         isClosable: true,
       });
 
-      // reset
-      setStrengths('');
-      setChallenges('');
+      setSignalsObserved('');
       setNotes('');
 
-      // refresh
       await loadReports();
 
-      // select the created report
       setSelectedReportId(created.id);
       setAiReport(null);
       setAiExistsByReportId((prev) => ({ ...prev, [created.id]: false }));
@@ -383,6 +581,141 @@ export default function ReportsPage() {
     }
   }
 
+  function getIhui3QuestionKey(q: any, index: number) {
+    return `${q?.playbook_id || "playbook"}-${q?.question_id || "question"}-${index}`;
+  }
+
+  async function loadIhui3Wizard(aiReportId: string) {
+    setIhui3WizardLoading(true);
+    setIhui3WizardError(null);
+
+    try {
+      const wizard = await getIhui3Wizard(aiReportId);
+      setIhui3Wizard(wizard);
+
+      const initialAnswers: Record<string, Ihui3WizardAnswerValue | ""> =
+        Object.fromEntries(
+          (wizard.questions ?? []).map((q, index) => [
+            getIhui3QuestionKey(q, index),
+            "",
+          ])
+        );
+
+      setIhui3Answers(initialAnswers);
+      setIhui3SubmitState("idle");
+
+      return wizard;
+    } catch (e: any) {
+      setIhui3Wizard(null);
+      setIhui3WizardError(e?.message ?? 'Error loading IHUI 3.0 wizard');
+      return null;
+    } finally {
+      setIhui3WizardLoading(false);
+    }
+  }
+
+  function handleIhui3AnswerChange(
+    questionId: string,
+    value: Ihui3WizardAnswerValue
+  ) {
+    setIhui3Answers((prev) => ({
+      ...prev,
+      [questionId]: value,
+    }));
+
+    if (ihui3SubmitState === "success" || ihui3SubmitState === "error") {
+      setIhui3SubmitState("idle");
+    }
+  }
+
+  function areIhui3QuestionsAnswered() {
+    if (!ihui3Wizard?.questions?.length) return false;
+
+    return ihui3Wizard.questions.every((q, index) => {
+      const questionKey = getIhui3QuestionKey(q, index);
+      const answer = ihui3Answers[questionKey];
+
+      return answer === "yes" || answer === "no" || answer === "sometimes";
+    });
+  }
+
+  async function handleSubmitIhui3Answers() {
+    if (!ihui3Wizard || !aiReport) return;
+
+    if (!areIhui3QuestionsAnswered()) {
+      setIhui3SubmitState("error");
+      setIhui3WizardError("Responde todas las preguntas antes de continuar.");
+      return;
+    }
+
+    const answers = ihui3Wizard.questions.map((q, index) => {
+      const questionKey = getIhui3QuestionKey(q, index);
+      const answer = ihui3Answers[questionKey];
+
+      if (answer !== "yes" && answer !== "no" && answer !== "sometimes") {
+        throw new Error("Respuesta inválida o incompleta.");
+      }
+
+      const playbookId = q.playbook_id;
+      const questionId = q.question_id;
+
+      if (!playbookId || !questionId) {
+        console.error("Pregunta inválida del wizard:", q);
+        throw new Error("La pregunta del wizard no trae playbook_id o question_id.");
+      }
+
+      return {
+        playbook_id: playbookId,
+        question_id: questionId,
+        answer,
+      };
+    });
+
+    console.log("IHUI 3.0 answers payload:", answers);
+
+    try {
+      setIhui3WizardError(null);
+
+      setIhui3SubmitState("submitting_answers");
+      console.log("IHUI 3.0 answers payload:", answers);
+      await submitIhui3ValidationAnswers(aiReport.id, answers);
+
+      setIhui3SubmitState("refining_strategy");
+
+      // Pequeña pausa para que el usuario vea el cambio de estado.
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
+      setIhui3SubmitState("refreshing_result");
+
+      await loadIhui3Wizard(aiReport.id);
+
+      if (selectedReportId) {
+        await fetchAIReport(selectedReportId);
+      }
+
+      setIhui3SubmitState("success");
+
+      toast({
+        title: "Estrategia afinada",
+        description: "Las respuestas fueron guardadas y la estrategia fue actualizada.",
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (e: any) {
+      setIhui3SubmitState("error");
+      setIhui3WizardError(e?.message ?? "No se pudieron enviar las respuestas.");
+
+      toast({
+        title: "No se pudieron enviar las respuestas",
+        description: e?.message ?? "Intenta de nuevo.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }
+
   async function fetchAIReport(reportId: string) {
     setAiLoading(true);
     setError(null);
@@ -390,9 +723,7 @@ export default function ReportsPage() {
     try {
       const data = await api<any>(
         `/v1/ai-reports?report_id=${encodeURIComponent(reportId)}`,
-        {
-          auth: true,
-        }
+        { auth: true }
       );
 
       const latest: AIReport | null = Array.isArray(data)
@@ -401,17 +732,29 @@ export default function ReportsPage() {
 
       if (!latest) {
         setAiReport(null);
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
         return null;
       }
 
       setAiReport(latest);
       setAiExistsByReportId((prev) => ({ ...prev, [reportId]: true }));
+
+      if (latest.engine_version === 'ihui_3') {
+        await loadIhui3Wizard(latest.id);
+      } else {
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
+      }
+
       return latest;
     } catch (e: any) {
       const status = e?.status ?? e?.response?.status;
       if (status === 404) {
         setAiReport(null);
+        setIhui3Wizard(null);
+        setIhui3WizardError(null);
         setAiExistsByReportId((prev) => ({ ...prev, [reportId]: false }));
         return null;
       }
@@ -427,7 +770,6 @@ export default function ReportsPage() {
     setError(null);
 
     try {
-      // async path
       const created = await api<{ job_id: string; status: string }>(
         '/v1/ai-jobs',
         {
@@ -435,14 +777,13 @@ export default function ReportsPage() {
           auth: true,
           body: {
             report_id: reportId,
-            contexts: ['aula', 'casa'], // puedes cambiarlo luego
+            contexts: ['aula', 'casa'],
           },
         }
       );
 
       const jobId = created.job_id;
 
-      // poll status until done/failed
       const maxTries = 40;
       const delayMs = 1200;
 
@@ -469,8 +810,8 @@ export default function ReportsPage() {
 
       if (!done) {
         toast({
-          title: 'La IA sigue trabajando…',
-          description: `Estado: ${lastStatus}. Intenta “Recargar” en unos segundos.`,
+          title: t('reports_page.ai_working'),
+          description: t('reports_page.ai_status').replace('{{status}}', lastStatus),
           status: 'info',
           duration: 2500,
           isClosable: true,
@@ -479,15 +820,14 @@ export default function ReportsPage() {
       }
 
       toast({
-        title: 'Apoyo generado',
+        title: t('reports_page.ai_generated'),
         status: 'success',
         duration: 1600,
         isClosable: true,
       });
-    
-      // ✅ avisa al navbar que refresque el badge
+
       window.dispatchEvent(new Event("playbook:pending-changed"));
-      // fetch latest AI report
+
       setAiJobStatus(null);
       await fetchAIReport(reportId);
     } catch (e: any) {
@@ -502,6 +842,7 @@ export default function ReportsPage() {
     const exists = !!aiExistsByReportId[reportId];
     setSelectedReportId(reportId);
     setAiReport(null);
+    focusAISection();
 
     if (exists) {
       await fetchAIReport(reportId);
@@ -510,7 +851,6 @@ export default function ReportsPage() {
     }
   }
 
-  // ✅ NUEVO: handler para WhatsApp que NO depende de aiReport cargado
   async function handleSendWhatsapp(g: Guardian) {
     if (!selectedReportId) return;
 
@@ -519,11 +859,9 @@ export default function ReportsPage() {
 
     setSendingWaByGuardianId((p) => ({ ...p, [g.id]: true }));
     try {
-      // 1) Debe existir AI para el reporte seleccionado
       const hasAiForSelected = !!aiExistsByReportId[selectedReportId];
       if (!hasAiForSelected) return;
 
-      // 2) Obtener ai_report_id aunque no esté cargado en aiReport (UI)
       let aiId = aiReport?.id ?? null;
       if (!aiId || aiReport?.report_id !== selectedReportId) {
         const latest = await fetchAIReport(selectedReportId);
@@ -531,7 +869,6 @@ export default function ReportsPage() {
       }
       if (!aiId) return;
 
-      // 3) enviar preview
       await sendWhatsappPreview(aiId, g.id);
     } finally {
       setSendingWaByGuardianId((p) => ({ ...p, [g.id]: false }));
@@ -551,7 +888,6 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
-  // When selected report changes, auto-fetch AI if it exists
   useEffect(() => {
     if (!selectedReportId) return;
     const exists = !!aiExistsByReportId[selectedReportId];
@@ -564,368 +900,739 @@ export default function ReportsPage() {
   }, [selectedReportId]);
 
   const title = loadingStudent
-    ? 'Reportes del alumno'
-    : `Reportes de ${studentName}`;
+    ? t('reports_page.student_reports_title')
+    : t('reports_page.student_reports_for', { name: student?.full_name || t('reports_page.student_fallback') });
+
+  const teacherMIs = aiReport?.teacher_version?.microintervenciones ?? [];
+  const parentMIs = aiReport?.parent_version?.microintervenciones ?? [];
+
+  const teacherLegacyRecs = aiReport?.teacher_version?.recommendations ?? [];
+  const parentLegacyRecs = aiReport?.parent_version?.recommendations ?? [];
+
+  const teacherHasNew = teacherMIs.length > 0;
+  const parentHasNew = parentMIs.length > 0;
+
+  const pendingMessage =
+    t('reports_page.pending_whatsapp_prompt');
+
+  const selectedReport =
+    reports.find((r) => r.id === selectedReportId) ?? null;
+
+  const pendingWhatsappMessage = (() => {
+    const reportText =
+      selectedReport?.signals_observed?.trim() ||
+      "";
+
+    const studentName = student?.full_name || t('reports_page.student_fallback');
+
+    const baseMessage = `${t('reports_page.whatsapp_case_greeting')}
+
+  ${t('reports_page.student_label')} ${studentName}
+
+  ${t('reports_page.detected_signals_label')}
+  ${reportText || t('reports_page.no_report_text')}
+
+  ${t('reports_page.reason_label')}
+  ${t('reports_page.human_review_reason')}`;
+
+    return baseMessage;
+  })();
+
+  const pendingWhatsappHref = `https://wa.me/5213346451964?text=${encodeURIComponent(
+    pendingWhatsappMessage
+  )}`;
+
+  const isIhui3Report = aiReport?.engine_version === "ihui_3";
+
+  const shouldShowIhui3Wizard =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    ihui3Wizard.wizard_required &&
+    ihui3Wizard.validation_status === "needs_validation_answers" &&
+    !ihui3Wizard.fallback_used;
+
+  const shouldShowIhui3HumanReview =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    (
+      ihui3Wizard.validation_status === "pending_human_review" ||
+      ihui3Wizard.fallback_used ||
+      ihui3Wizard.strategy?.status === "pending_human_review"
+    );
+
+  const ihui3Strategy = ihui3Wizard?.strategy;
+
+  const shouldShowIhui3ValidatedStrategy =
+    isIhui3Report &&
+    !!ihui3Wizard &&
+    !shouldShowIhui3Wizard &&
+    !shouldShowIhui3HumanReview &&
+    (
+      ihui3Wizard.validation_status === "validated" ||
+      ihui3Wizard.validation_status === "validated_combined"
+    ) &&
+    ihui3Strategy?.status !== "pending_human_review";
+
+  const isPending =
+    !!aiReport &&
+    !shouldShowIhui3HumanReview &&
+    (
+      aiReport.teacher_version?.summary?.includes("validación humana") ||
+      aiReport.parent_version?.summary?.includes("validación humana")
+    );
+
+
+  const ihui3HumanReviewMessage =
+    "IHUI revisó tus respuestas, pero todavía hay más de una hipótesis posible. queremos asegurarnos de darte una estrategia clara, segura y útil.\n\nEscríbenos por WhatsApp y lo resolvemos contigo en un lapso maximo de 24 hrs:";
+
+  function renderIhui3StrategyCard(audience: "teacher" | "parent") {
+    if (!ihui3Strategy) return null;
+
+    const title =
+      audience === "teacher"
+        ? "Estrategia sugerida para el aula"
+        : "Estrategia sugerida para casa";
+
+    const steps = ihui3Strategy.steps ?? [];
+
+    return (
+      <Box
+        p="5"
+        border="1px solid"
+        borderColor={borderColor}
+        borderRadius="2xl"
+        bg={wizardQuestionBg}
+      >
+        <Text fontWeight="bold" fontSize="md" color={textColor} mb="3">
+          {title}
+        </Text>
+
+        {ihui3Strategy.micro_objective && (
+          <Box mb="4">
+            <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+              Microobjetivo
+            </Text>
+            <Text fontSize="sm" color={textLabel}>
+              {ihui3Strategy.micro_objective}
+            </Text>
+          </Box>
+        )}
+
+        {steps.length > 0 && (
+          <Box mb="4">
+            <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="2">
+              Estrategias paso a paso
+            </Text>
+
+            <Stack spacing="2">
+              {steps.map((step, idx) => (
+                <HStack key={`${step}-${idx}`} align="flex-start" spacing="3">
+                  <Flex
+                    minW="6"
+                    h="6"
+                    align="center"
+                    justify="center"
+                    borderRadius="full"
+                    bg={primaryBg}
+                    color={primaryColor}
+                    fontSize="xs"
+                    fontWeight="bold"
+                  >
+                    {idx + 1}
+                  </Flex>
+                  <Text fontSize="sm" color={textLabel}>
+                    {step}
+                  </Text>
+                </HStack>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
+          {ihui3Strategy.frequency && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Frecuencia
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.frequency}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.duration && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Duración
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.duration}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.progress_indicator && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Indicador de avance
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.progress_indicator}
+              </Text>
+            </Box>
+          )}
+
+          {ihui3Strategy.escalation && (
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" color={textMuted} mb="1">
+                Escalamiento
+              </Text>
+              <Text fontSize="sm" color={textLabel}>
+                {ihui3Strategy.escalation}
+              </Text>
+            </Box>
+          )}
+        </Grid>
+      </Box>
+    );
+  }
+
+  const detectedSignalsFromTeacherReport = (() => {
+    if (!selectedReport?.signals_observed) return [];
+
+    const raw = selectedReport.signals_observed;
+
+    // Si detecta separadores → split
+    if (/[|•;\n]+/.test(raw)) {
+      return raw
+        .split(/[|•;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    // Si no → dejarlo como un solo elemento
+    return [raw.trim()];
+  })();
+
+  function isLongText(value?: string | null, limit = 120) {
+    return !!value && value.trim().length > limit;
+  }
 
   return (
-    <Box p={6}>
-      <HStack justify="space-between" align="flex-start" mb={4}>
-        <Box>
-          <Heading size="lg">{title}</Heading>
-          <Text color="gray.600" mt={1}>
-            Student ID: {studentId}
-          </Text>
-        </Box>
-        <Box mt={4} p={4} borderWidth="1px" borderRadius="lg">
-          <Heading size="sm" mb={3}>
-            Tutores
-          </Heading>
-
-          <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} alignItems="start">
-            {/* IZQUIERDA: FORM */}
-            <GridItem>
-              <Box p={4} borderWidth="1px" borderRadius="md">
-                <Heading size="sm" mb={3}>
-                  Agregar tutor
-                </Heading>
-
-                {guardianError && (
-                  <Alert status="error" mb={3}>
-                    <AlertIcon />
-                    {guardianError}
-                  </Alert>
-                )}
-
-                <Stack spacing={3}>
-                  <Input
-                    placeholder="Nombre completo"
-                    value={gFullName}
-                    onChange={(e) => setGFullName(e.target.value)}
-                  />
-
-                  <Input
-                    placeholder="WhatsApp (ej. +5213312345678)"
-                    value={gPhone}
-                    onChange={(e) => setGPhone(e.target.value)}
-                  />
-
-                  <Select value={gRelationship} onChange={(e) => setGRelationship(e.target.value)}>
-                    <option value="madre">Madre</option>
-                    <option value="padre">Padre</option>
-                    <option value="tutor">Tutor</option>
-                    <option value="abuela">Abuela</option>
-                    <option value="abuelo">Abuelo</option>
-                    <option value="otro">Otro</option>
-                  </Select>
-
-                  <Textarea
-                    placeholder="Notas (opcional)"
-                    value={gNotes}
-                    onChange={(e) => setGNotes(e.target.value)}
-                  />
-
-                  <HStack spacing={6} flexWrap="wrap">
-                    <Checkbox
-                      isChecked={gIsPrimary}
-                      onChange={(e) => {
-                        const next = e.target.checked;
-
-                        // Si lo está activando y ya existe un primario (distinto al que estás creando),
-                        // mostramos warning.
-                        if (next) {
-                          const existingPrimary = guardians.some((x) => x.is_active && x.is_primary);
-                          setShowPrimaryWarning(existingPrimary);
-                        } else {
-                          setShowPrimaryWarning(false);
-                        }
-
-                        setGIsPrimary(next);
-                      }}
-                    >
-                      Principal
-                    </Checkbox>
-
-                    <Checkbox
-                      isChecked={gReceiveWhatsapp}
-                      onChange={(e) => setGReceiveWhatsapp(e.target.checked)}
-                    >
-                      Recibir WhatsApp
-                    </Checkbox>
-
-                    <Checkbox isChecked={gConsent} onChange={(e) => setGConsent(e.target.checked)}>
-                      Consentimiento contacto
-                    </Checkbox>
-                  </HStack>
-
-                  {showPrimaryWarning && gIsPrimary && (
-                    <Alert status="warning" borderRadius="md">
-                      <AlertIcon />
-                      Ya existe un tutor marcado como <strong>Principal</strong>. Si guardas este tutor como principal,
-                      el anterior dejará de ser principal.
-                    </Alert>
-                  )}
-
-                  <Button
-                    onClick={createGuardian}
-                    isLoading={creatingGuardian}
-                    isDisabled={!gFullName.trim() || !gPhone.trim() || !gConsent}
-                    colorScheme="blue"
-                    alignSelf="flex-start"
-                  >
-                    Guardar tutor
-                  </Button>
-                </Stack>
-              </Box>
-            </GridItem>
-
-            {/* DERECHA: LISTA */}
-            <GridItem>
-              <Box p={4} borderWidth="1px" borderRadius="md">
-                <Heading size="sm" mb={3}>
-                  Lista de tutores
-                </Heading>
-
-                {guardiansLoading && (
-                  <HStack>
-                    <Spinner size="sm" />
-                    <Text fontSize="sm">Cargando tutores…</Text>
-                  </HStack>
-                )}
-
-                {guardiansError && (
-                  <Text fontSize="sm" color="red.500">
-                    {guardiansError}
-                  </Text>
-                )}
-
-                {!guardiansLoading && !guardiansError && guardians.length === 0 && (
-                  <Text fontSize="sm" color="gray.500">
-                    Este alumno aún no tiene tutores registrados.
-                  </Text>
-                )}
-
-                {!guardiansLoading && !guardiansError && guardians.length > 0 && (
-                  <VStack align="stretch" spacing={3} mt={2}>
-                    {guardians
-                      .filter((g) => g.is_active)
-                      .map((g) => {
-                        const sendState = canSendWhatsapp(g);
-                        const hasSelectedReport = !!selectedReportId;
-                        const hasAiForSelected = selectedReportId
-                          ? !!aiExistsByReportId[selectedReportId]
-                          : false;
-
-                        return (
-                          <Box key={g.id} p={3} borderWidth="1px" borderRadius="md">
-                            <HStack justify="space-between" align="start">
-                              <Box>
-                                <HStack>
-                                  <Text fontWeight="semibold">{g.full_name}</Text>
-                                  {g.is_primary && <Badge colorScheme="green">Primario</Badge>}
-                                </HStack>
-
-                                <Text fontSize="sm" color="gray.600">
-                                  {g.relationship ?? "Sin relación"} · {g.whatsapp_phone ?? "Sin WhatsApp"}
-                                </Text>
-
-                                {g.notes && (
-                                  <>
-                                    <Divider my={2} />
-                                    <Text fontSize="sm">{g.notes}</Text>
-                                  </>
-                                )}
-                                {/* 👉 BOTÓN WHATSAPP (corregido) */}
-                                {SHOW_WHATSAPP_BUTTONS && (
-                                <Box mt={3}>
-                                  <Button
-                                    size="sm"
-                                    colorScheme="green"
-                                    isDisabled={!hasSelectedReport || !hasAiForSelected || !sendState.ok}
-                                    isLoading={!!sendingWaByGuardianId[g.id]}
-                                    onClick={() => handleSendWhatsapp(g)}
-                                  >
-                                    Enviar WhatsApp
-                                  </Button>
-
-                                  {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
-                                    <Text fontSize="xs" color="gray.500" mt={1}>
-                                      {!hasSelectedReport
-                                        ? "Selecciona un reporte."
-                                        : !hasAiForSelected
-                                        ? "Genera el apoyo AI primero."
-                                        : sendState.reason}
-                                    </Text>
-                                  )}
-                                </Box>
-                                )}                             
-                              </Box>
-                            </HStack>
-                          </Box>
-                        );
-                      })}
-                  </VStack>
-                )}
-              </Box>
-            </GridItem>
-          </Grid>
-        </Box>
-
-        <Button onClick={() => loadReports()} variant="outline">
-          Recargar
-        </Button>
-      </HStack>
+    <Box>
+      {/* Header */}
+      <Box mb="8">
+        <HStack spacing="2" mb="2">
+          <Text fontSize="sm" fontWeight="medium" color={textMuted} cursor="pointer" _hover={{ color: "#003597" }}>{t('nav.students')}</Text>
+          <ChevronRight size={14} color={textMuted} />
+          <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.student_report')}</Text>
+        </HStack>
+        <Flex align="flex-end" justify="space-between">
+          <Box>
+            <Heading as="h1" fontSize={{ base: "3xl", md: "4xl" }} fontWeight="extrabold" color={textColor} fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight">
+              {title}
+            </Heading>
+            <Text color={textLabel} mt="1" fontFamily="'Manrope', monospace" fontSize="sm">
+              ID: {studentId}
+            </Text>
+          </Box>
+          <Button
+            leftIcon={<Download size={18} />}
+            bg={cardBg}
+            border="1px solid rgba(195, 197, 215, 0.3)"
+            color={textColor}
+            borderRadius="xl"
+            px="6"
+            py="6"
+            fontSize="sm"
+            fontWeight="bold"
+            boxShadow="0px 4px 12px rgba(25, 28, 29, 0.03)"
+            _hover={{ bg: "#f8f9fa", transform: "translateY(-1px)" }}
+            transition="all 0.2s"
+          >
+            {t('reports_page.export_pdf')}
+          </Button>
+        </Flex>
+      </Box>
 
       {error && (
-        <Alert status="error" mb={4}>
+        <Alert status="error" mb="6" borderRadius="xl">
           <AlertIcon />
           <Text>{error}</Text>
         </Alert>
       )}
 
-      {/* Create Report */}
-      <Card mb={6}>
-        <CardHeader>
-          <Heading size="md">Crear nuevo reporte</Heading>
-          <Text color="gray.600" mt={1}>
-            Fortalezas, retos y notas educativas (sin lenguaje clínico).
-          </Text>
-        </CardHeader>
-        <CardBody>
-          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
-            <GridItem>
-              <FormControl>
-                <FormLabel>Fortalezas</FormLabel>
-                <Textarea
-                  value={strengths}
-                  onChange={(e) => setStrengths(e.target.value)}
-                  placeholder="Ej: Sigue indicaciones con apoyo visual, participa cuando se anticipa…"
-                  rows={4}
-                />
-              </FormControl>
-            </GridItem>
+      {/* Tutores Section (Bento Card) */}
+      <Box bg={cardBg} borderRadius="2rem" p={{ base: 6, lg: 8 }} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" mb="8">
+        <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap="12">
+          {/* Form Side */}
+          <GridItem>
+            <Stack spacing="6">
+              <Flex align="center" gap="3">
+                <Flex align="center" justify="center" w="10" h="10" bg={primaryBg} color={primaryColor} borderRadius="lg">
+                  <UserPlus size={20} />
+                </Flex>
+                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.add_guardian_title')}</Heading>
+              </Flex>
 
-            <GridItem>
-              <FormControl>
-                <FormLabel>Retos</FormLabel>
-                <Textarea
-                  value={challenges}
-                  onChange={(e) => setChallenges(e.target.value)}
-                  placeholder="Ej: Se frustra al esperar turnos, requiere recordatorios…"
-                  rows={4}
-                />
-              </FormControl>
-            </GridItem>
+              {guardianError && (
+                <Alert status="error" borderRadius="md">
+                  <AlertIcon />
+                  {guardianError}
+                </Alert>
+              )}
 
-            <GridItem colSpan={{ base: 1, md: 2 }}>
-              <FormControl>
-                <FormLabel>Notas (opcional)</FormLabel>
+              <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="4">
+                <GridItem colSpan={{ base: 1, md: 2 }}>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.name')}</Text>
+                  <Input
+                    placeholder={t('reports_page.guardian_name_placeholder')}
+                    value={gFullName}
+                    onChange={(e) => setGFullName(e.target.value)}
+                    bg={inputBg}
+                    border="none"
+                    borderRadius="xl"
+                    py="6"
+                    fontSize="sm"
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
+                  />
+                </GridItem>
+
+                <GridItem>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.whatsapp')}</Text>
+                  <Input
+                    placeholder={t('reports_page.guardian_phone_placeholder')}
+                    value={gPhone}
+                    onChange={(e) => setGPhone(e.target.value)}
+                    bg={inputBg}
+                    border="none"
+                    borderRadius="xl"
+                    py="6"
+                    fontSize="sm"
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
+                  />
+                </GridItem>
+
+                <GridItem>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.parent_type')}</Text>
+                  <Select
+                    value={gRelationship}
+                    onChange={(e) => setGRelationship(e.target.value)}
+                    bg={inputBg}
+                    border="none"
+                    borderRadius="xl"
+                    h="12"
+                    fontSize="sm"
+                    color={textColor}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
+                  >
+                    <option value="madre">{t('reports_page.relationship.mother')}</option>
+                    <option value="padre">{t('reports_page.relationship.father')}</option>
+                    <option value="tutor">{t('reports_page.relationship.legal_guardian')}</option>
+                    <option value="abuela">{t('reports_page.relationship.grandmother')}</option>
+                    <option value="abuelo">{t('reports_page.relationship.grandfather')}</option>
+                    <option value="otro">{t('reports_page.relationship.relative')}</option>
+                  </Select>
+                </GridItem>
+
+                <GridItem colSpan={{ base: 1, md: 2 }}>
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.notes_optional')}</Text>
+                  <Textarea
+                    placeholder={t('reports_page.guardian_notes_placeholder')}
+                    value={gNotes}
+                    onChange={(e) => setGNotes(e.target.value)}
+                    bg={inputBg}
+                    border="none"
+                    borderRadius="xl"
+                    py="3"
+                    fontSize="sm"
+                    resize="none"
+                    rows={2}
+                    color={textColor}
+                    _placeholder={{ color: textMuted }}
+                    _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
+                  />
+                </GridItem>
+
+                <GridItem colSpan={{ base: 1, md: 2 }}>
+                  <Flex flexWrap="wrap" gap="6" pt="2">
+                    <Checkbox isChecked={gIsPrimary} onChange={(e) => {
+                      const next = e.target.checked;
+                      if (next) {
+                        const existingPrimary = guardians.some((x) => x.is_active && x.is_primary);
+                        setShowPrimaryWarning(existingPrimary);
+                      } else {
+                        setShowPrimaryWarning(false);
+                      }
+                      setGIsPrimary(next);
+                    }}
+                      colorScheme="blue" borderColor="#c3c5d7">
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.primary')}</Text>
+                    </Checkbox>
+
+                    <Checkbox isChecked={gReceiveWhatsapp} onChange={(e) => setGReceiveWhatsapp(e.target.checked)} colorScheme="blue" borderColor="#c3c5d7">
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.receive_wa')}</Text>
+                    </Checkbox>
+
+                    <Checkbox isChecked={gConsent} onChange={(e) => setGConsent(e.target.checked)} colorScheme="blue" borderColor="#c3c5d7">
+                      <Text fontSize="sm" fontWeight="medium" color={textLabel}>{t('reports_page.consent')}</Text>
+                    </Checkbox>
+                  </Flex>
+
+                  {showPrimaryWarning && gIsPrimary && (
+                    <Alert status="warning" borderRadius="md" mt="4">
+                      <AlertIcon />
+                      <Text fontSize="sm">{t('reports_page.already_primary')} <strong>{t('reports_page.primary')}</strong>.</Text>
+                    </Alert>
+                  )}
+                </GridItem>
+
+                <GridItem colSpan={{ base: 1, md: 2 }} mt="4">
+                  <Button
+                    w="full"
+                    onClick={createGuardian}
+                    isLoading={creatingGuardian}
+                    isDisabled={!gFullName.trim() || !gPhone.trim() || !gConsent}
+                    bgGradient="linear(to-r, #003597, #0049ca)"
+                    color="white"
+                    borderRadius="xl"
+                    py="6"
+                    fontWeight="bold"
+                    _hover={{ transform: "scale(1.02)", bgGradient: "linear(to-r, #003597, #0049ca)" }}
+                    _active={{ transform: "scale(0.98)" }}
+                  >
+                    {t('reports_page.save_guardian')}
+                  </Button>
+                </GridItem>
+              </Grid>
+            </Stack>
+          </GridItem>
+
+          {/* List Side */}
+          <GridItem>
+            <Box bg={pageBg} borderRadius="3xl" p="6" h="full">
+              <Flex align="center" justify="space-between" mb="6">
+                <Heading size="md" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.guardian_list')}</Heading>
+                <Badge bg={badgeBg} color={textLabel} px="3" py="1" borderRadius="full" fontSize="xs" fontWeight="bold">
+                  {t('reports_page.active_count', { count: guardians.filter(g => g.is_active).length })}
+                </Badge>
+              </Flex>
+
+              {guardiansLoading && (
+                <HStack>
+                  <Spinner size="sm" color={primaryColor} />
+                  <Text fontSize="sm" color={textLabel}>{t('reports_page.guardians_loading')}</Text>
+                </HStack>
+              )}
+
+              {guardiansError && <Text fontSize="sm" color="#ba1a1a">{guardiansError}</Text>}
+
+              {!guardiansLoading && !guardiansError && guardians.length === 0 && (
+                <Text fontSize="sm" color={textMuted}>
+                  {t('reports_page.no_guardians')}
+                </Text>
+              )}
+
+              {!guardiansLoading && !guardiansError && guardians.length > 0 && (
+                <Stack spacing="3">
+                  {guardians.filter(g => g.is_active).map(g => {
+                    const sendState = canSendWhatsapp(g);
+                    const hasSelectedReport = !!selectedReportId;
+                    const hasAiForSelected = selectedReportId ? !!aiExistsByReportId[selectedReportId] : false;
+
+                    return (
+                      <Box key={g.id} bg={cardBg} p="4" borderRadius="2xl" border="1px solid rgba(195,197,215,0.2)" transition="all 0.2s" _hover={{ borderColor: "#003597" }}>
+                        <Flex align="center" justify="space-between">
+                          <Flex align="center" gap="4">
+                            <Flex w="12" h="12" borderRadius="full" bg={primaryBg} color={primaryColor} align="center" justify="center">
+                              <Users size={20} />
+                            </Flex>
+                            <Box>
+                              <Text fontWeight="bold" color={textColor}>{g.full_name}</Text>
+                              <Text fontSize="sm" color={textMuted}>{g.relationship ?? t('reports_page.no_relationship')} • {g.whatsapp_phone ?? t('reports_page.no_whatsapp')}</Text>
+                            </Box>
+                          </Flex>
+                          {g.is_primary && (
+                            <Badge bg={primaryBg} color={primaryColor} px="3" py="1" borderRadius="full" fontSize="10px" fontWeight="black" letterSpacing="widest">
+                              {t('reports_page.primary_badge')}
+                            </Badge>
+                          )}
+                        </Flex>
+                        {g.notes && (
+                          <Text mt="3" fontSize="sm" color={textLabel} bg={pageBg} p="3" borderRadius="xl">
+                            {g.notes}
+                          </Text>
+                        )}
+                        {SHOW_WHATSAPP_BUTTONS && (
+                          <Box mt="4" pt="4" borderTop="1px dashed" borderColor="#e1e3e4">
+                            <Button
+                              size="sm"
+                              bg="#e1fedc"
+                              color="#006c4a"
+                              borderRadius="full"
+                              px="4"
+                              isDisabled={!hasSelectedReport || !hasAiForSelected || !sendState.ok}
+                              isLoading={!!sendingWaByGuardianId[g.id]}
+                              onClick={() => handleSendWhatsapp(g)}
+                              _hover={{ bg: "#c6fcc0" }}
+                            >
+                              {t('reports_page.send_whatsapp')}
+                            </Button>
+                            {(!hasSelectedReport || !hasAiForSelected || !sendState.ok) && (
+                              <Text fontSize="xs" color={textMuted} mt="2">
+                                {!hasSelectedReport ? t('reports_page.select_report') : !hasAiForSelected ? t('reports_page.generate_ai_first') : sendState.reason ? t(sendState.reason) : null}
+                              </Text>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
+            </Box>
+          </GridItem>
+        </Grid>
+      </Box>
+
+      {/* Crear Nuevo Reporte */}
+      <Grid templateColumns={{ base: "1fr", lg: "1fr 2fr" }} gap="8" mb="12">
+        <GridItem>
+          <Box bgGradient="linear(to-br, #003597, #0c50d6)" color="white" p="8" borderRadius="2xl" display="flex" flexDirection="column" justifyContent="space-between" h="full" boxShadow="0px 12px 24px rgba(0, 53, 151, 0.2)">
+            <Box>
+              <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" mb="2">{t('reports_page.create_new')}</Heading>
+              <Text color="whiteAlpha.80" fontSize="sm" lineHeight="relaxed">
+                {t('reports_page.create_new_desc')}
+              </Text>
+            </Box>
+            <Flex mt="8" align="center" gap="4">
+              <Box p="4" bg="whiteAlpha.20" backdropFilter="blur(12px)" borderRadius="2xl">
+                <Sparkles size={30} />
+              </Box>
+              <Text fontSize="xs" fontWeight="bold" lineHeight="tight">{t('reports_page.powered_by')}</Text>
+            </Flex>
+          </Box>
+        </GridItem>
+
+        <GridItem>
+          <Box bg={cardBg} borderRadius="2rem" p="8" border="1px solid rgba(195,197,215,0.1)" boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)" h="full">
+            <Stack spacing="6">
+              <Box>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.signals_observable')}</Text>
+                <Textarea
+                  value={signalsObserved}
+                  onChange={(e) => setSignalsObserved(e.target.value)}
+                  placeholder={t('reports_page.report_signals_placeholder')}
+                  bg={inputBg}
+                  border="none"
+                  borderRadius="2xl"
+                  px="4"
+                  py="4"
+                  fontSize="sm"
+                  rows={3}
+                  resize="none"
+                  color={textColor}
+                  _placeholder={{ color: textMuted }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
+                />
+              </Box>
+              <Box>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted} textTransform="uppercase" letterSpacing="wider" mb="2">{t('reports_page.notes_optional')}</Text>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Contexto adicional (opcional)…"
-                  rows={3}
+                  placeholder={t('reports_page.report_notes_placeholder')}
+                  bg={inputBg}
+                  border="none"
+                  borderRadius="2xl"
+                  px="4"
+                  py="4"
+                  fontSize="sm"
+                  rows={2}
+                  resize="none"
+                  color={textColor}
+                  _placeholder={{ color: textMuted }}
+                  _focus={{ ring: "2px", ringColor: "rgba(0,53,151,0.2)", bg: inputFocusBg }}
                 />
-              </FormControl>
-            </GridItem>
+              </Box>
+              <Flex justify="flex-end">
+                <Button
+                  onClick={createReport}
+                  isLoading={creating}
+                  isDisabled={!signalsObserved.trim()}
+                  bgGradient="linear(to-r, #003597, #0049ca)"
+                  color="white"
+                  px="8"
+                  py="6"
+                  borderRadius="full"
+                  fontWeight="bold"
+                  boxShadow="0px 10px 15px -3px rgba(0, 53, 151, 0.2)"
+                  _hover={{ transform: "translateY(-2px)", bgGradient: "linear(to-r, #003597, #0049ca)" }}
+                  _active={{ transform: "scale(0.98)" }}
+                  leftIcon={<PlusCircle size={18} />}
+                >
+                  {t('reports_page.create_report')}
+                </Button>
+              </Flex>
+            </Stack>
+          </Box>
+        </GridItem>
+      </Grid>
 
-            <GridItem colSpan={{ base: 1, md: 2 }}>
-              <Button
-                onClick={createReport}
-                isLoading={creating}
-                isDisabled={!strengths.trim() || !challenges.trim()}
-                colorScheme="blue"
-              >
-                Crear reporte
-              </Button>
-            </GridItem>
-          </Grid>
-        </CardBody>
-      </Card>
-
-      {/* Reports list */}
-      <Card>
-        <CardHeader>
-          <HStack justify="space-between">
-            <Heading size="md">Reportes</Heading>
-            {loading && (
-              <HStack>
-                <Spinner size="sm" />
-                <Text color="gray.600">Cargando…</Text>
-              </HStack>
-            )}
+      {/* Historial de Reportes */}
+      <Box mb="12">
+        <Flex align="center" justify="space-between" mb="6">
+          <Heading as="h2" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color={textColor}>{t('reports_page.history')}</Heading>
+          <HStack gap="2">
+            <Text fontSize="sm" fontWeight="medium" color={textMuted}>{t('reports_page.filter_by')}</Text>
+            <Button variant="ghost" size="sm" color={primaryColor} fontWeight="bold" rightIcon={<ChevronDown size={14} />}>{t('reports_page.table.date')}</Button>
+            <IconButton aria-label={t('reports_page.reload')} icon={<RefreshCw size={16} />} size="sm" variant="ghost" color={textMuted} onClick={() => loadReports()} isLoading={loading} />
           </HStack>
-        </CardHeader>
-        <CardBody>
+        </Flex>
+
+        <Box bg={cardBg} borderRadius="2rem" overflow="hidden" border="1px solid" borderColor={borderColor} boxShadow="0px 12px 24px rgba(25, 28, 29, 0.04)">
           {reports.length === 0 ? (
-            <Text color="gray.600">Aún no hay reportes para este alumno.</Text>
+            <Box p="10" textAlign="center">
+              <Text color={textMuted}>{t('reports_page.no_reports')}</Text>
+            </Box>
           ) : (
-            <Box overflowX="auto">
-              <Table size="sm">
-                <Thead>
+            <Box overflowX="auto" pb="2">
+              <Table variant="unstyled" sx={{ "tbody tr": { transition: "background 0.2s" }, "tbody tr:hover": { bg: "rgba(243, 244, 245, 0.3)" } }}>
+                <Thead bg={tableHeaderBg}>
                   <Tr>
-                    <Th>CREATED</Th>
-                    <Th>STRENGTHS</Th>
-                    <Th>CHALLENGES</Th>
-                    <Th>NOTES</Th>
-                    <Th>ID</Th>
-                    <Th>AI</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.ai_actions')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.created')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.signals')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.notes')}</Th>
+                    <Th fontSize="10px" fontWeight="black" color={textMuted} textTransform="uppercase" letterSpacing="widest" px="6" py="5">{t('reports_page.table.id')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {reports.map((r) => {
                     const isSelected = selectedReportId === r.id;
                     const exists = !!aiExistsByReportId[r.id];
+                    const reportDate = new Date(r.created_at);
 
                     return (
-                      <Tr
-                        key={r.id}
-                        bg={isSelected ? 'blue.50' : 'transparent'}
-                        _hover={{ bg: isSelected ? 'blue.50' : 'gray.50' }}
-                      >
-                        <Td whiteSpace="nowrap">
-                          {new Date(r.created_at).toLocaleString()}
-                        </Td>
-                        <Td maxW="260px">
-                          <Text noOfLines={2}>{r.strengths}</Text>
-                        </Td>
-                        <Td maxW="260px">
-                          <Text noOfLines={2}>{r.challenges}</Text>
-                        </Td>
-                        <Td maxW="260px">
-                          <Text noOfLines={2}>{r.notes || '-'}</Text>
-                        </Td>
-                        <Td whiteSpace="nowrap">
-                          <Text fontSize="xs" color="gray.600">
-                            {r.id}
-                          </Text>
-                        </Td>
-                        <Td>
-                          <HStack>
+                      <Tr key={r.id} bg={isSelected ? tableRowSelectedBg : "transparent"} borderBottom="1px solid" borderColor={tableRowBorder}>
+                        <Td px="6" py="5" verticalAlign="top">
+                          <Flex align="center" justify="flex-start" gap="2">
                             <Button
                               size="sm"
-                              variant="outline"
+                              bg={exists ? reportActionBg : "transparent"}
+                              border={exists ? "none" : "1px solid #e1e3e4"}
+                              color={exists ? reportActionColor : textLabel}
+                              fontWeight="bold"
+                              borderRadius="full"
+                              px="4"
                               onClick={() => viewOrGenerateAI(r.id)}
                               isLoading={aiLoading && selectedReportId === r.id}
+                              _hover={{ bg: "#003597", color: "white" }}
                             >
-                              {exists ? 'Ver apoyo' : 'Generar'}
+                              {exists ? 'Ver apoyo' : 'Generar IA'}
                             </Button>
-
-                            {/* ✅ Regenerar SOLO si ya existe */}
                             {exists && (
-                              <Button
+                              <IconButton
+                                aria-label={t('reports_page.regenerate')}
+                                icon={<RefreshCw size={16} />}
                                 size="sm"
+                                variant="ghost"
+                                color={textMuted}
+                                _hover={{ color: "#003597" }}
                                 onClick={() => {
                                   setSelectedReportId(r.id);
+                                  setAiReport(null);
+                                  focusAISection();
                                   generateAI(r.id);
                                 }}
-                                isLoading={
-                                  aiLoading && selectedReportId === r.id
+                                isLoading={aiLoading && selectedReportId === r.id}
+                              />
+                            )}
+                          </Flex>
+                        </Td>
+                        <Td px="6" py="5" verticalAlign="top">
+                          <Text fontWeight="bold" fontSize="sm" color={textColor}>{reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                          <Text fontSize="xs" color={textMuted} mt="1">{reportDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
+                        </Td>
+                        <Td px="6" py="5" verticalAlign="top" maxW="sm">
+                          <Box>
+                            <Text
+                              fontSize="sm"
+                              color={textLabel}
+                              noOfLines={expandedSignalsByReportId[r.id] ? undefined : 2}
+                              whiteSpace={expandedSignalsByReportId[r.id] ? "pre-wrap" : "normal"}
+                              wordBreak="break-word"
+                            >
+                              {r.signals_observed || '-'}
+                            </Text>
+
+                            {isLongText(r.signals_observed) && (
+                              <Button
+                                mt="2"
+                                size="xs"
+                                variant="ghost"
+                                color={primaryColor}
+                                fontWeight="bold"
+                                rightIcon={
+                                  expandedSignalsByReportId[r.id]
+                                    ? <ChevronUp size={14} />
+                                    : <ChevronDown size={14} />
+                                }
+                                onClick={() =>
+                                  setExpandedSignalsByReportId((prev) => ({
+                                    ...prev,
+                                    [r.id]: !prev[r.id],
+                                  }))
                                 }
                               >
-                                Regenerar
+                                {expandedSignalsByReportId[r.id] ? 'Ver menos' : 'Ver más'}
                               </Button>
                             )}
-                          </HStack>
+                          </Box>
+                        </Td>
+                        <Td px="6" py="5" verticalAlign="top" maxW="sm">
+                          <Box>
+                            <Text
+                              fontSize="sm"
+                              color={textLabel}
+                              noOfLines={expandedNotesByReportId[r.id] ? undefined : 2}
+                              whiteSpace={expandedNotesByReportId[r.id] ? "pre-wrap" : "normal"}
+                              wordBreak="break-word"
+                            >
+                              {r.notes || 'N/A'}
+                            </Text>
+
+                            {isLongText(r.notes) && (
+                              <Button
+                                mt="2"
+                                size="xs"
+                                variant="ghost"
+                                color={primaryColor}
+                                fontWeight="bold"
+                                rightIcon={
+                                  expandedNotesByReportId[r.id]
+                                    ? <ChevronUp size={14} />
+                                    : <ChevronDown size={14} />
+                                }
+                                onClick={() =>
+                                  setExpandedNotesByReportId((prev) => ({
+                                    ...prev,
+                                    [r.id]: !prev[r.id],
+                                  }))
+                                }
+                              >
+                                {expandedNotesByReportId[r.id] ? 'Ver menos' : 'Ver más'}
+                              </Button>
+                            )}
+                          </Box>
+                        </Td>
+                        <Td px="6" py="5" verticalAlign="top">
+                          <Text fontSize="xs" fontFamily="'Plus Jakarta Sans', monospace" color={textMuted}>{r.id.substring(0, 10)}...</Text>
                         </Td>
                       </Tr>
                     );
@@ -934,203 +1641,491 @@ export default function ReportsPage() {
               </Table>
             </Box>
           )}
-        </CardBody>
-      </Card>
+        </Box>
+      </Box>
 
-      {/* AI section */}
-      <Box mt={6}>
-        <Heading size="md" mb={2}>
-          Apoyo generado por IA
-        </Heading>
-
-        {!selectedReportId ? (
-          <Text color="gray.600">
-            Selecciona un reporte para ver o generar el apoyo.
+      {/* Apoyo generado por IA Section */}
+      <Box ref={aiSectionRef} tabIndex={-1} animation="fade-in 0.7s" scrollMarginTop="96px" outline="none">
+        <Flex direction="column" align="center" textAlign="center" mb="8" gap="2">
+          <Flex align="center" gap="2" px="4" py="1.5" bg={primaryBg} color={primaryColor} borderRadius="full" fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="widest">
+            <Sparkles size={14} />
+            IA Insight Active
+          </Flex>
+          <Heading as="h2" size="xl" fontFamily="'Plus Jakarta Sans', sans-serif" letterSpacing="tight" color={textColor}>{t('reports_page.ai_generated_support')}</Heading>
+          <Text color={textLabel} maxW="2xl">
+            {!selectedReportId
+              ? "Selecciona un reporte en la tabla superior para visualizar las estrategias diferenciadas basadas en el análisis de comportamiento."
+              : "Estrategias diferenciadas basadas en el análisis del comportamiento reportado."}
           </Text>
-        ) : aiLoading ? (
-          <Alert status="info" borderRadius="md">
-            <AlertIcon />
-            <HStack>
-              <Spinner size="sm" />
-              <Text fontSize="sm">
-                Generando apoyo con IA...
-                {aiJobStatus && (
-                  <Badge ml={2} colorScheme="blue">
-                    {aiJobStatus}
-                  </Badge>
+        </Flex>
+
+        {selectedReportId && aiLoading && (
+          <Flex justify="center" mb="8">
+            <Flex align="center" gap="3" bg={pageBg} p="4" borderRadius="2xl" border="1px solid #e1e3e4">
+              <Spinner size="sm" color={primaryColor} />
+              <Text fontSize="sm" color={textLabel} fontWeight="bold">{t('reports_page.generating_ai')}</Text>
+              {aiJobStatus && <Badge colorScheme="blue">{aiJobStatus}</Badge>}
+            </Flex>
+          </Flex>
+        )}
+
+        {selectedReportId && !aiLoading && !aiReport && (
+          <Flex justify="center" mb="8">
+            <Text color={textMuted}>{t('reports_page.no_ai_report')}</Text>
+          </Flex>
+        )}
+
+        {selectedReportId && aiReport && !aiLoading && (
+          <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="8">
+
+            {/* Maestro Card */}
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid" borderColor={borderColor} boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+              <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#0049ca"></Box>
+              <Flex align="center" justify="space-between" mb="8">
+                <Flex align="center" gap="4">
+                  <Flex p="3" bg={primaryBg} color={primaryColor} borderRadius="2xl">
+                    <School size={24} />
+                  </Flex>
+                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.teacher_version')}</Heading>
+                </Flex>
+                <VStack align="end" spacing="1">
+                  <Text fontSize="xs" fontWeight="bold" color={textMuted}>{t('reports_page.academic_intervention')}</Text>
+                  {!aiReport.guardrails_passed && <Badge colorScheme="red" variant="subtle">{t('reports_page.check_guardrails')}</Badge>}
+                </VStack>
+              </Flex>
+
+              <Stack spacing="6">
+                <Box bg={inputBg} borderRadius="2xl" p="5">
+                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#0049ca" mb="2">{t('reports_page.executive_summary')}</Text>
+                  {isPending ? (
+                    <Box mt="2">
+                      <Text fontWeight="bold" color="#ba1a1a" mb="2">{t('reports_page.validation_process')}</Text>
+                      <Text mb="4" fontSize="sm" color={textLabel}>{pendingMessage}</Text>
+                      <Button as="a" href={pendingWhatsappHref} target="_blank" bg="#006c4a" color="white" w="full" size="sm" borderRadius="xl" _hover={{ bg: "#005237" }}>
+                        Contactar por WhatsApp
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color={textColor}>{aiReport.teacher_version.summary}</Text>
+                  )}
+                </Box>
+
+                <Box>
+                  <Flex align="center" gap="2" mb="3">
+                    <Activity size={16} color="#0c50d6" />
+                    <Text fontSize="sm" fontWeight="bold" color={textColor}>{t('reports_page.signals_detected')}</Text>
+                  </Flex>
+
+                  <Flex flexWrap="wrap" gap="2">
+                    {detectedSignalsFromTeacherReport.length > 0 ? (
+                      detectedSignalsFromTeacherReport.map((s, idx) => (
+                        <Badge
+                          key={idx}
+                          bg={signalBadgeBg}
+                          color={signalBadgeColor}
+                          px="3"
+                          py="1.5"
+                          borderRadius="full"
+                          fontSize="xs"
+                          fontWeight="medium"
+                          textTransform="none"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          maxW="100%"
+                        >
+                          {s}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Text fontSize="sm" color={textMuted}>{t('reports_page.no_signals')}</Text>
+                    )}
+                  </Flex>
+                </Box>
+
+                <Box border="1px solid" borderColor={borderColor} borderRadius="2xl" overflow="hidden">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandTeacher(!expandTeacher)} _hover={{ bg: disclosureHoverBg }} transition="colors">
+                    <Flex align="center" gap="3">
+                      <FileText size={18} color="#0049ca" />
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>
+                        {shouldShowIhui3HumanReview
+                          ? t('reports_page.human_review_required')
+                          : shouldShowIhui3ValidatedStrategy
+                            ? t('reports_page.ihui3_strategy')
+                            : teacherHasNew
+                              ? t('reports_page.classroom_microinterventions')
+                              : t('reports_page.recommendations')}
+                      </Text>
+                    </Flex>
+                    {expandTeacher ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
+                  </Flex>
+                  <Collapse in={expandTeacher}>
+                    <Box p="5" bg={cardBg}>
+                      {shouldShowIhui3HumanReview && (
+                        <Alert
+                          status="warning"
+                          borderRadius="xl"
+                          bg={warningBg}
+                          border="1px solid"
+                          borderColor={warningBorder}
+                        >
+                          <AlertIcon />
+                          <Box>
+                            <Text fontSize="sm" fontWeight="bold" color={warningText} mb="1">
+                              Este caso requiere revisión humana
+                            </Text>
+                            <Text fontSize="sm" color={warningText} whiteSpace="pre-line">
+                              {ihui3HumanReviewMessage}
+                            </Text>
+                            <Button
+                              as="a"
+                              href={pendingWhatsappHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              mt="4"
+                              size="sm"
+                              borderRadius="full"
+                              colorScheme="green"
+                            >
+                              Pedir apoyo por WhatsApp
+                            </Button>
+                          </Box>
+                        </Alert>
+                      )}
+                      {shouldShowIhui3ValidatedStrategy && renderIhui3StrategyCard("teacher")}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && teacherHasNew && teacherMIs.map((mi, idx) => (
+                        <Box key={idx} mb={idx === teacherMIs.length - 1 ? 0 : 4}>
+                          <MicroInterventionCard mi={mi} idx={idx} accentColor="#0049ca" />
+                        </Box>
+                      ))}
+
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !teacherHasNew && teacherLegacyRecs.map((rec, idx) => (
+                        <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === teacherLegacyRecs.length - 1 ? 0 : 4}>
+                          <Flex justify="space-between" mb="2">
+                            <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
+                            {rec.when_to_use && <Badge bg={primaryBg} color={primaryColor}>{rec.when_to_use}</Badge>}
+                          </Flex>
+                          <Stack spacing="1">
+                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>)}
+                          </Stack>
+                        </Box>
+                      ))}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !teacherHasNew && teacherLegacyRecs.length === 0 && (
+                        <Text fontSize="sm" color={textMuted}>
+                          {t('reports_page.no_recommendations')}
+                        </Text>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Box>
+
+                {aiReport.guardrails_notes && (
+                  <Alert status="warning" borderRadius="xl">
+                    <AlertIcon />
+                    <Text fontSize="sm">{aiReport.guardrails_notes}</Text>
+                  </Alert>
                 )}
-              </Text>
-            </HStack>
-          </Alert>
-        ) : !aiReport ? (
-          <Text color="gray.600">No hay AI report aún para este reporte.</Text>
-        ) : (
-          <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={4}>
-            {/* Teacher */}
-            <Card>
-              <CardHeader>
-                <HStack justify="space-between">
-                  <Heading size="sm">Versión Maestro</Heading>
-                  <Badge
-                    colorScheme={aiReport.guardrails_passed ? 'green' : 'red'}
-                  >
-                    {aiReport.guardrails_passed ? 'Guardrails OK' : 'Revisar'}
-                  </Badge>
-                </HStack>
-                <Text fontSize="sm" color="gray.600" mt={1}>
-                  {aiReport.model_name} •{' '}
-                  {new Date(aiReport.created_at).toLocaleString()}
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Text fontWeight="semibold" mb={2}>
-                  Resumen
-                </Text>
-                <Text mb={4}>{aiReport.teacher_version.summary}</Text>
+              </Stack>
+            </Box>
 
-                <Divider my={3} />
+            {/* Familia Card */}
+            <Box bg={cardBg} borderRadius="2.5rem" p="8" border="1px solid" borderColor={borderColor} boxShadow="0px 24px 48px rgba(25, 28, 29, 0.06)" position="relative" overflow="hidden">
+              <Box position="absolute" top="0" left="0" w="8px" h="full" bg="#7d4ce7"></Box>
+              <Flex align="center" justify="space-between" mb="8">
+                <Flex align="center" gap="4">
+                  <Flex p="3" bg="#e9ddff" color="#5516be" borderRadius="2xl">
+                    <Home size={24} />
+                  </Flex>
+                  <Heading as="h3" size="lg" fontFamily="'Plus Jakarta Sans', sans-serif" color={textColor}>{t('reports_page.family_version')}</Heading>
+                </Flex>
+                <Text fontSize="xs" fontWeight="bold" color={textMuted}>{t('reports_page.home_support')}</Text>
+              </Flex>
 
-                <Text fontWeight="semibold" mb={2}>
-                  Señales detectadas
-                </Text>
-                <Stack spacing={1} mb={4}>
-                  {aiReport.teacher_version.signals_detected?.map((s, idx) => (
-                    <Text key={idx}>• {s}</Text>
-                  ))}
-                </Stack>
+              <Stack spacing="6">
+                <Box bg={inputBg} borderRadius="2xl" p="5">
+                  <Text fontSize="xs" fontWeight="black" textTransform="uppercase" letterSpacing="tighter" color="#7d4ce7" mb="2">{t('reports_page.practical_rec')}</Text>
+                  {isPending ? (
+                    <Box mt="2">
+                      <Text fontWeight="bold" color="#ba1a1a" mb="2">{t('reports_page.validation_process')}</Text>
+                      <Text mb="4" fontSize="sm" color={textLabel}>{pendingMessage}</Text>
+                      <Button as="a" href={pendingWhatsappHref} target="_blank" bg="#006c4a" color="white" w="full" size="sm" borderRadius="xl" _hover={{ bg: "#005237" }}>
+                        Contactar por WhatsApp
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Text fontSize="sm" lineHeight="relaxed" fontWeight="medium" color={textColor}>{aiReport.parent_version.summary}</Text>
+                  )}
+                </Box>
 
-                <Divider my={3} />
+                <Box>
+                  <Flex align="center" gap="2" mb="3">
+                    <Activity size={16} color="#7d4ce7" />
+                    <Text fontSize="sm" fontWeight="bold" color={textColor}>{t('reports_page.signals_detected')}</Text>
+                  </Flex>
 
-                {/* Recomendaciones collapsible */}
-                <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Recomendaciones</Text>
-                  <IconButton
-                    aria-label="toggle teacher recs"
-                    size="sm"
-                    variant="ghost"
-                    icon={expandTeacherRecs ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandTeacherRecs((v) => !v)}
-                  />
-                </HStack>
-                <Collapse in={expandTeacherRecs} animateOpacity>
-                  <Stack spacing={3} mb={4}>
-                    {aiReport.teacher_version.recommendations?.map(
-                      (rec, idx) => (
-                        <Box
+                  <Flex flexWrap="wrap" gap="2">
+                    {detectedSignalsFromTeacherReport.length > 0 ? (
+                      detectedSignalsFromTeacherReport.map((s, idx) => (
+                        <Badge
                           key={idx}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
+                          bg={signalBadgeBg}
+                          color={signalBadgeColor}
+                          px="3"
+                          py="1.5"
+                          borderRadius="full"
+                          fontSize="xs"
+                          fontWeight="medium"
+                          textTransform="none"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          maxW="full"
                         >
-                          <HStack justify="space-between" mb={1}>
-                            <Text fontWeight="semibold">{rec.title}</Text>
-                            {rec.when_to_use ? (
-                              <Badge variant="subtle" colorScheme="blue">
-                                {rec.when_to_use}
-                              </Badge>
-                            ) : null}
-                          </HStack>
-                          <Stack spacing={1} mt={2}>
-                            {rec.steps?.map((st, i) => (
-                              <Text key={i} fontSize="sm">
-                                • {st}
-                              </Text>
-                            ))}
+                          {s}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Text fontSize="sm" color={textMuted}>{t('reports_page.no_signals')}</Text>
+                    )}
+                  </Flex>
+                </Box>
+
+                <Box border="1px solid" borderColor={borderColor} borderRadius="2xl" overflow="hidden">
+                  <Flex align="center" justify="space-between" p="4" bg={pageBg} cursor="pointer" onClick={() => setExpandParent(!expandParent)} _hover={{ bg: disclosureHoverBg }} transition="colors">
+                    <Flex align="center" gap="3">
+                      <FileText size={18} color="#7d4ce7" />
+                      <Text fontWeight="bold" fontSize="sm" color={textColor}>
+                        {shouldShowIhui3HumanReview
+                          ? t('reports_page.human_review_required')
+                          : shouldShowIhui3ValidatedStrategy
+                            ? t('reports_page.ihui3_strategy')
+                            : parentHasNew
+                              ? t('reports_page.home_dynamics')
+                              : t('reports_page.recommendations')}
+                      </Text>
+                    </Flex>
+                    {expandParent ? <ChevronUp size={20} color={textMuted} /> : <ChevronDown size={20} color={textMuted} />}
+                  </Flex>
+                  <Collapse in={expandParent}>
+                    <Box p="5" bg={cardBg}>
+                      {shouldShowIhui3HumanReview && (
+                        <Alert
+                          status="warning"
+                          borderRadius="xl"
+                          bg={warningBg}
+                          border="1px solid"
+                          borderColor={warningBorder}
+                        >
+                          <AlertIcon />
+                          <Box>
+                            <Text fontSize="sm" fontWeight="bold" color={warningText} mb="1">
+                              Este caso requiere revisión humana
+                            </Text>
+                            <Text fontSize="sm" color={warningText} whiteSpace="pre-line">
+                              {ihui3HumanReviewMessage}
+                            </Text>
+                            <Button
+                              as="a"
+                              href={pendingWhatsappHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              mt="4"
+                              size="sm"
+                              borderRadius="full"
+                              colorScheme="green"
+                            >
+                              Pedir apoyo por WhatsApp
+                            </Button>
+                          </Box>
+                        </Alert>
+                      )}
+                      {shouldShowIhui3ValidatedStrategy && renderIhui3StrategyCard("parent")}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && parentHasNew && parentMIs.map((mi, idx) => (
+                        <Box key={idx} mb={idx === parentMIs.length - 1 ? 0 : 4}>
+                          <MicroInterventionCard mi={mi} idx={idx} accentColor="#7d4ce7" />
+                        </Box>
+                      ))}
+
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !parentHasNew && parentLegacyRecs.map((rec, idx) => (
+                        <Box key={idx} border="1px dashed #c3c5d7" borderRadius="2xl" p="4" mb={idx === parentLegacyRecs.length - 1 ? 0 : 4}>
+                          <Flex justify="space-between" mb="2">
+                            <Text fontWeight="bold" color={textColor}>{rec.title}</Text>
+                            {rec.when_to_use && <Badge bg="#e9ddff" color="#5516be">{rec.when_to_use}</Badge>}
+                          </Flex>
+                          <Stack spacing="1">
+                            {rec.steps?.map((st, i) => <Text key={i} fontSize="sm" color={textLabel}>• {st}</Text>)}
                           </Stack>
                         </Box>
-                      )
-                    )}
-                  </Stack>
-                </Collapse>
+                      ))}
+                      {!shouldShowIhui3HumanReview && !shouldShowIhui3ValidatedStrategy && !parentHasNew && parentLegacyRecs.length === 0 && (
+                        <Text fontSize="sm" color={textMuted}>
+                          {t('reports_page.no_recommendations')}
+                        </Text>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Box>
 
-                <Divider my={3} />
-              </CardBody>
-            </Card>
-
-            {/* Parent */}
-            <Card>
-              <CardHeader>
-                <Heading size="sm">Versión Familia</Heading>
-                <Text fontSize="sm" color="gray.600" mt={1}>
-                  Recomendaciones prácticas para casa.
-                </Text>
-              </CardHeader>
-              <CardBody>
-                <Text fontWeight="semibold" mb={2}>
-                  Resumen
-                </Text>
-                <Text mb={4}>{aiReport.parent_version.summary}</Text>
-
-                <Divider my={3} />
-
-                <Text fontWeight="semibold" mb={2}>
-                  Señales detectadas
-                </Text>
-                <Stack spacing={1} mb={4}>
-                  {aiReport.parent_version.signals_detected?.map((s, idx) => (
-                    <Text key={idx}>• {s}</Text>
-                  ))}
-                </Stack>
-
-                <Divider my={3} />
-
-                {/* Recomendaciones collapsible */}
-                <HStack justify="space-between" mb={2}>
-                  <Text fontWeight="semibold">Recomendaciones</Text>
-                  <IconButton
-                    aria-label="toggle parent recs"
-                    size="sm"
-                    variant="ghost"
-                    icon={expandParentRecs ? <ChevronUp /> : <ChevronDown />}
-                    onClick={() => setExpandParentRecs((v) => !v)}
-                  />
-                </HStack>
-                <Collapse in={expandParentRecs} animateOpacity>
-                  <Stack spacing={3} mb={4}>
-                    {aiReport.parent_version.recommendations?.map(
-                      (rec, idx) => (
-                        <Box
-                          key={idx}
-                          borderWidth="1px"
-                          borderRadius="md"
-                          p={3}
-                        >
-                          <HStack justify="space-between" mb={1}>
-                            <Text fontWeight="semibold">{rec.title}</Text>
-                            {rec.when_to_use ? (
-                              <Badge variant="subtle" colorScheme="purple">
-                                {rec.when_to_use}
-                              </Badge>
-                            ) : null}
-                          </HStack>
-                          <Stack spacing={1} mt={2}>
-                            {rec.steps?.map((st, i) => (
-                              <Text key={i} fontSize="sm">
-                                • {st}
-                              </Text>
-                            ))}
-                          </Stack>
-                        </Box>
-                      )
-                    )}
-                  </Stack>
-                </Collapse>
-
-                <Divider my={3} />
-                {aiReport.guardrails_notes ? (
-                  <Box mt={4}>
-                    <Alert status="warning">
-                      <AlertIcon />
-                      <Text fontSize="sm">{aiReport.guardrails_notes}</Text>
-                    </Alert>
-                  </Box>
-                ) : null}
-              </CardBody>
-            </Card>
+                {aiReport.guardrails_notes && (
+                  <Alert status="warning" borderRadius="xl">
+                    <AlertIcon />
+                    <Text fontSize="sm">{aiReport.guardrails_notes}</Text>
+                  </Alert>
+                )}
+              </Stack>
+            </Box>
           </Grid>
         )}
       </Box>
+      {shouldShowIhui3Wizard && ihui3Wizard && (
+        <Modal
+          isOpen={shouldShowIhui3Wizard}
+          onClose={() => { }}
+          closeOnOverlayClick={false}
+          closeOnEsc={false}
+          size="2xl"
+          isCentered
+        >
+          <ModalOverlay bg={wizardOverlayBg} />
+          <ModalContent
+            bg={wizardModalBg}
+            borderRadius="2xl"
+            border="1px solid"
+            borderColor={wizardModalBorder}
+            boxShadow="2xl"
+            overflow="hidden"
+          >
+            <ModalHeader px={{ base: 5, md: 6 }} pt={6} pb={4}>
+              <VStack align="start" spacing="1">
+                <Badge
+                  bg={wizardBadgeBg}
+                  color={wizardBadgeColor}
+                  borderRadius="full"
+                  px="3"
+                  py="1"
+                >
+                  IHUI 3.0
+                </Badge>
+                <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                  IHUI necesita validar una hipótesis
+                </Text>
+              </VStack>
+            </ModalHeader>
+
+            <ModalCloseButton display="none" />
+
+            <ModalBody px={{ base: 5, md: 6 }} maxH="70vh" overflowY="auto">
+              <Text fontSize="sm" color={textLabel} mb="5">
+                Antes de cerrar las recomendaciones para maestro y familia, responde estas preguntas rápidas.
+                Tus respuestas ayudarán a elegir la estrategia más adecuada o, si el caso sigue ambiguo,
+                pedir revisión humana.
+              </Text>
+
+              <Stack spacing="4">
+                {ihui3Wizard.questions.map((q, idx) => {
+                  const questionKey = getIhui3QuestionKey(q, idx);
+                  const selectedAnswer = ihui3Answers[questionKey];
+                  const questionText = q.text ?? q.question ?? "";
+
+                  return (
+                    <Box
+                      key={questionKey}
+                      p="4"
+                      border="1px solid"
+                      borderColor={wizardQuestionBorder}
+                      borderRadius="xl"
+                      bg={wizardQuestionBg}
+                      transition="border-color 0.2s ease, box-shadow 0.2s ease"
+                      _hover={{ borderColor: wizardQuestionHoverBorder }}
+                    >
+                      <Text fontSize="sm" fontWeight="bold" color={textColor} mb="1">
+                        Pregunta {idx + 1}
+                      </Text>
+
+                      <Text fontSize="sm" color={textLabel} mb="3">
+                        {questionText}
+                      </Text>
+
+                      {(q.nucleus || q.subskill) && (
+                        <Text fontSize="xs" color={textMuted} mb="3">
+                          {q.nucleus}
+                          {q.subskill ? ` / ${q.subskill}` : ""}
+                        </Text>
+                      )}
+
+                      <HStack spacing="3" wrap="wrap">
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "yes" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "yes" ? "green" : "gray"}
+                          onClick={() => handleIhui3AnswerChange(questionKey, "yes")}
+                        >
+                          Sí
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "sometimes" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "sometimes" ? "yellow" : "gray"}
+                          onClick={() =>
+                            handleIhui3AnswerChange(questionKey, "sometimes")
+                          }
+                        >
+                          A veces
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          borderRadius="full"
+                          variant={selectedAnswer === "no" ? "solid" : "outline"}
+                          colorScheme={selectedAnswer === "no" ? "red" : "gray"}
+                          onClick={() => handleIhui3AnswerChange(questionKey, "no")}
+                        >
+                          No
+                        </Button>
+                      </HStack>
+                    </Box>
+                  );
+                })}
+
+                {ihui3WizardError && (
+                  <Alert status="error" borderRadius="xl">
+                    <AlertIcon />
+                    <Text fontSize="sm">{ihui3WizardError}</Text>
+                  </Alert>
+                )}
+              </Stack>
+            </ModalBody>
+
+            <ModalFooter
+              px={{ base: 5, md: 6 }}
+              py={5}
+              bg={wizardFooterBg}
+              borderTop="1px solid"
+              borderColor={wizardModalBorder}
+            >
+              <Button
+                bg="#0049ca"
+                color="white"
+                borderRadius="xl"
+                w={{ base: "full", md: "auto" }}
+                onClick={handleSubmitIhui3Answers}
+                isDisabled={!areIhui3QuestionsAnswered()}
+                isLoading={
+                  ihui3SubmitState === "submitting_answers" ||
+                  ihui3SubmitState === "refining_strategy" ||
+                  ihui3SubmitState === "refreshing_result"
+                }
+                loadingText={getIhui3WizardSubmitLabel(ihui3SubmitState)}
+                _hover={{ bg: "#003a9e" }}
+              >
+                {getIhui3WizardSubmitLabel(ihui3SubmitState)}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
+
     </Box>
   );
 }
-

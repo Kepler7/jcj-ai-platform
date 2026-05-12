@@ -13,3 +13,12 @@ from app.modules.guardians.models import Guardian  # noqa: F401
 
 from app.modules.ai_fallback_events.models import AIFallbackEvent  # noqa: F401
 
+from app.modules.classes.models import Class, TeacherClass, StudentClass  # noqa
+
+from app.modules.share_links.models import ShareLink  # noqa: F401
+
+from app.modules.playbooks.models import PlaybookSyncRun  # noqa: F401
+from app.modules.ai_feedback.models import (
+    AIPrediction,
+    AIPredictionFeedback,
+)  # noqa: F401

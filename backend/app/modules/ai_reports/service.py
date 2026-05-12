@@ -4,12 +4,20 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+from app.settings import settings
 
 from app.modules.reports.models import StudentReport
 from app.modules.students.models import Student
 from app.modules.ai_reports.models import AIReport
 
-from app.ai.orchestrator import generate_support
+# from app.ai.orchestrator import generate_support
+from app.ai.generate_support_v2 import generate_support_v2
+from app.ai.utils.normalization import normalize_topic_nucleo
+
+try:
+    from app.modules.ihui_3.service import generate_support_ihui3
+except ImportError:
+    generate_support_ihui3 = None
 
 
 def generate_ai_report(
@@ -18,6 +26,7 @@ def generate_ai_report(
     report_id: UUID,
     user_id: UUID,
     contexts: Optional[List[str]] = None,
+    job_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Genera un AIReport para un StudentReport existente y lo guarda en Postgres.
@@ -38,14 +47,29 @@ def generate_ai_report(
     if not student:
         raise ValueError("Student not found")
 
+    engine_version = str(getattr(settings, "IHUI_ENGINE_VERSION", "2")).strip()
+
+    print(
+        "DEBUG REPORT STUDENT:",
+        {
+            "report_id": str(report.id),
+            "student_id": str(student.id),
+            "student_name": student.full_name,
+            "student_age": student.age,
+            "ihui_version": engine_version,
+        },
+    )
+
     # 3) Armar report_text según tus campos reales
     parts: List[str] = []
-    if getattr(report, "strengths", None):
-        parts.append(f"Fortalezas: {report.strengths}")
-    if getattr(report, "challenges", None):
-        parts.append(f"Retos: {report.challenges}")
-    if getattr(report, "notes", None):
-        parts.append(f"Notas: {report.notes}")
+
+    signals = getattr(report, "signals_observed", None)
+    if signals:
+        parts.append(f"Señales observables: {signals}")
+
+    notes = getattr(report, "notes", None)
+    if notes:
+        parts.append(f"Notas: {notes}")
 
     report_text = "\n".join(parts).strip() or "Sin observaciones."
 
@@ -58,29 +82,42 @@ def generate_ai_report(
     model_name: str
     meta: Dict[str, Any] = {}
 
-    out = generate_support(
-        student_name=student.full_name,
-        age=student.age,
-        group=getattr(student, "group", "") or "",
-        report_text=report_text,
-        contexts=contexts,
-    )
+    if engine_version == "3":
+        if generate_support_ihui3 is None:
+            raise RuntimeError(
+                "IHUI_ENGINE_VERSION=3 pero app.modules.ihui_3.service.generate_support_ihui3 "
+                "todavía no existe. Crea el módulo IHUI 3.0 o cambia IHUI_ENGINE_VERSION=2."
+            )
 
-    if isinstance(out, tuple) and len(out) == 3:
-        support, model_name, meta = out
-        if meta is None:
-            meta = {}
-    elif isinstance(out, tuple) and len(out) == 2:
-        support, model_name = out
-        meta = {}
+        out = generate_support_ihui3(
+            db=db,
+            report_id=report.id,
+            report_text=report_text,
+            age=student.age,
+            student_id=student.id,
+            school_id=report.school_id,
+            model_name="ihui-3-initial",
+        )
     else:
-        support = out
-        model_name = getattr(out, "model_name", "unknown")
-        meta = {}
+        out = generate_support_v2(
+            db=db,
+            report_id=report.id,
+            report_text=report_text,
+            age=student.age,
+            student_id=student.id,
+            school_id=report.school_id,
+            model_name="v2-initial",
+        )
+
+    support = out["support"]
+    model_name = out["model_name"]
+    meta = out["meta"] or {}
 
     # 5) Derivar fallback desde meta (worker tracking)
     fallback_used = bool(meta.get("fallback_used", False))
-    fallback_reason = meta.get("fallback_reason") or ("no_match" if fallback_used else None)
+    fallback_reason = meta.get("fallback_reason") or (
+        "no_match" if fallback_used else None
+    )
 
     # contexts usados (lista)
     contexts_used = meta.get("context")
@@ -117,13 +154,15 @@ def generate_ai_report(
         guardrails_passed=True,
         # ✅ si fallback, guardamos disclaimer aquí (te sirve en UI también)
         guardrails_notes=guardrails_notes,
+        engine_version=meta.get("engine_version", engine_version),
+        ai_metadata=meta,
+        validation_status=meta.get("validation_status"),
     )
 
     db.add(ai_report)
     db.commit()
     db.refresh(ai_report)
 
-    # 8) Preparar respuesta para el worker (Pendientes de Playbook)
     def _clip(s: str, n: int) -> str:
         s = (s or "").strip()
         if len(s) <= n:
@@ -144,7 +183,9 @@ def generate_ai_report(
     model_output_full = meta.get("model_output_summary")
     if not model_output_full:
         try:
-            model_output_full = str(getattr(support.parent_version, "summary", "") or "").strip()
+            model_output_full = str(
+                getattr(support.parent_version, "summary", "") or ""
+            ).strip()
         except Exception:
             model_output_full = ""
 
@@ -152,26 +193,27 @@ def generate_ai_report(
         model_output_full = model_output_full[:MAX_FULL]
 
     # PREVIEW summary
-    model_output_preview = meta.get("model_output_preview") or _clip(model_output_full, 240)
+    model_output_preview = meta.get("model_output_preview") or _clip(
+        model_output_full, 240
+    )
 
-    return {
-        "ai_report_id": str(ai_report.id),
-        "fallback_used": fallback_used,
-        "fallback_reason": fallback_reason,
-        "topic_nucleo": meta.get("topic_nucleo"),
+    # Si fue fallback, crear evento pendiente para Deneb
+    if fallback_used:
+        from app.jobs.ai_tasks import create_fallback_event
 
-        # ✅ estandar: lista de contexts usados
-        "contexts": contexts_used,
-        # ✅ opcional: primer contexto “principal”
-        "context_primary": (contexts_used[0] if contexts_used else None),
+        create_fallback_event(
+            db=db,
+            school_id=report.school_id,
+            student_id=report.student_id,
+            report_id=report.id,
+            ai_report_id=ai_report.id,
+            reason=fallback_reason or "no_match",
+            topic_nucleo=normalize_topic_nucleo(meta.get("topic_nucleo")),
+            context=contexts_used,
+            query_text=query_text_full,
+            model_output_summary=model_output_full,
+            created_by_user_id=user_id,
+        )
+        db.commit()
 
-        # ✅ FULL + PREVIEW
-        "query_text": query_text_full,
-        "query_preview": query_preview,
-        "model_output_summary": model_output_full,
-        "model_output_preview": model_output_preview,
-
-        "rag_items_count": meta.get("rag_items_count", None),
-    }
-
-
+    return ai_report

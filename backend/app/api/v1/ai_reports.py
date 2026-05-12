@@ -46,15 +46,13 @@ def build_report_text(student: Student, report: StudentReport) -> str:
     if getattr(report, "participation", None):
         parts.append(f"- Participación: {report.participation}")
 
-    if getattr(report, "strengths", None):
-        parts.append("")
-        parts.append("Fortalezas observadas:")
-        parts.append(str(report.strengths))
+    signals = getattr(report, "signals_observed", None)
+    if signals:
+        parts.append(f"Señales observables: {signals}")
 
-    if getattr(report, "challenges", None):
-        parts.append("")
-        parts.append("Retos / dificultades observadas:")
-        parts.append(str(report.challenges))
+    notes = getattr(report, "notes", None)
+    if notes:
+        parts.append(f"Notas: {notes}")
 
     if getattr(report, "notes", None):
         parts.append("")
@@ -64,7 +62,9 @@ def build_report_text(student: Student, report: StudentReport) -> str:
     return "\n".join(parts).strip()
 
 
-@router.post("/generate", response_model=AIReportOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/generate", response_model=AIReportOut, status_code=status.HTTP_201_CREATED
+)
 def generate_ai_report_endpoint(
     payload: GenerateAIReportRequest,
     db: Session = Depends(get_db),
@@ -91,11 +91,14 @@ def generate_ai_report_endpoint(
 
     return ai_report
 
+
 @router.get("", response_model=AIReportOut)
 def get_latest_ai_report(
     report_id: UUID = Query(..., description="StudentReport ID (UUID)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
+    current_user: User = Depends(
+        require_role(Role.platform_admin, Role.school_admin, Role.teacher)
+    ),
 ):
     # 1) Buscar el AI report más reciente por report_id
     ai_report = (
@@ -111,19 +114,24 @@ def get_latest_ai_report(
 
     # 2) 404 si no existe
     if not ai_report:
-        raise HTTPException(status_code=404, detail="AIReport not found for this report_id")
+        raise HTTPException(
+            status_code=404, detail="AIReport not found for this report_id"
+        )
 
     # 3) 403 si es otra escuela (excepto platform_admin)
     ensure_same_school(current_user, UUID(str(ai_report.school_id)))
 
     return ai_report
 
+
 @router.get("/history", response_model=list[AIReportOut])
 def get_ai_reports_history(
     report_id: UUID = Query(..., description="StudentReport ID (UUID)"),
     limit: int = Query(20, ge=1, le=100, description="Max items to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(Role.platform_admin, Role.school_admin, Role.teacher)),
+    current_user: User = Depends(
+        require_role(Role.platform_admin, Role.school_admin, Role.teacher)
+    ),
 ):
     # 1) Traer lista (más reciente primero)
     rows = (
@@ -139,7 +147,9 @@ def get_ai_reports_history(
 
     # 2) 404 si no hay nada
     if not rows:
-        raise HTTPException(status_code=404, detail="No AIReports found for this report_id")
+        raise HTTPException(
+            status_code=404, detail="No AIReports found for this report_id"
+        )
 
     # 3) 403 si es otra escuela (excepto platform_admin)
     # (basta validar con el primero, porque todos comparten school_id)

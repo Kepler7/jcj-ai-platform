@@ -38,6 +38,11 @@ from app.api.v1.guardians import router as guardians_router
 from app.api.v1.share_links import router as share_links_router
 from app.api.v1.ai_fallback_events import router as ai_fallbacks_router
 from app.api.v1.playbook_fallbacks import router as playbook_fallbacks_router
+from app.api.v1.classes import router as classes_router
+from app.api.v1.students import router as student_router
+from app.api.v1.playbooks import router as playbooks_router
+from app.api.v1.ai_feedback import router as ai_feedback_router
+from app.api.v1.ihui3 import router as ihui3_router
 
 app.include_router(schools_router)
 app.include_router(auth_router)
@@ -50,11 +55,18 @@ app.include_router(guardians_router)
 app.include_router(share_links_router)
 app.include_router(ai_fallbacks_router)
 app.include_router(playbook_fallbacks_router)
+app.include_router(classes_router)
+app.include_router(student_router)
+app.include_router(playbooks_router)
+app.include_router(ai_feedback_router)
+app.include_router(ihui3_router)
+
 
 # 4️⃣ Health checks
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 @app.get("/health/deps")
 def health_deps():
@@ -86,4 +98,3 @@ def health_deps():
         status_code=503,
         content={"status": "degraded", "deps": results},
     )
-
