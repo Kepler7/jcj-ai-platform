@@ -19,3 +19,13 @@ frontend/node_modules/
 
 # OS
 .DS_Store
+
+# Production secrets - never commit
+.env.production
+.env.production.*
+*.dump
+*.sql
+
+# Local production backups
+ihui_prod_backup_*.dump
+ihui_prod_backup_*.sql
