@@ -35,8 +35,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       - postgres
       - redis
@@ -68,16 +68,34 @@ services:
       context: ./frontend
     container_name: ihui_frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
+    networks:
+      - ihui_network
+  caddy:
+    image: caddy:2-alpine
+    container_name: ihui_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/ihui-certs/cloudflare:/certs/cloudflare:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
     networks:
       - ihui_network
 
 volumes:
   postgres_data:
   chroma_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   ihui_network:
