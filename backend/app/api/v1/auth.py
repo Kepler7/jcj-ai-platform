@@ -89,7 +89,13 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     )
 
     reset_link = f"{FRONTEND_RESET_URL}?token={token}"
-    send_password_reset_email(to_email=user.email, reset_link=reset_link)
+
+    try:
+        send_password_reset_email(to_email=user.email, reset_link=reset_link)
+    except Exception as exc:
+        # No rompemos el endpoint de forgot password si falla el proveedor de correo.
+        # La respuesta debe seguir siendo neutral para evitar enumeración de usuarios.
+        print(f"[AUTH] Failed to send password reset email: {exc}")
 
     return neutral
 

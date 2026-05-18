@@ -1,33 +1,38 @@
 import os
-import smtplib
-from email.message import EmailMessage
+import resend
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM = os.getenv("RESEND_FROM", "IHUI <onboarding@resend.dev>")
 
 
 def send_password_reset_email(*, to_email: str, reset_link: str) -> None:
-    # Si no está configurado SMTP, no truena (útil para dev)
-    if not SMTP_USER or not SMTP_PASSWORD:
-        print(f"[DEV] SMTP not configured. Reset link for {to_email}: {reset_link}")
+    """
+    Envía el correo de recuperación de contraseña usando Resend por API HTTP.
+
+    Importante:
+    - No usa SMTP, porque DigitalOcean puede bloquear puertos SMTP como 587.
+    - Usa HTTPS, que ya comprobamos que sí funciona desde la Droplet.
+    - Si no hay RESEND_API_KEY, no truena; solo imprime el link para desarrollo.
+    """
+
+    if not RESEND_API_KEY:
+        print(
+            f"[DEV] RESEND_API_KEY not configured. Reset link for {to_email}: {reset_link}"
+        )
         return
 
-    msg = EmailMessage()
-    msg["Subject"] = "Reset your password"
-    msg["From"] = SMTP_FROM
-    msg["To"] = to_email
-    msg.set_content(
-        "Hi!\n\n"
-        "We received a request to reset your password.\n\n"
-        f"Reset link (expires soon):\n{reset_link}\n\n"
-        "If you did not request this, you can ignore this email.\n"
-    )
+    resend.api_key = RESEND_API_KEY
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
+    params: resend.Emails.SendParams = {
+        "from": RESEND_FROM,
+        "to": [to_email],
+        "subject": "Reset your IHUI password",
+        "text": (
+            "Hi!\n\n"
+            "We received a request to reset your IHUI password.\n\n"
+            f"Reset link (expires soon):\n{reset_link}\n\n"
+            "If you did not request this, you can ignore this email.\n"
+        ),
+    }
+
+    resend.Emails.send(params)
