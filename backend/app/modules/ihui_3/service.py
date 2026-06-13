@@ -106,6 +106,7 @@ def _build_wizard_candidates(match_results) -> list[dict[str, Any]]:
                 ],
                 "micro_objective": item.micro_objective,
                 "strategy_steps": item.strategy_steps,
+                "family_strategy_steps": item.family_strategy_steps,
                 "frequency": item.frequency,
                 "duration": item.duration,
                 "progress_indicator": item.progress_indicator,
@@ -142,11 +143,15 @@ def _build_hypotheses(
     return hypotheses
 
 
-def _build_microintervention(match_item) -> IHUI3Microintervention:
+def _build_microintervention(
+    match_item,
+    *,
+    steps: list[str] | None = None,
+) -> IHUI3Microintervention:
     return IHUI3Microintervention(
         title=match_item.micro_objective or "Estrategia sugerida por IHUI 3.0",
         objective=match_item.micro_objective or "",
-        steps=match_item.strategy_steps,
+        steps=steps if steps is not None else match_item.strategy_steps,
         frequency=match_item.frequency,
         duration=match_item.duration,
         progress_indicator=match_item.progress_indicator,
@@ -200,7 +205,21 @@ def _build_matched_support(
     - La estrategia queda marcada como requires_validation.
     - La UI después podrá mostrar preguntas antes de cerrar la recomendación final.
     """
-    microintervention = _build_microintervention(match_item)
+    teacher_microintervention = _build_microintervention(
+        match_item,
+        steps=match_item.strategy_steps,
+    )
+
+    family_steps = (
+        match_item.family_strategy_steps
+        if match_item.family_strategy_steps
+        else match_item.strategy_steps
+    )
+
+    family_microintervention = _build_microintervention(
+        match_item,
+        steps=family_steps,
+    )
 
     detected_signals = match_item.observable_signals or []
     if not detected_signals and report_text:
@@ -222,12 +241,12 @@ def _build_matched_support(
         teacher_version=IHUI3TeacherOutput(
             summary=teacher_summary,
             signals_detected=detected_signals,
-            microintervenciones=[microintervention],
+            microintervenciones=[teacher_microintervention],
         ),
         parent_version=IHUI3ParentOutput(
             summary=parent_summary,
             signals_detected=detected_signals,
-            microintervenciones=[microintervention],
+            microintervenciones=[family_microintervention],
         ),
     )
 

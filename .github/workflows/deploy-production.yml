@@ -1,0 +1,74 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ihui-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to IHUI production
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+
+    steps:
+      - name: Prepare SSH
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${PROD_SSH_KEY}" > ~/.ssh/ihui_production
+          chmod 600 ~/.ssh/ihui_production
+
+          ssh-keyscan -p "${PROD_PORT}" -H "${PROD_HOST}" \
+            >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -i ~/.ssh/ihui_production \
+            -p "${PROD_PORT}" \
+            -o BatchMode=yes \
+            "${PROD_USER}@${PROD_HOST}" \
+            'echo "SSH connection successful"'
+
+      - name: Deploy exact commit
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          ssh \
+            -i ~/.ssh/ihui_production \
+            -p "${PROD_PORT}" \
+            -o BatchMode=yes \
+            "${PROD_USER}@${PROD_HOST}" \
+            "set -euo pipefail
+             cd /opt/ihui
+             git fetch origin main
+             git show '${TARGET_SHA}:scripts/deploy_prod.sh' > /tmp/ihui_deploy_prod.sh
+             chmod 700 /tmp/ihui_deploy_prod.sh
+             /tmp/ihui_deploy_prod.sh '${TARGET_SHA}'"

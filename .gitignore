@@ -29,3 +29,7 @@ frontend/node_modules/
 # Local production backups
 ihui_prod_backup_*.dump
 ihui_prod_backup_*.sql
+
+# IHUI 3.0 runtime-generated knowledge
+data/ihui3/ihui3_knowledge.normalized.jsonl
+data/ihui3/ihui3_sync_status.json

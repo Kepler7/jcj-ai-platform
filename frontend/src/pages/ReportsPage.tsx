@@ -993,7 +993,10 @@ export default function ReportsPage() {
         ? "Estrategia sugerida para el aula"
         : "Estrategia sugerida para casa";
 
-    const steps = ihui3Strategy.steps ?? [];
+    const steps =
+      audience === "teacher"
+        ? ihui3Strategy.steps ?? []
+        : ihui3Strategy.family_steps ?? ihui3Strategy.steps ?? [];
 
     return (
       <Box

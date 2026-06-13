@@ -110,9 +110,13 @@ def _strategy_from_wizard_candidate(candidate: dict[str, Any]) -> dict[str, Any]
     Ya no necesitamos volver a cargar el spreadsheet ni correr el matcher.
     Usamos la estrategia que quedó congelada cuando se generó el AI report.
     """
+    teacher_steps = candidate.get("strategy_steps") or []
+    family_steps = candidate.get("family_strategy_steps") or teacher_steps
+
     return {
         "micro_objective": candidate.get("micro_objective"),
-        "steps": candidate.get("strategy_steps") or [],
+        "steps": teacher_steps,
+        "family_steps": family_steps,
         "frequency": candidate.get("frequency"),
         "duration": candidate.get("duration"),
         "progress_indicator": candidate.get("progress_indicator"),
@@ -148,6 +152,7 @@ def _combined_strategy_from_candidates(
     Importante:
     - No inventa pasos.
     - Solo concatena pasos existentes de los playbooks empatados.
+    - Mantiene separados los pasos para maestro y familia.
     """
     selected_candidates = [
         candidate
@@ -155,17 +160,29 @@ def _combined_strategy_from_candidates(
         if str(candidate.get("playbook_id")) in {str(item) for item in playbook_ids}
     ]
 
-    steps: list[str] = []
+    teacher_steps: list[str] = []
+    family_steps: list[str] = []
 
     for candidate in selected_candidates:
-        for step in candidate.get("strategy_steps") or []:
+        candidate_teacher_steps = candidate.get("strategy_steps") or []
+        candidate_family_steps = (
+            candidate.get("family_strategy_steps") or candidate_teacher_steps
+        )
+
+        for step in candidate_teacher_steps:
             clean_step = str(step).strip()
-            if clean_step and clean_step not in steps:
-                steps.append(clean_step)
+            if clean_step and clean_step not in teacher_steps:
+                teacher_steps.append(clean_step)
+
+        for step in candidate_family_steps:
+            clean_step = str(step).strip()
+            if clean_step and clean_step not in family_steps:
+                family_steps.append(clean_step)
 
     return {
         "micro_objective": "Estrategia combinada por empate dentro del mismo núcleo.",
-        "steps": steps,
+        "steps": teacher_steps,
+        "family_steps": family_steps,
         "frequency": (
             selected_candidates[0].get("frequency") if selected_candidates else None
         ),
