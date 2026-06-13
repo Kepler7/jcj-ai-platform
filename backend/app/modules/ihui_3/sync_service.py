@@ -144,7 +144,25 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any] | None:
     micro_objective = get_first_existing(row, ["Microobjetivo", "Micro objetivo"])
 
     strategy_steps = parse_strategy_steps(
-        get_first_existing(row, ["Estrategias paso a paso", "Estrategia paso a paso"])
+        get_first_existing(
+            row,
+            [
+                "Estrategias paso a paso",
+                "Estrategia paso a paso",
+            ],
+        )
+    )
+
+    family_strategy_steps = parse_strategy_steps(
+        get_first_existing(
+            row,
+            [
+                "Estrategias paso a paso Familia",
+                "Estrategias paso a paso familia",
+                "Estrategia paso a paso Familia",
+                "Estrategia paso a paso familia",
+            ],
+        )
     )
 
     frequency = get_first_existing(row, ["Frecuencia"])
@@ -174,6 +192,7 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any] | None:
         "validation_questions": validation_questions,
         "micro_objective": micro_objective,
         "strategy_steps": strategy_steps,
+        "family_strategy_steps": family_strategy_steps,
         "frequency": frequency,
         "duration": duration,
         "progress_indicator": progress_indicator,

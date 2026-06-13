@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Literal, Optional, Any
 from pydantic import BaseModel, Field
 
-
 ConfidenceLevel = Literal["low", "medium", "high"]
 ReviewStatus = Literal["approved", "pending_human_review"]
 ValidationStatus = Literal[
@@ -35,6 +34,7 @@ class IHUI3KnowledgeItem(BaseModel):
 
     micro_objective: str = ""
     strategy_steps: list[str] = Field(default_factory=list)
+    family_strategy_steps: list[str] = Field(default_factory=list)
 
     frequency: str = ""
     duration: str = ""

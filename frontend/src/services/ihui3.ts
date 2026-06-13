@@ -21,6 +21,7 @@ export type Ihui3Hypothesis = {
 export type Ihui3Strategy = {
   micro_objective?: string;
   steps?: string[];
+  family_steps?: string[];
   frequency?: string;
   duration?: string;
   progress_indicator?: string;

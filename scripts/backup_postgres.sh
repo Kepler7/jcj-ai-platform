@@ -4,6 +4,9 @@ set -euo pipefail
 # Folder where local backups will be stored temporarily.
 BACKUP_DIR="/opt/ihui-backups/postgres"
 
+# Ensure the backup directory exists.
+mkdir -p "${BACKUP_DIR}"
+
 # Timestamp for unique backup filenames.
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
