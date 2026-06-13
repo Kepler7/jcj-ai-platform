@@ -5,7 +5,7 @@ APP_DIR="/opt/ihui"
 COMPOSE_FILE="docker-compose.prod.yml"
 BACKUP_SCRIPT="${APP_DIR}/scripts/backup_postgres.sh"
 RUNTIME_BACKUP_DIR="/tmp/ihui-runtime-backup"
-DEPLOY_LOG_DIR="/opt/ihui-deployments"
+DEPLOY_LOG_DIR="${APP_DIR}/data/deployments"
 
 TARGET_SHA="${1:-}"
 
